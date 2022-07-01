@@ -1,0 +1,215 @@
+body
+{
+    margin: 0px;
+    padding: 0px;
+    
+	background-size: 20%;
+	background-position: center;
+	background-repeat: no-repeat;
+	background-attachment: fixed;
+
+	font-family: "Segoe UI", sans-serif;
+}
+
+#background
+{
+    width: 100%;
+    height: 100%;
+	background-color: #1f1d2c;
+	background-image: url("bg/1.png");
+    background-size: cover;
+    position: fixed;
+    left: 0;
+    right: 0;
+    z-index: 1;
+    transition: background-image .7s ease-in-out;
+
+    display: block;
+}
+
+#logo
+{
+    width: 32vw;
+    height: 65vh;
+	background-image: url("logo.png");
+    background-size: cover;
+    background-repeat: no-repeat;
+    z-index: 999999;
+    position: fixed;
+    opacity: 0.2;
+}
+
+.log
+{
+    color: rgba(255, 255, 255, 0.46);
+    position: absolute;
+    left: 20px;
+    top: 20px;
+}
+
+.log-top-right
+{
+    top: 20px;
+    right: 20px;
+    text-align: right;
+    display: none;
+}
+
+.loading-container
+{
+    position: absolute;
+    left: 5%;
+    right: 5%;
+    bottom: 5%;
+
+    z-index: 5;
+
+    color: #fff;
+
+    font-family: Arial;
+}
+
+.loading-labels
+{
+    width: 100%;
+    height: 20px;
+
+    margin-left: 2px;
+    margin-right: 3px;
+
+    margin-top: 5px;
+    margin-bottom: 12px;
+
+    padding: 5px;
+    text-align: center;
+    position: relative;
+    display: inline;
+    white-space: nowrap;
+}
+
+.loading-labels div
+{
+    display: none;
+    text-align: left;
+    font-size: 20px;
+    position: relative;
+}
+
+.loading-bar-container
+{
+    width: 100%;
+    background-color: rgba(140, 140, 140, .9);
+    height: 20px;
+
+    margin-left: 2px;
+    margin-right: 3px;
+
+    margin-top: 5px;
+    margin-bottom: 5px;
+
+    box-shadow: 0 1px 5px #000 inset, 0 1px 0 #444;
+    background-color: #1a1a1a;
+
+    border-radius: 6px;
+    padding: 5px;
+    text-align: left;
+    overflow: hidden;
+    position: relative;
+    display: block;
+    white-space: nowrap;
+}
+
+.loading-bar
+{
+    width: 0%;
+    height: 20px;
+    border-radius: 3px;
+
+    background-size: 30px 30px;      
+    background-image: linear-gradient(135deg, rgba(255, 255, 255, .15) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, .15) 50%, rgba(255, 255, 255, .15) 75%, transparent 75%, transparent);
+    -webkit-animation: animate-stripes 3s linear infinite;
+
+    display: none;
+
+    transition: width 0.3s;
+    transition-timing-function: ease-out;
+}
+
+.bgcolor-first 
+{
+    background-color: #43a2d9;
+}
+
+.bgcolor-second 
+{
+    background-color: #2933c0;
+}
+
+.bgcolor-third 
+{
+    background-color: #352454;
+}
+
+.bgcolor-fourth 
+{
+    background-color: #53777A;
+}
+
+.color-first 
+{
+    color: #43a2d9;
+}
+
+.color-second 
+{
+    color: #2933c0;
+}
+
+.color-third 
+{
+    color: #352454;
+}
+
+.color-fourth 
+{
+    color: #53777A;
+}
+
+
+@keyframes animate-stripes {
+    0% {background-position: 0 0;} 100% {background-position: 60px 0;}
+}
+
+.loading-tos-warn {
+	width: 100%;
+	text-align: center;
+	padding-top: 1vh;
+	font-size: 1.3vh;
+	color: #467adb;
+	font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.tips-container {
+	display: flex;
+	flex-direction: column;
+	text-align: center;
+	font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.tips-title {
+	font-size: 1.6vh;
+	color: #467adb;
+	font-weight: bold;
+	padding-bottom: 0.7vh;
+}
+
+.tips-description {
+	font-size: 1.5vh;
+	padding-bottom: 1vh;
+}
+
+.logo{
+    position: absolute;
+    left: 36%;
+    top: 20%;
+}

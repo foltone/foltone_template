@@ -1,0 +1,133 @@
+* {
+	padding: 0;
+	margin: 0;
+	font-family: bebas_neuelight;
+}
+
+strong {
+	font-family: bebas_neueregular;
+	font-weight: 400;
+}
+
+.playerStats {
+	position: absolute;
+	left: 350px; /* Default: 350px */
+	bottom: 10px; /* Default: 10px */
+
+	left: 84.0%; /* (18.2% Right Side of Map) | (82.0% Right Side of Screen) | (2.7% Above Map)  */
+	top: 5%; /* (1.85% Default-Fix for all 16:9 resolutions) | (21.0% Above Map) */
+}
+
+.stat {
+	color: rgb(255, 255, 255);
+	background: linear-gradient(to left, rgba(201, 116, 116, 0.582) 0%,rgba(14, 14, 14, 0.440) 0%);
+	width: 245px;
+	height: 34px;
+	position: relative;
+	margin-bottom: 5px;
+	font-size: 19.3px;
+	letter-spacing: 1px;
+	text-align: left;
+	text-overflow: ellipsis;
+	text-shadow: 1px 1px 2px black;
+	border-radius: 5px;
+}
+
+.stat:after{
+  content:"";
+  display: block;
+  height: 2px;
+  width: 99%;
+  position: absolute;
+  bottom: 0;
+  left: 1px;
+}
+
+.stat .icon {
+	height: 35px;
+	width: 47px;
+	background: linear-gradient(to left, rgba(0, 0, 0, 0) 50%,rgba(0, 0, 0, 0) 10%);
+	position: absolute;
+	right: 220px;
+}
+
+.stat .icon i, .stat .icon img{
+	position: absolute;
+	top: 49%;
+	transform: translate(-50%, -50%);
+	border-radius: 20%;
+}
+
+.stat .icon img {
+	height: 34px;
+	width: 35px;
+}
+
+.stat span {
+	position: absolute;
+	top: 50%;
+	transform: translateY(-50%);
+	margin-left: 10px;
+}
+
+.triangle span {
+	position: absolute;
+	transform: translateY(-90%);
+	margin-left: 10px;
+	color: rgb(255, 255, 255);
+}
+
+.triangle{
+	width: 79%;
+	left: 51.6px;
+	position: relative;
+	top: 5px;
+	border-top: 21px solid rgba(14, 14, 14, 0.440);
+	border-radius: 5px;
+}
+
+.info{
+	position: absolute;
+	left: 3.2px;
+	top: -17.5px;
+}
+
+.stat:nth-child(4){
+	margin-bottom: 0px !important;
+	}
+
+#job span {
+	left: 8.5%;
+	}
+#job2 span {
+	font-size: 14.2px !important;
+	margin-top: -3.3px !important;
+	white-space: nowrap;
+	letter-spacing: 0.7px;
+	left: 7.2%;
+	}
+#money span {
+	left: 8.5%;
+	}
+#dirtymoney span {
+	left: 8.5%;
+	}
+#bankmoney span {
+	left: 8.5%;
+	}
+
+@font-face {
+	font-family: 'bebas_neuelight';
+	src: url('../fonts/bebasneue-light-webfont.woff2') format('woff2'),
+		url('../fonts/bebasneue-light-webfont.woff') format('woff');
+	font-weight: normal;
+	font-style: normal;
+}
+
+@font-face {
+	font-family: 'bebas_neueregular';
+	src: url('../fonts/bebasneue-regular-webfont.woff2') format('woff2'),
+		url('../fonts/bebasneue-regular-webfont.woff') format('woff');
+	font-weight: normal;
+	font-style: normal;
+}

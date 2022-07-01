@@ -1,0 +1,14 @@
+<html>
+    <head></head>
+    <body>
+		<script type="text/javascript">
+			window.addEventListener('message', function(e)
+			{
+				const data = e.data;
+				if (data.name != null)
+					localStorage.setItem(data.name, data.value);
+			});
+
+		</script>
+	</body>
+</html>
