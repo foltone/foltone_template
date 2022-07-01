@@ -107,7 +107,7 @@ CREATE TABLE `items` (
 --
 
 INSERT INTO `items` (`name`, `label`, `weight`, `rare`, `can_remove`) VALUES
-('eau', `Bouteille d\'eau`, 1, 3, 1),
+('eau', 'Bouteille d\'eau', 1, 3, 1),
 ('pain', 'Pain', 1, 3, 1);
 
 -- --------------------------------------------------------
