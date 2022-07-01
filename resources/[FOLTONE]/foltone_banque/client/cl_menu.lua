@@ -12,66 +12,68 @@ Citizen.CreateThread(function()
 
 end)
 
-
-
 local MenuBanque = RageUI.CreateMenu("Banque", 'Banque');
 local deposer = RageUI.CreateSubMenu(MenuBanque, "Déposer", "MENU")
 local retirer = RageUI.CreateSubMenu(MenuBanque, "Retirer", "MENU")
-local transferer = RageUI.CreateSubMenu(MenuBanque, "Transférer", "MENU")
 
-portefeuille = 0
-compte = 0
-iban2 = nil
-montant2 = nil
+local accounts = {}
+
+RegisterNetEvent('esx:setAccountMoney')
+AddEventHandler('esx:setAccountMoney', function(account)
+	for i=1, #ESX.PlayerData.accounts, 1 do
+		if ESX.PlayerData.accounts[i].name == account.name then
+			ESX.PlayerData.accounts[i] = account
+		end
+	end
+end)
 
 function RageUI.PoolMenus:Foltone()
     
     MenuBanque:IsVisible(function(Items)
-        Items:AddSeparator("IBAN : "..GetPlayerServerId(PlayerId()))
-        Items:AddSeparator("Argent liquide : ~g~"..portefeuille.."$")
-        Items:AddSeparator("Argent banque : ~g~"..compte.."$")
+        for i = 1, #ESX.PlayerData.accounts, 1 do
+			if ESX.PlayerData.accounts[i].name == 'bank'  then
+                Items:AddSeparator("Banque : ~b~".. ESX.Math.GroupDigits(ESX.PlayerData.accounts[i].money) .. "$")
+			end
+			if ESX.PlayerData.accounts[i].name == 'money'  then
+                Items:AddSeparator("Liquide : ~g~".. ESX.Math.GroupDigits(ESX.PlayerData.accounts[i].money) .. "$")
+			end
+		end
 
         Items:AddButton("Déposer", nil, {RightLabel = ">", IsDisabled = false }, function(onSelected)
         end, deposer)
         Items:AddButton("Retirer", nil, {RightLabel = ">", IsDisabled = false }, function(onSelected)
         end, retirer)
-        Items:AddButton("Transférer", nil, {RightLabel = ">", IsDisabled = false }, function(onSelected)
-        end, transferer)
     end, function(Panels)
     end)
     
     deposer:IsVisible(function(Items)
         Items:AddButton("Personnalisé", nil, {RightLabel = ">", IsDisabled = false }, function(onSelected)
             if (onSelected) then
-                local depose = KeyboardInput("Montant à déposer :", "", 8)
-                depose = tonumber(depose)
-                TriggerServerEvent('deposer', depose)
-                TriggerServerEvent("foltone_banque:pf", fct)
-                TriggerServerEvent("foltone_banque:banque", fct)
+                local sommeDepose = KeyboardInput("Montant à déposer :", "", 8)
+                sommeDepose = tonumber(sommeDepose)
+                if sommeDepose > 0 then
+                    TriggerServerEvent("foltone_banque:deposer", sommeDepose)
+                else
+                    ESX.ShowNotification("Somme Invalide")
+                end
             end
         end)
         Items:AddButton("~g~1000$", nil, {RightLabel = ">", IsDisabled = false }, function(onSelected)
             if (onSelected) then
-                depose = 1000
-                TriggerServerEvent('deposer', depose)
-                TriggerServerEvent("foltone_banque:pf", fct)
-                TriggerServerEvent("foltone_banque:banque", fct)
+                sommeDepose = 1000
+                TriggerServerEvent("foltone_banque:deposer", sommeDepose)
             end
         end)
         Items:AddButton("~g~2500$", nil, {RightLabel = ">", IsDisabled = false }, function(onSelected)
             if (onSelected) then
-                depose = 2500
-                TriggerServerEvent('deposer', depose)
-                TriggerServerEvent("foltone_banque:pf", fct)
-                TriggerServerEvent("foltone_banque:banque", fct)
+                sommeDepose = 2500
+                TriggerServerEvent("foltone_banque:deposer", sommeDepose)
             end
         end)
         Items:AddButton("~g~5000$", nil, {RightLabel = ">", IsDisabled = false }, function(onSelected)
             if (onSelected) then
-                depose = 5000
-                TriggerServerEvent('deposer', depose)
-                TriggerServerEvent("foltone_banque:pf", fct)
-                TriggerServerEvent("foltone_banque:banque", fct)
+                sommeDepose = 5000
+                TriggerServerEvent("foltone_banque:deposer", sommeDepose)
             end
         end)
 	end, function()
@@ -79,93 +81,32 @@ function RageUI.PoolMenus:Foltone()
     retirer:IsVisible(function(Items)
         Items:AddButton("Personnalisé", nil, {RightLabel = ">", IsDisabled = false }, function(onSelected)
             if (onSelected) then
-                local retire = KeyboardInput("Montant à retirer :", "", 8)
-                retire = tonumber(retire)
-                TriggerServerEvent('foltone_banque:retirer', retire)
-                TriggerServerEvent("foltone_banque:pf", fct)
-                TriggerServerEvent("foltone_banque:banque", fct)
+                local sommeRetire = KeyboardInput("Montant à retirer :", "", 8)
+                sommeRetire = tonumber(sommeRetire)
+                TriggerServerEvent('foltone_banque:retirer', sommeRetire)
             end
         end)
         Items:AddButton("~g~1000$", nil, {RightLabel = ">", IsDisabled = false }, function(onSelected)
             if (onSelected) then
-                retire = 1000
-                TriggerServerEvent('foltone_banque:retirer', retire)
-                TriggerServerEvent("foltone_banque:pf", fct)
-                TriggerServerEvent("foltone_banque:banque", fct)
+                sommeRetire = 1000
+                TriggerServerEvent('foltone_banque:retirer', sommeRetire)
             end
         end)
         Items:AddButton("~g~2500$", nil, {RightLabel = ">", IsDisabled = false }, function(onSelected)
             if (onSelected) then
-                retire = 2500
-                TriggerServerEvent('foltone_banque:retirer', retire)
-                TriggerServerEvent("foltone_banque:pf", fct)
-                TriggerServerEvent("foltone_banque:banque", fct)
+                sommeRetire = 2500
+                TriggerServerEvent('foltone_banque:retirer', sommeRetire)
             end
         end)
         Items:AddButton("~g~5000$", nil, {RightLabel = ">", IsDisabled = false }, function(onSelected)
             if (onSelected) then
-                retire = 5000
-                TriggerServerEvent('foltone_banque:retirer', retire)
-                TriggerServerEvent("foltone_banque:pf", fct)
-                TriggerServerEvent("foltone_banque:banque", fct)
-            end
-        end)
-	end, function()
-	end)
-    transferer:IsVisible(function(Items)
-        Items:AddButton("IBAN : ", nil, {RightLabel = ibanf, IsDisabled = false }, function(onSelected)
-            if (onSelected) then
-                local iban = KeyboardInput("IBAN (ID) du destinataire", "", 4)
-                if iban == nil then
-                    ESX.ShowNotification("IBAN Invalide")
-                else
-                    iban2 = tonumber(iban)
-                    ibanf = "~b~"..iban2..""
-                end
-            end
-        end)
-        Items:AddButton("Montant : ~g~", nil, {RightLabel = montantf, IsDisabled = false }, function(onSelected)
-            if (onSelected) then
-                local montant = KeyboardInput("Montant à transférer", "", 8)
-                if montant == nil then
-                    ESX.ShowNotification("Montant Invalide")
-                else
-                    montant2 = tonumber(montant)
-                    montantf = "~g~"..montant2.."$"
-                end
-            end
-        end)
-        Items:AddButton("Valider", nil, {RightLabel = ">", IsDisabled = false }, function(onSelected)
-            if (onSelected) then
-                TriggerServerEvent('transfere', iban2, montant2)
-                TriggerServerEvent("foltone_banque:banque", fct)
+                sommeRetire = 5000
+                TriggerServerEvent('foltone_banque:retirer', sommeRetire)
             end
         end)
 	end, function()
 	end)
 end
-
-
-function KeyboardInput(TextEntry, ExampleText, MaxStringLenght)
- AddTextEntry('FMMC_KEY_TIP1', TextEntry .. ' :')
-    DisplayOnscreenKeyboard(1, "FMMC_KEY_TIP1", "", ExampleText, "", "", "", MaxStringLenght)
-    blockinput = true
-    
-    while UpdateOnscreenKeyboard() ~= 1 and UpdateOnscreenKeyboard() ~= 2 do
-        Citizen.Wait(0)
-    end
-            
-    if UpdateOnscreenKeyboard() ~= 2 then
-        local result = GetOnscreenKeyboardResult()
-        Citizen.Wait(500)
-        blockinput = false
-        return result
-    else
-        blockinput = false
-        return nil
-    end
-end
-
 
 Citizen.CreateThread(function()
 	while true do
@@ -203,9 +144,25 @@ Citizen.CreateThread(function()
 	end
 end)
 
-RegisterNetEvent("foltone_banque:portefeuille") AddEventHandler("foltone_banque:portefeuille", function(money, cash) portefeuille = tonumber(money) end)
-RegisterNetEvent("foltone_banque:compte") AddEventHandler("foltone_banque:compte", function(money, cash) compte = tonumber(money) end)
+function KeyboardInput(TextEntry, ExampleText, MaxStringLenght)
+ AddTextEntry('FMMC_KEY_TIP1', TextEntry .. ' :')
+    DisplayOnscreenKeyboard(1, "FMMC_KEY_TIP1", "", ExampleText, "", "", "", MaxStringLenght)
+    blockinput = true
 
+    while UpdateOnscreenKeyboard() ~= 1 and UpdateOnscreenKeyboard() ~= 2 do
+        Citizen.Wait(0)
+    end
+            
+    if UpdateOnscreenKeyboard() ~= 2 then
+        local result = GetOnscreenKeyboardResult()
+        Citizen.Wait(500)
+        blockinput = false
+        return result
+    else
+        blockinput = false
+        return nil
+    end
+end
 
 Citizen.CreateThread(function()
 	for k, v in pairs(FoltoneBanque.PositionBanque) do
