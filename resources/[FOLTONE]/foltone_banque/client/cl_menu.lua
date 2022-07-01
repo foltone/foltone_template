@@ -1,22 +1,41 @@
 ESX = nil
 
+local accounts = {}
+
 Citizen.CreateThread(function()
 	while ESX == nil do
 		TriggerEvent('esx:getSharedObject', function(obj) ESX = obj end)
-
-        local target, distance = ESX.Game.GetClosestPlayer()
-
-
-		Citizen.Wait(500)
+		Citizen.Wait(0)
 	end
 
+    PlayerLoaded = true
+	ESX.PlayerData = ESX.GetPlayerData()
+
+end)
+
+RegisterNetEvent('esx:playerLoaded')
+AddEventHandler('esx:playerLoaded', function(xPlayer)
+	ESX.PlayerData = xPlayer
+	PlayerLoaded = true
+end)
+
+RegisterNetEvent('es:activateMoney')
+AddEventHandler('es:activateMoney', function(money)
+	  ESX.PlayerData.money = money
+end)
+
+RegisterNetEvent('esx:setAccountMoney')
+AddEventHandler('esx:setAccountMoney', function(account)
+	for i=1, #ESX.PlayerData.accounts, 1 do
+		if ESX.PlayerData.accounts[i].name == account.name then
+			ESX.PlayerData.accounts[i] = account
+		end
+	end
 end)
 
 local MenuBanque = RageUI.CreateMenu("Banque", 'Banque');
 local deposer = RageUI.CreateSubMenu(MenuBanque, "Déposer", "MENU")
 local retirer = RageUI.CreateSubMenu(MenuBanque, "Retirer", "MENU")
-
-local accounts = {}
 
 RegisterNetEvent('esx:setAccountMoney')
 AddEventHandler('esx:setAccountMoney', function(account)
