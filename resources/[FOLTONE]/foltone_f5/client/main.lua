@@ -56,7 +56,7 @@ local inventaireselec = RageUI.CreateSubMenu(inventaire, "Gestion", "Gestion")
 local armes = RageUI.CreateSubMenu(Foltonef5, "Armes", "Armes")
 local armesselec = RageUI.CreateSubMenu(armes, "Gestion", "Gestion")
 
-local portefeuille = RageUI.CreateSubMenu(Foltonef5, "Porte-Feuille", "Porte-Feuille")
+local portefeuille = RageUI.CreateSubMenu(Foltonef5, "Portefeuille", "Portefeuille")
 local facture = RageUI.CreateSubMenu(portefeuille, "Facture", "Facture")
 local papiers = RageUI.CreateSubMenu(portefeuille, "Papiers", "Papiers")
 local gestionsos = RageUI.CreateSubMenu(portefeuille, "Societé", "Societe")
@@ -181,7 +181,7 @@ function RageUI.PoolMenus:Example()
 		Items:AddButton("Armes", nil, { RightLabel = ">", IsDisabled = false }, function(onSelected)
 		end, armes)
 
-		Items:AddButton("Porte-Feuille", nil, { RightLabel = ">", IsDisabled = false }, function(onSelected)
+		Items:AddButton("Portefeuille", nil, { RightLabel = ">", IsDisabled = false }, function(onSelected)
 		end, portefeuille)
 
 		Items:AddButton("Vehicule", nil, { RightLabel = ">", IsDisabled = false }, function(onSelected)

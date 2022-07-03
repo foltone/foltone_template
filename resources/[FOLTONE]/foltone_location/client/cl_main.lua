@@ -10,7 +10,7 @@ local TempVehLoc = nil
 local TempModelLoc = nil
 achat = false
 
-local MenuLocation = RageUI.CreateMenu("Loaction", "Loaction");
+local MenuLocation = RageUI.CreateMenu("Location", "Location");
 local ListIndex = 1;
 local ListPay = {
     "Liquide",
@@ -76,7 +76,7 @@ CreateThread(function()
 			DrawMarker(36, Config.Position, 0.0, 0.0, 0.0, 0.0,0.0,0.0, 0.7, 0.7, 0.7, 52, 152, 219, 250, false, true, p19, false)  
 			if dist <= 1.0 then
 				wait = 0
-				ESX.ShowHelpNotification("Appuyer sur ~g~[E]~s~ pour accéder à la ~g~Loaction ~s~!")
+				ESX.ShowHelpNotification("Appuyer sur ~g~[E]~s~ pour accéder à la ~g~Location ~s~!")
 				if IsControlJustPressed(1,51) then
 					RageUI.Visible(MenuLocation, not RageUI.Visible(MenuLocation))
 				end
@@ -99,7 +99,7 @@ Citizen.CreateThread(function()
 		SetBlipAsShortRange(blip, true)
 
 		BeginTextCommandSetBlipName('STRING')
-		AddTextComponentSubstringPlayerName('Loaction')
+		AddTextComponentSubstringPlayerName('Location')
 		EndTextCommandSetBlipName(blip)
     end
 end)
