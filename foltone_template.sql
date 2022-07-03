@@ -201,7 +201,7 @@ CREATE TABLE `users` (
   `inventory` longtext DEFAULT NULL,
   `job` varchar(20) DEFAULT 'unemployed',
   `job_grade` int(11) DEFAULT 0,
-  `job2` varchar(20) DEFAULT 'unemployed2',
+  `job2` varchar(20) DEFAULT 'unemployed',
   `job2_grade` int(11) DEFAULT 0,
   `loadout` longtext DEFAULT NULL,
   `position` varchar(255) DEFAULT '{"x":-269.4,"y":-955.3,"z":31.2,"heading":205.8}',
