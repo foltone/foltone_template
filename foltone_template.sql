@@ -97,7 +97,7 @@ CREATE TABLE `datastore_data` (
 CREATE TABLE `items` (
   `name` varchar(50) NOT NULL,
   `label` varchar(50) NOT NULL,
-  `weight` int(11) NOT NULL DEFAULT 1,
+  `weight` float NOT NULL DEFAULT 1,
   `rare` tinyint(4) NOT NULL DEFAULT 0,
   `can_remove` tinyint(4) NOT NULL DEFAULT 1
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
