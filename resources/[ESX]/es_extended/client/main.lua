@@ -55,9 +55,48 @@ AddEventHandler('esx:playerLoaded', function(xPlayer, isNew, skin)
 		NetworkSetFriendlyFireOption(true)
 	end
 
-	if Config.DisableHealthRegen then
-		SetPlayerHealthRechargeMultiplier(PlayerId(), 0.0)
-	end
+	if Config.DisableVehicleRewards then
+    DisablePlayerVehicleRewards(PlayerId())
+  end
+
+  if Config.DisableNPCDrops then
+    RemoveAllPickupsOfType(0xDF711959) -- carbine rifle
+    RemoveAllPickupsOfType(0xF9AFB48F) -- pistol
+    RemoveAllPickupsOfType(0xA9355DCD) -- pumpshotgun
+  end
+
+		CreateThread(function()
+			while true do 
+				local Sleep = 1500
+
+				if Config.DisableHealthRegeneration then
+					SetPlayerHealthRechargeMultiplier(PlayerId(), 0.0)
+				end
+
+				if Config.DisableWeaponWheel then
+					Sleep = 0
+					BlockWeaponWheelThisFrame()
+					DisableControlAction(0, 37,true)
+				end
+
+				if Config.DisableAimAssist then
+					if Sleep == 1500 then Sleep = 100 end
+					if IsPedArmed(ESX.PlayerData.ped, 4) then
+						SetPlayerLockonRangeOverride(PlayerId(), 2.0)
+					end
+				end
+
+				if Config.RemoveHudCommonents then
+					if Sleep ~= 0 then Sleep = 0 end
+					for i=1, #(Config.RemoveHudCommonents) do
+						 if Config.RemoveHudCommonents[i] then
+								HideHudComponentThisFrame(i)
+						 end
+					end
+				end
+				Wait(Sleep)
+			end
+		end)
 
 	if Config.EnableHud then
 		for k,v in ipairs(ESX.PlayerData.accounts) do
@@ -85,6 +124,8 @@ AddEventHandler('esx:playerLoaded', function(xPlayer, isNew, skin)
 			grade2_label = grade2Label
 		})
 	end
+
+	FreezeEntityPosition(PlayerPedId(), false)
 	StartServerSyncLoops()
 end)
 
@@ -506,6 +547,7 @@ if not Config.OxInventory then
 								local dict, anim = 'weapons@first_person@aim_rng@generic@projectile@sticky_bomb@', 'plant_floor'
 								ESX.Streaming.RequestAnimDict(dict)
 								TaskPlayAnim(ESX.PlayerData.ped, dict, anim, 8.0, 1.0, 1000, 16, 0.0, false, false, false)
+								RemoveAnimDict(dict)
 								Wait(1000)
 
 								TriggerServerEvent('esx:onPickup', pickupId)

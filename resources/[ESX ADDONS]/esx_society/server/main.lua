@@ -106,7 +106,7 @@ AddEventHandler('esx_society:washMoney', function(society, amount)
 	local account = xPlayer.getAccount('black_money')
 	amount = ESX.Math.Round(tonumber(amount))
 
-	if xPlayer.job.name == society.name or xPlayer.job2.name == society.name then
+	if xPlayer.job.name == society then
 		if amount and amount > 0 and account.money >= amount then
 			xPlayer.removeAccountMoney('black_money', amount)
 
@@ -231,75 +231,6 @@ ESX.RegisterServerCallback('esx_society:getEmployees', function(source, cb, soci
 
 end)
 
-
-ESX.RegisterServerCallback('esx_society:getEmployees2', function(source, cb, society)
-	local employees = {}
-
-	local xPlayers = ESX.GetExtendedPlayers('job2', society)
-	for _, xPlayer in pairs(xPlayers) do
-
-		local name = xPlayer.name
-		if Config.EnableESXIdentity and name == GetPlayerName(xPlayer.source) then
-			name = xPlayer.get('firstName') .. ' ' .. xPlayer.get('lastName')
-		end
-
-		table.insert(employees, {
-			name = name,
-			identifier = xPlayer.identifier,
-			job2 = {
-				name = society,
-				label = xPlayer.job2.label,
-				grade = xPlayer.job2.grade,
-				grade_name = xPlayer.job2.grade_name,
-				grade_label = xPlayer.job2.grade_label
-			}
-		})
-	end
-		
-	local query = "SELECT identifier, job_grade FROM `users` WHERE `job2`=@job2 ORDER BY job_grade DESC"
-
-	if Config.EnableESXIdentity then
-		query = "SELECT identifier, job_grade, firstname, lastname FROM `users` WHERE `job2`=@job2 ORDER BY job_grade DESC"
-	end
-
-	MySQL.query(query, {society},
-	function(result)
-		for k, row in pairs(result) do
-			local alreadyInTable
-			local identifier = row.identifier
-
-			for k, v in pairs(employees) do
-				if v.identifier == identifier then
-					alreadyInTable = true
-				end
-			end
-
-			if not alreadyInTable then
-				local name = "Name not found." -- maybe this should be a locale instead ¯\_(ツ)_/¯
-
-				if Config.EnableESXIdentity then
-					name = row.firstname .. ' ' .. row.lastname 
-				end
-				
-				table.insert(employees, {
-					name = name,
-					identifier = identifier,
-					job2 = {
-						name = society,
-						label = Jobs[society].label,
-						grade = row.job_grade,
-						grade_name = Jobs[society].grades[tostring(row.job_grade)].name,
-						grade_label = Jobs[society].grades[tostring(row.job_grade)].label
-					}
-				})
-			end
-		end
-
-		cb(employees)
-	end)
-
-end)
-
 ESX.RegisterServerCallback('esx_society:getJob', function(source, cb, society)
 	local job = json.decode(json.encode(Jobs[society]))
 	local grades = {}
@@ -315,23 +246,6 @@ ESX.RegisterServerCallback('esx_society:getJob', function(source, cb, society)
 	job.grades = grades
 
 	cb(job)
-end)
-
-ESX.RegisterServerCallback('esx_society:getJob2', function(source, cb, society)
-	local job2 = json.decode(json.encode(Jobs[society]))
-	local grades = {}
-
-	for k,v in pairs(job2.grades) do
-		table.insert(grades, v)
-	end
-
-	table.sort(grades, function(a, b)
-		return a.grade < b.grade
-	end)
-
-	job2.grades = grades
-
-	cb(job2)
 end)
 
 ESX.RegisterServerCallback('esx_society:setJob', function(source, cb, identifier, job, grade, type)
@@ -365,37 +279,6 @@ ESX.RegisterServerCallback('esx_society:setJob', function(source, cb, identifier
 	end
 end)
 
-ESX.RegisterServerCallback('esx_society:setJob2', function(source, cb, identifier, job2, grade2, type)
-	local xPlayer = ESX.GetPlayerFromId(source)
-	local isBoss = xPlayer.job2.grade_name == 'boss'
-
-	if isBoss then
-		local xTarget = ESX.GetPlayerFromIdentifier(identifier)
-
-		if xTarget then
-			xTarget.setJob2(job2, grade2)
-
-			if type == 'hire' then
-				xTarget.showNotification(_U('you_have_been_hired', job2))
-			elseif type == 'promote' then
-				xTarget.showNotification(_U('you_have_been_promoted'))
-			elseif type == 'fire' then
-				xTarget.showNotification(_U('you_have_been_fired', xTarget.getJob2().label))
-			end
-
-			cb()
-		else
-			MySQL.update('UPDATE users SET job2 = ?, job2_grade = ? WHERE identifier = ?', {job2, grade2, identifier},
-			function(rowsChanged)
-				cb()
-			end)
-		end
-	else
-		print(('esx_society: %s attempted to setJob2'):format(xPlayer.identifier))
-		cb()
-	end
-end)
-
 ESX.RegisterServerCallback('esx_society:setJobSalary', function(source, cb, job, grade, salary)
 	local xPlayer = ESX.GetPlayerFromId(source)
 
@@ -404,7 +287,8 @@ ESX.RegisterServerCallback('esx_society:setJobSalary', function(source, cb, job,
 			MySQL.update('UPDATE job_grades SET salary = ? WHERE job_name = ? AND grade = ?', {salary, job, grade},
 			function(rowsChanged)
 				Jobs[job].grades[tostring(grade)].salary = salary
-
+				ESX.RefreshJobs()
+				Wait(1)
 				local xPlayers = ESX.GetExtendedPlayers('job', job)
 				for _, xTarget in pairs(xPlayers) do
 
@@ -412,13 +296,37 @@ ESX.RegisterServerCallback('esx_society:setJobSalary', function(source, cb, job,
 						xTarget.setJob(job, grade)
 					end
 				end
-
 				cb()
 			end)
 		else
 			print(('esx_society: %s attempted to setJobSalary over config limit!'):format(xPlayer.identifier))
 			cb()
 		end
+	else
+		print(('esx_society: %s attempted to setJobSalary'):format(xPlayer.identifier))
+		cb()
+	end
+end)
+
+
+ESX.RegisterServerCallback('esx_society:setJobLabel', function(source, cb, job, grade, label)
+	local xPlayer = ESX.GetPlayerFromId(source)
+
+	if xPlayer.job.name == job and xPlayer.job.grade_name == 'boss' then
+			MySQL.update('UPDATE job_grades SET label = ? WHERE job_name = ? AND grade = ?', {label, job, grade},
+			function(rowsChanged)
+				Jobs[job].grades[tostring(grade)].label = label
+				ESX.RefreshJobs()
+				Wait(1)
+				local xPlayers = ESX.GetExtendedPlayers('job', job)
+				for _, xTarget in pairs(xPlayers) do
+
+					if xTarget.job.grade == grade then
+						xTarget.setJob(job, grade)
+					end
+				end
+				cb()
+			end)
 	else
 		print(('esx_society: %s attempted to setJobSalary'):format(xPlayer.identifier))
 		cb()
@@ -449,29 +357,6 @@ ESX.RegisterServerCallback('esx_society:getOnlinePlayers', function(source, cb)
 	cb(onlinePlayers)
 end)
 
-ESX.RegisterServerCallback('esx_society:getOnlinePlayers2', function(source, cb)
-	if getOnlinePlayers == false and next(onlinePlayers) == nil then -- Prevent multiple xPlayer loops from running in quick succession
-		getOnlinePlayers, onlinePlayers = true, {}
-		
-		local xPlayers = ESX.GetExtendedPlayers()
-		for _, xPlayer in pairs(xPlayers) do
-			table.insert(onlinePlayers, {
-				source = xPlayer.source,
-				identifier = xPlayer.identifier,
-				name = xPlayer.name,
-				job2 = xPlayer.job2
-			})
-		end
-		cb(onlinePlayers)
-		getOnlinePlayers = false
-		Wait(1000) -- For the next second any extra requests will receive the cached list
-		onlinePlayers = {}
-		return
-	end
-	while getOnlinePlayers do Wait(10) end -- Wait for the xPlayer loop to finish
-	cb(onlinePlayers)
-end)
-
 ESX.RegisterServerCallback('esx_society:getVehiclesInGarage', function(source, cb, societyName)
 	local society = GetSociety(societyName)
 
@@ -488,7 +373,7 @@ end)
 function isPlayerBoss(playerId, job)
 	local xPlayer = ESX.GetPlayerFromId(playerId)
 
-	if xPlayer.job.name == job and xPlayer.job.grade_name == 'boss' or xPlayer.job2.name == job and xPlayer.job2.grade_name == 'boss' then
+	if xPlayer.job.name == job and xPlayer.job.grade_name == 'boss' then
 		return true
 	else
 		print(('esx_society: %s attempted open a society boss menu!'):format(xPlayer.identifier))

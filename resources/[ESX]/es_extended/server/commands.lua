@@ -118,7 +118,11 @@ end, false, {help = _U('command_clear')})
 
 ESX.RegisterCommand({'clearall', 'clsall'}, 'admin', function(xPlayer, args, showError)
 	TriggerClientEvent('chat:clear', -1)
-end, false, {help = _U('command_clearall')})
+end, true, {help = _U('command_clearall')})
+
+ESX.RegisterCommand("refreshjobs", 'admin', function(xPlayer, args, showError)
+	ESX.RefreshJobs()
+end, true, {help = _U('command_clearall')})
 
 if not Config.OxInventory then
 	ESX.RegisterCommand('clearinventory', 'admin', function(xPlayer, args, showError)
@@ -127,6 +131,7 @@ if not Config.OxInventory then
 				args.playerId.setInventoryItem(v.name, 0)
 			end
 		end
+		TriggerEvent('esx:playerInventoryCleared',args.playerId)
 	end, true, {help = _U('command_clearinventory'), validate = true, arguments = {
 		{name = 'playerId', help = _U('commandgeneric_playerid'), type = 'player'}
 	}})
@@ -135,6 +140,7 @@ if not Config.OxInventory then
 		for i=#args.playerId.loadout, 1, -1 do
 			args.playerId.removeWeapon(args.playerId.loadout[i].name)
 		end
+		TriggerEvent('esx:playerLoadoutCleared',args.playerId)
 	end, true, {help = _U('command_clearloadout'), validate = true, arguments = {
 		{name = 'playerId', help = _U('commandgeneric_playerid'), type = 'player'}
 	}})
@@ -181,13 +187,12 @@ ESX.RegisterCommand('info', {"user", "admin"}, function(xPlayer, args, showError
 end, true)
 
 ESX.RegisterCommand('coords', "admin", function(xPlayer, args, showError)
-	local coords = GetEntityCoords(GetPlayerPed(xPlayer.source), false)
-	local heading = GetEntityHeading(GetPlayerPed(xPlayer.source))
+    local ped = GetPlayerPed(xPlayer.source)
+	local coords = GetEntityCoords(ped, false)
+	local heading = GetEntityHeading(ped)
 	print("Coords - Vector3: ^5".. vector3(coords.x,coords.y,coords.z).. "^0")
 	print("Coords - Vector4: ^5".. vector4(coords.x, coords.y, coords.z, heading) .. "^0")
 end, true)
-
-
 
 ESX.RegisterCommand('tpm', "admin", function(xPlayer, args, showError)
 	xPlayer.triggerEvent("esx:tpm")
