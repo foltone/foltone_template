@@ -15,6 +15,8 @@ local PlayerProps = {}
 
 local societymoney, societymoney2 = nil, nil
 
+local weight = {}
+
 local stylevide = { BackgroundColor={255, 255, 255, 0}, Line = {250, 250 ,250, 250}, Line2 = {250, 250 ,250, 250}}
 
 Citizen.CreateThread(function()
@@ -163,6 +165,10 @@ end
 
 
 Keys.Register("F5", "F5", "Test", function()
+	ESX.TriggerServerCallback('foltone:getWeight', function(playerWeight)
+		print(playerWeight)
+		weight = playerWeight
+	end)
 	RefreshMoney()
 	RageUI.Visible(Foltonef5, not RageUI.Visible(Foltonef5))
 end)
@@ -195,6 +201,11 @@ function RageUI.PoolMenus:Example()
 
 --------------- inventaire ---------------
 	inventaire:IsVisible(function(Items)
+		ESX.TriggerServerCallback('foltone:getWeight', function(playerWeight)
+			weight = playerWeight
+		end)
+		Items:AddSeparator("~b~Poids : ~r~"..weight..'Kg ~s~/ ~r~'..ESX.PlayerData.maxWeight..'Kg')
+
 		ESX.PlayerData = ESX.GetPlayerData()
 		local countInventaire = 0;
 		for i = 1, #ESX.PlayerData.inventory do

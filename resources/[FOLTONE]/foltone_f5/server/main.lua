@@ -280,3 +280,8 @@ ESX.RegisterServerCallback('foltone:AfficheKeys', function(source, cb, plate)
     end
 end)
 
+ESX.RegisterServerCallback('foltone:getWeight', function(source, cb)
+	local xPlayer = ESX.GetPlayerFromId(source)
+	playerWeight = xPlayer.getWeight()
+	cb(playerWeight)
+end)
