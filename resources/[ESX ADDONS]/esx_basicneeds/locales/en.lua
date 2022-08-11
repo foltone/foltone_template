@@ -1,4 +1,4 @@
 Locales['en'] = {
-  ['used_pain'] = 'you have used ~y~1x~s~ ~b~pain~s~',
-  ['used_eau'] = 'you have used ~y~1x~s~ ~b~eau~s~',
+  ['used_bread'] = 'you have used 1x bread',
+  ['used_water'] = 'you have used 1x water',
 }

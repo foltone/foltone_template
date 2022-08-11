@@ -227,7 +227,7 @@ function ESX.GetExtendedPlayers(key, val)
 	local xPlayers = {}
 	for k, v in pairs(ESX.Players) do
 		if key then
-			if (key == 'job' and v.job.name == val) or (key == 'job2' and v.job2.name == val) or v[key] == val then
+			if (key == 'job' and v.job.name == val) or v[key] == val then
 				xPlayers[#xPlayers + 1] = v
 			end
 		else
@@ -310,7 +310,9 @@ end
 
 function ESX.UseItem(source, item, ...)
 	if ESX.Items[item] then
-		Core.UsableItemsCallbacks[item](source, item, ...)
+		if Core.UsableItemsCallbacks[item] then
+			Core.UsableItemsCallbacks[item](source, item, ...)
+		end
 	else
 		print(('[^3WARNING^7] Item ^5"%s"^7 was used but does not exist!'):format(item))
 	end

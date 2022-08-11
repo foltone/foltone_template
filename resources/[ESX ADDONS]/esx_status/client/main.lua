@@ -163,7 +163,7 @@ end)
 if Config.Display then
 	CreateThread(function()
 		while true do
-			Wait(500)
+			Wait(300)
 
 			if IsPauseMenuActive() and not isPaused then
 				isPaused = true

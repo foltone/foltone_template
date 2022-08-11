@@ -33,7 +33,7 @@ end
 
 RegisterNetEvent('esx_addonaccount:setMoney')
 AddEventHandler('esx_addonaccount:setMoney', function(society, money)
-	if ESX.PlayerData.job and ESX.PlayerData.job.grade_name == 'boss' and 'society_' .. ESX.PlayerData.job.name == society then
+	if ESX.PlayerData.job and ESX.PlayerData.job.grade_name == 'boss' and 'society_' .. ESX.PlayerData.job.name == society or ESX.PlayerData.job2 and ESX.PlayerData.job2.grade_name == 'boss' and 'society_' .. ESX.PlayerData.job2.name == society then
 		UpdateSocietyMoneyHUDElement(money)
 	end
 end)
@@ -394,6 +394,7 @@ function OpenPromoteMenu(society, employee)
 	end, society)
 end
 
+
 function OpenPromoteMenu2(society, employee)
 	ESX.TriggerServerCallback('esx_society:getJob2', function(job2)
 		local elements = {}
@@ -469,6 +470,7 @@ function OpenManageGradesMenu(society)
 		end)
 	end, society)
 end
+
 
 function OpenManageGradesMenu2(society)
 	ESX.TriggerServerCallback('esx_society:getJob', function(job2)
