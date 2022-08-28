@@ -3,12 +3,17 @@
 
 version '1.0.0'
 author 'Cfx.re <root@cfx.re>'
-description 'A basic freeroam gametype that uses the default spawn logic from spawnmanager.'
+description 'Example loading screen.'
 repository 'https://github.com/citizenfx/cfx-server-data'
 
-resource_type 'gametype' { name = 'Freeroam' }
+files {
+    'index.html',
+    'keks.css',
+    'bankgothic.ttf',
+    'loadscreen.jpg'
+}
 
-client_script 'basic_client.lua'
+loadscreen 'index.html'
 
-game 'common'
-fx_version 'adamant'
+fx_version 'bodacious'
+game 'gta5'

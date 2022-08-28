@@ -3,12 +3,28 @@
 
 version '1.0.0'
 author 'Cfx.re <root@cfx.re>'
-description 'Limits the number of players to the amount set by sv_maxclients in your server.cfg.'
+description 'Provides baseline chat functionality using a NUI-based interface.'
 repository 'https://github.com/citizenfx/cfx-server-data'
 
-client_script 'client.lua'
-server_script 'server.lua'
+ui_page 'dist/ui.html'
+
+client_script 'cl_chat.lua'
+server_script 'sv_chat.lua'
+
+files {
+  'dist/ui.html',
+  'dist/index.css',
+  'html/vendor/*.css',
+  'html/vendor/fonts/*.woff2',
+}
 
 fx_version 'adamant'
-games { 'gta5', 'rdr3' }
+games { 'rdr3', 'gta5' }
 rdr3_warning 'I acknowledge that this is a prerelease build of RedM, and I am aware my resources *will* become incompatible once RedM ships.'
+
+dependencies {
+  'yarn',
+  'webpack'
+}
+
+webpack_config 'webpack.config.js'
