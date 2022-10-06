@@ -1,15 +1,15 @@
-ESX.RegisterUsableItem('bread', function(source)
+ESX.RegisterUsableItem('pain', function(source)
 	local xPlayer = ESX.GetPlayerFromId(source)
-	xPlayer.removeInventoryItem('bread', 1)
+	xPlayer.removeInventoryItem('pain', 1)
 
 	TriggerClientEvent('esx_status:add', source, 'hunger', 200000)
 	TriggerClientEvent('esx_basicneeds:onEat', source)
 	xPlayer.showNotification(_U('used_bread'))
 end)
 
-ESX.RegisterUsableItem('water', function(source)
+ESX.RegisterUsableItem('eau', function(source)
 	local xPlayer = ESX.GetPlayerFromId(source)
-	xPlayer.removeInventoryItem('water', 1)
+	xPlayer.removeInventoryItem('eau', 1)
 
 	TriggerClientEvent('esx_status:add', source, 'thirst', 200000)
 	TriggerClientEvent('esx_basicneeds:onDrink', source)
