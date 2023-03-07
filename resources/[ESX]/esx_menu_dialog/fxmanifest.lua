@@ -3,8 +3,8 @@ fx_version 'adamant'
 game 'gta5'
 
 description 'ESX Menu Dialog'
-
-version '1.7.5'
+lua54 'yes'
+version '1.9.0'
 
 client_scripts {
 	'@es_extended/imports.lua',

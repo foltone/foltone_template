@@ -1,10 +1,7 @@
-Citizen.CreateThread(function()
-	while ESX == nil do
-		TriggerEvent('esx:getSharedObject', function(obj) ESX = obj end)
-		Citizen.Wait(0)
-	end
-	ESX.PlayerData = ESX.GetPlayerData()
-end)
+ESX = exports["es_extended"]:getSharedObject()
+
+ESX.PlayerData = ESX.GetPlayerData()
+
 
 local IsDead = false
 

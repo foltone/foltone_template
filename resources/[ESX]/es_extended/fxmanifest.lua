@@ -5,7 +5,7 @@ game 'gta5'
 description 'ES Extended'
 
 lua54 'yes'
-version '1.7.5'
+version '1.9.1'
 
 shared_scripts {
 	'locale.lua',
@@ -17,7 +17,7 @@ shared_scripts {
 
 server_scripts {
 	'@oxmysql/lib/MySQL.lua',
-
+	'config.logs.lua',
 	'server/common.lua',
 	'server/classes/player.lua',
 	'server/classes/overrides/*.lua',
@@ -27,9 +27,9 @@ server_scripts {
 	'server/main.lua',
 	'server/commands.lua',
 
-	'common/modules/math.lua',
-	'common/modules/table.lua',
-	'common/functions.lua'
+	'common/modules/*.lua',
+	'common/functions.lua',
+	'server/modules/*.lua'
 }
 
 client_scripts {
@@ -37,14 +37,11 @@ client_scripts {
 	'client/functions.lua',
 	'client/wrapper.lua',
 	'client/main.lua',
+	
+	'common/modules/*.lua',
+	'common/functions.lua',
 
-	'client/modules/death.lua',
-	'client/modules/scaleform.lua',
-	'client/modules/streaming.lua',
-
-	'common/modules/math.lua',
-	'common/modules/table.lua',
-	'common/functions.lua'
+	'client/modules/*.lua'
 }
 
 ui_page {
@@ -64,13 +61,11 @@ files {
 
 	'html/fonts/pdown.ttf',
 	'html/fonts/bankgothic.ttf',
-
-	'html/img/accounts/bank.png',
-	'html/img/accounts/black_money.png',
-	'html/img/accounts/money.png'
 }
 
 dependencies {
+	'/server:5949',
+	'/onesync',
 	'oxmysql',
 	'spawnmanager',
 }

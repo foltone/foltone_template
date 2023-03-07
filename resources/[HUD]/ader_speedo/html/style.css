@@ -1,0 +1,127 @@
+* {
+  font-family: 'Montserrat';
+  color: white;
+}
+
+.container {
+  overflow: hidden;
+  width: 230px;
+  height: 120px;
+  max-height: 200px;
+  background-color: rgba(0, 0, 0, 0.904);
+  border-radius: 4px;
+  box-shadow: #000000 0px 0px 2.5px;
+  position: relative;
+  margin-left: 87.5%;
+  margin-top: 950px;
+  opacity: 0;
+  -webkit-animation: slideToRight 1s forwards;
+	animation: slideToRight 1s forwards;
+}
+
+.container.isInVehicle {
+  -webkit-animation: slideToLeft 1s forwards;
+  animation: slideToLeft 1s forwards;
+}
+
+i {
+  font-size: 15px;
+  float: left;
+  margin-top: 19.8%;
+  margin-left: 15px;
+}
+
+.velo {
+  position: absolute;
+  margin-left: 35px;
+  margin-top: 20px;
+  font-weight: 700;
+  font-size: 2.5vh;
+}
+
+.km {
+  font-weight: 400;
+  font-size: 1vh;
+  float: left;
+  margin-top: 50px;
+  margin-left: 38px;
+}
+
+.geartext {
+  font-weight: 400;
+  font-size: 1vh;
+  float: left;
+  margin-top: 50px;
+  margin-left: 100px;
+}
+
+
+.gear {
+  position: absolute;
+  margin-left: 75%;
+  margin-top: 20px;
+  font-weight: 700;
+  font-size: 2.5vh;
+}
+
+.progress {
+  color: white;
+  width: 400px;
+  position: absolute;
+  margin-left: 4px;
+  margin-top: 10px;
+}
+
+.progress header {
+  margin-left: 2.5%;
+  margin-bottom: 20%;
+}
+
+.progress .bar {
+  position: relative;
+  background-color: #0f183f;
+  border-radius: 10px;
+  margin-left: 13%;
+  width: 35%;
+}
+
+.progress .bar .percent-fuel {
+  position: relative;
+  color: white;
+  background-color: rgb(67, 0, 253);
+  width: 100%;
+  border-radius: 10px;
+  height: 11px;
+  margin-bottom: 20px;
+  opacity: 1;
+}
+
+.progress-gear {
+  position: absolute;
+  width: 400px;
+  margin-top: 5px;
+}
+
+@-webkit-keyframes slideToLeft {
+  0% { bottom: 0px; opacity: 0; }
+
+  100% { bottom: 20px; opacity: 1; }
+}
+
+@keyframes slideToLeft {
+  0% { bottom: 0px; opacity: 0; }
+
+  100% { bottom: 20px; opacity: 1; }
+}
+
+@-webkit-keyframes slideToRight {
+  0% { bottom: 20px; opacity: 1; }
+
+  100% { bottom: -10px; opacity: 0; }
+}
+
+@keyframes slideToRight {
+  0% { bottom: 20px; opacity: 1; }
+
+  100% { bottom: -10px; opacity: 0; }
+}

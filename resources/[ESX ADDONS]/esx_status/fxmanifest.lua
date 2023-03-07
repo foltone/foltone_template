@@ -4,7 +4,8 @@ game 'gta5'
 
 description 'ESX Status'
 
-version '1.7.5'
+version '1.0'
+legacyversion '1.9.1'
 
 lua54 'yes'
 

@@ -19,6 +19,22 @@ AddEventHandler('esx_skin:save', function(skin)
 	})
 end)
 
+RegisterServerEvent('esx_skin:setWeight')
+AddEventHandler('esx_skin:setWeight', function(skin)
+    local xPlayer = ESX.GetPlayerFromId(source)
+
+    if not ESX.GetConfig().OxInventory then
+        local defaultMaxWeight = ESX.GetConfig().MaxWeight
+        local backpackModifier = Config.BackpackWeight[skin.bags_1]
+
+        if backpackModifier then
+            xPlayer.setMaxWeight(defaultMaxWeight + backpackModifier)
+        else
+            xPlayer.setMaxWeight(defaultMaxWeight)
+        end
+    end
+end)
+
 RegisterServerEvent('esx_skin:responseSaveSkin')
 AddEventHandler('esx_skin:responseSaveSkin', function(skin)
 	local xPlayer = ESX.GetPlayerFromId(source)
@@ -30,7 +46,7 @@ AddEventHandler('esx_skin:responseSaveSkin', function(skin)
 		file:flush()
 		file:close()
 	else
-		print(('esx_skin: %s attempted saving skin to file'):format(xPlayer.getIdentifier()))
+		print(('[^2INFO^7] ^5%s^7 attempted saving skin to file'):format(xPlayer.getIdentifier()))
 	end
 end)
 
@@ -57,8 +73,8 @@ end)
 
 ESX.RegisterCommand('skin', 'admin', function(xPlayer, args, showError)
 	xPlayer.triggerEvent('esx_skin:openSaveableMenu')
-end, false, {help = _U('skin')})
+end, false, {help = TranslateCap('skin')})
 
 ESX.RegisterCommand('skinsave', 'admin', function(xPlayer, args, showError)
 	xPlayer.triggerEvent('esx_skin:requestSaveSkin')
-end, false, {help = _U('saveskin')})
+end, false, {help = TranslateCap('saveskin')})

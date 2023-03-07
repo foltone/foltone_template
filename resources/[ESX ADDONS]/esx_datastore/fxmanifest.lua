@@ -4,7 +4,11 @@ game 'gta5'
 
 description 'ESX Data Store'
 
-version '1.7.5'
+version '1.0'
+legacyversion '1.9.1'
+
+
+lua54 'yes'
 
 server_scripts {
 	'@es_extended/imports.lua',

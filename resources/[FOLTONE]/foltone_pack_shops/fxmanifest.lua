@@ -22,7 +22,7 @@ client_scripts {
 }
 
 server_script {
-    '@mysql-async/lib/MySQL.lua',
+    '@oxmysql/lib/MySQL.lua',
     'server/sv_main.lua'
 }
 

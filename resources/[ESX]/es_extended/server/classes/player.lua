@@ -1,3 +1,9 @@
+local SetTimeout = SetTimeout
+local GetPlayerPed = GetPlayerPed
+local DoesEntityExist = DoesEntityExist
+local GetEntityCoords = GetEntityCoords
+local GetEntityHeading = GetEntityHeading
+
 function CreateExtendedPlayer(playerId, identifier, group, accounts, inventory, weight, job, job2, loadout, name, coords)
 	local targetOverrides = Config.PlayerFunctionOverride and Core.PlayerFunctionOverrides[Config.PlayerFunctionOverride] or {}
 	
@@ -20,18 +26,43 @@ function CreateExtendedPlayer(playerId, identifier, group, accounts, inventory, 
 	if Config.Multichar then self.license = 'license'.. identifier:sub(identifier:find(':'), identifier:len()) else self.license = 'license:'..identifier end
 
 	ExecuteCommand(('add_principal identifier.%s group.%s'):format(self.license, self.group))
+	
+	Player(self.source).state:set("identifier", self.identifier, true)
+	Player(self.source).state:set("license", self.license, true)
+	Player(self.source).state:set("job", self.job, true)
+	Player(self.source).state:set("group", self.group, true)
+	Player(self.source).state:set("name", self.name, true)
 
 	function self.triggerEvent(eventName, ...)
 		TriggerClientEvent(eventName, self.source, ...)
 	end
 
 	function self.setCoords(coords)
-		self.updateCoords(coords)
-		self.triggerEvent('esx:teleport', coords)
+		local Ped = GetPlayerPed(self.source)
+		local vector = type(coords) == "vector4" and coords or type(coords) == "vector3" and vector4(coords, 0.0) or
+		vec(coords.x, coords.y, coords.z, coords.heading or 0.0)
+		SetEntityCoords(Ped, vector.xyz, false, false, false, false)
+		SetEntityHeading(Ped, vector.w)
 	end
 
-	function self.updateCoords(coords)
-		self.coords = {x = ESX.Math.Round(coords.x, 1), y = ESX.Math.Round(coords.y, 1), z = ESX.Math.Round(coords.z, 1), heading = ESX.Math.Round(coords.heading or 0.0, 1)}
+	function self.updateCoords()
+		SetTimeout(1000,function()
+			local Ped = GetPlayerPed(self.source)
+			if DoesEntityExist(Ped) then
+				local coords = GetEntityCoords(Ped)
+				local distance = #(coords - vector3(self.coords.x, self.coords.y, self.coords.z))
+				if distance > 1.5 then
+					local heading = GetEntityHeading(Ped)
+					self.coords = {
+						x = coords.x,
+						y = coords.y, 
+						z = coords.z, 
+						heading = heading or 0.0
+					}
+				end
+			end
+			self.updateCoords()
+		end)
 	end
 
 	function self.getCoords(vector)
@@ -55,14 +86,14 @@ function CreateExtendedPlayer(playerId, identifier, group, accounts, inventory, 
 		return self.getAccount('money').money
 	end
 
-	function self.addMoney(money)
+	function self.addMoney(money, reason)
 		money = ESX.Math.Round(money)
-		self.addAccountMoney('money', money)
+		self.addAccountMoney('money', money, reason)
 	end
 
-	function self.removeMoney(money)
+	function self.removeMoney(money, reason)
 		money = ESX.Math.Round(money)
-		self.removeAccountMoney('money', money)
+		self.removeAccountMoney('money', money, reason)
 	end
 
 	function self.getIdentifier()
@@ -72,6 +103,7 @@ function CreateExtendedPlayer(playerId, identifier, group, accounts, inventory, 
 	function self.setGroup(newGroup)
 		ExecuteCommand(('remove_principal identifier.%s group.%s'):format(self.license, self.group))
 		self.group = newGroup
+		Player(self.source).state:set("group", self.group, true)
 		ExecuteCommand(('add_principal identifier.%s group.%s'):format(self.license, self.group))
 	end
 
@@ -81,6 +113,7 @@ function CreateExtendedPlayer(playerId, identifier, group, accounts, inventory, 
 
 	function self.set(k, v)
 		self.variables[k] = v
+		Player(self.source).state:set(k, v, true)
 	end
 
 	function self.get(k)
@@ -91,8 +124,8 @@ function CreateExtendedPlayer(playerId, identifier, group, accounts, inventory, 
 		if minimal then
 			local minimalAccounts = {}
 
-			for k,v in ipairs(self.accounts) do
-				minimalAccounts[v.name] = v.money
+			for i=1, #self.accounts do
+				minimalAccounts[self.accounts[i].name] = self.accounts[i].money
 			end
 
 			return minimalAccounts
@@ -102,9 +135,9 @@ function CreateExtendedPlayer(playerId, identifier, group, accounts, inventory, 
 	end
 
 	function self.getAccount(account)
-		for k,v in ipairs(self.accounts) do
-			if v.name == account then
-				return v
+		for i=1, #self.accounts do
+			if self.accounts[i].name == account then
+				return self.accounts[i]
 			end
 		end
 	end
@@ -132,7 +165,7 @@ function CreateExtendedPlayer(playerId, identifier, group, accounts, inventory, 
 	function self.getJob2()
 		return self.job2
 	end
-	
+
 	function self.getLoadout(minimal)
 		if minimal then
 			local minimalLoadout = {}
@@ -168,44 +201,74 @@ function CreateExtendedPlayer(playerId, identifier, group, accounts, inventory, 
 
 	function self.setName(newName)
 		self.name = newName
+		Player(self.source).state:set("name", self.name, true)
 	end
 
-	function self.setAccountMoney(accountName, money)
+	function self.setAccountMoney(accountName, money, reason)
+		reason = reason or 'unknown'
+		if not tonumber(money) then 
+			print(('[^1ERROR^7] Tried To Set Account ^5%s^0 For Player ^5%s^0 To An Invalid Number -> ^5%s^7'):format(accountName, self.playerId, money))
+			return
+		end
 		if money >= 0 then
 			local account = self.getAccount(accountName)
 
 			if account then
-				local newMoney = ESX.Math.Round(money)
-				account.money = newMoney
+				money = account.round and ESX.Math.Round(money) or money
+				self.accounts[account.index].money = money
 
 				self.triggerEvent('esx:setAccountMoney', account)
+				TriggerEvent('esx:setAccountMoney', self.source, accountName, money, reason)
+			else 
+				print(('[^1ERROR^7] Tried To Set Invalid Account ^5%s^0 For Player ^5%s^0!'):format(accountName, self.playerId))
 			end
+		else 
+			print(('[^1ERROR^7] Tried To Set Account ^5%s^0 For Player ^5%s^0 To An Invalid Number -> ^5%s^7'):format(accountName, self.playerId, money))
 		end
 	end
 
-	function self.addAccountMoney(accountName, money)
+	function self.addAccountMoney(accountName, money, reason)
+		reason = reason or 'Unknown'
+		if not tonumber(money) then 
+			print(('[^1ERROR^7] Tried To Set Account ^5%s^0 For Player ^5%s^0 To An Invalid Number -> ^5%s^7'):format(accountName, self.playerId, money))
+			return
+		end
+		if money > 0 then
+			local account = self.getAccount(accountName)
+			if account then
+				money = account.round and ESX.Math.Round(money) or money
+				self.accounts[account.index].money += money
+
+				self.triggerEvent('esx:setAccountMoney', account)
+				TriggerEvent('esx:addAccountMoney', self.source, accountName, money, reason)
+			else 
+				print(('[^1ERROR^7] Tried To Set Add To Invalid Account ^5%s^0 For Player ^5%s^0!'):format(accountName, self.playerId))
+			end
+		else 
+			print(('[^1ERROR^7] Tried To Set Account ^5%s^0 For Player ^5%s^0 To An Invalid Number -> ^5%s^7'):format(accountName, self.playerId, money))
+		end
+	end
+
+	function self.removeAccountMoney(accountName, money, reason)
+		reason = reason or 'Unknown'
+		if not tonumber(money) then 
+			print(('[^1ERROR^7] Tried To Set Account ^5%s^0 For Player ^5%s^0 To An Invalid Number -> ^5%s^7'):format(accountName, self.playerId, money))
+			return
+		end
 		if money > 0 then
 			local account = self.getAccount(accountName)
 
 			if account then
-				local newMoney = account.money + ESX.Math.Round(money)
-				account.money = newMoney
+				money = account.round and ESX.Math.Round(money) or money
+				self.accounts[account.index].money -= money
 
 				self.triggerEvent('esx:setAccountMoney', account)
+				TriggerEvent('esx:removeAccountMoney', self.source, accountName, money, reason)
+			else 
+				print(('[^1ERROR^7] Tried To Set Add To Invalid Account ^5%s^0 For Player ^5%s^0!'):format(accountName, self.playerId))
 			end
-		end
-	end
-
-	function self.removeAccountMoney(accountName, money)
-		if money > 0 then
-			local account = self.getAccount(accountName)
-
-			if account then
-				local newMoney = account.money - ESX.Math.Round(money)
-				account.money = newMoney
-
-				self.triggerEvent('esx:setAccountMoney', account)
-			end
+		else 
+			print(('[^1ERROR^7] Tried To Set Account ^5%s^0 For Player ^5%s^0 To An Invalid Number -> ^5%s^7'):format(accountName, self.playerId, money))
 		end
 	end
 
@@ -270,10 +333,14 @@ function CreateExtendedPlayer(playerId, identifier, group, accounts, inventory, 
 	end
 
 	function self.canCarryItem(name, count, metadata)
-		local currentWeight, itemWeight = self.weight, ESX.Items[name].weight
-		local newWeight = currentWeight + (itemWeight * count)
+        if ESX.Items[name] then
+            local currentWeight, itemWeight = self.weight, ESX.Items[name].weight
+            local newWeight = currentWeight + (itemWeight * count)
 
-		return newWeight <= self.maxWeight
+            return newWeight <= self.maxWeight
+        else
+            print(('[^3WARNING^7] Item ^5"%s"^7 was used but does not exist!'):format(name))
+        end
 	end
 
 	function self.canSwapItem(firstItem, firstItemCount, testItem, testItemCount)
@@ -324,9 +391,10 @@ function CreateExtendedPlayer(playerId, identifier, group, accounts, inventory, 
 			end
 
 			TriggerEvent('esx:setJob', self.source, self.job, lastJob)
-			self.triggerEvent('esx:setJob', self.job)
+			self.triggerEvent('esx:setJob', self.job, lastJob)
+			Player(self.source).state:set("job", self.job, true)
 		else
-			print(('[es_extended] [^3WARNING^7] Ignoring invalid .setJob() usage for "%s"'):format(self.identifier))
+			print(('[es_extended] [^3WARNING^7] Ignoring invalid ^5.setJob()^7 usage for ID: ^5%s^7, Job: ^5%s^7'):format(self.source, job))
 		end
 	end
 
@@ -377,7 +445,7 @@ function CreateExtendedPlayer(playerId, identifier, group, accounts, inventory, 
 				tintIndex = 0
 			})
 
-			self.triggerEvent('esx:addWeapon', weaponName, ammo)
+			GiveWeaponToPed(GetPlayerPed(self.source), joaat(weaponName), ammo, false, false)
 			self.triggerEvent('esx:addInventoryItem', weaponLabel, false, true)
 		end
 	end
@@ -391,7 +459,8 @@ function CreateExtendedPlayer(playerId, identifier, group, accounts, inventory, 
 			if component then
 				if not self.hasWeaponComponent(weaponName, weaponComponent) then
 					self.loadout[loadoutNum].components[#self.loadout[loadoutNum].components + 1] = weaponComponent
-					self.triggerEvent('esx:addWeaponComponent', weaponName, weaponComponent)
+					local componentHash = ESX.GetWeaponComponent(weaponName, weaponComponent).hash
+					GiveWeaponComponentToPed(GetPlayerPed(self.source), joaat(weaponName), componentHash)
 					self.triggerEvent('esx:addInventoryItem', component.label, false, true)
 				end
 			end
@@ -403,7 +472,7 @@ function CreateExtendedPlayer(playerId, identifier, group, accounts, inventory, 
 
 		if weapon then
 			weapon.ammo = weapon.ammo + ammoCount
-			self.triggerEvent('esx:setWeaponAmmo', weaponName, weapon.ammo)
+			SetPedAmmo(GetPlayerPed(self.source), joaat(weaponName), weapon.ammo)
 		end
 	end
 
@@ -411,9 +480,7 @@ function CreateExtendedPlayer(playerId, identifier, group, accounts, inventory, 
 		local loadoutNum, weapon = self.getWeapon(weaponName)
 
 		if weapon then
-			if ammoCount < weapon.ammo then
-				weapon.ammo = ammoCount
-			end
+			weapon.ammo = ammoCount
 		end
 	end
 

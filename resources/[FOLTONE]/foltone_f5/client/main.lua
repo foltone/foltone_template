@@ -19,11 +19,9 @@ local weight = {}
 
 local stylevide = { BackgroundColor={255, 255, 255, 0}, Line = {250, 250 ,250, 250}, Line2 = {250, 250 ,250, 250}}
 
+ESX = exports["es_extended"]:getSharedObject()
+
 Citizen.CreateThread(function()
-	while ESX == nil do
-		TriggerEvent('esx:getSharedObject', function(obj) ESX = obj end)
-		Citizen.Wait(0)
-	end
 
 	while ESX.GetPlayerData().job == nil do
 		Citizen.Wait(0)

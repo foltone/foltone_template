@@ -1,11 +1,4 @@
-ESX = nil
-
-Citizen.CreateThread(function()
-	while ESX == nil do
-		TriggerEvent('esx:getSharedObject', function(obj) ESX = obj end)
-		Citizen.Wait(500)
-	end
-end)
+ESX = exports["es_extended"]:getSharedObject()
 
 local MenuLtd = RageUI.CreateMenu("", 'LTD', nil, nil, "foltone", "ltd");
 local Menu24 = RageUI.CreateMenu("", '24/7', nil, nil, "foltone", "24-7");

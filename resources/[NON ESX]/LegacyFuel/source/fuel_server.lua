@@ -1,7 +1,5 @@
-ESX = nil
-
 if Config.UseESX then
-	TriggerEvent('esx:getSharedObject', function(obj) ESX = obj end)
+	ESX = exports["es_extended"]:getSharedObject()
 
 	RegisterServerEvent('fuel:pay')
 	AddEventHandler('fuel:pay', function(price)

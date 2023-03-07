@@ -1,2 +1,2 @@
 Config = {}
-Config.Locale = 'fr'
+Config.Locale = GetConvar('esx:locale', 'en')

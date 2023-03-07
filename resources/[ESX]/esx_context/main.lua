@@ -12,10 +12,12 @@ function Post(fn,...)
 	})
 end
 
-function Open(position,eles,onSelect,onClose)
+function Open(position,eles,onSelect,onClose,canClose)
+	local canClose = canClose == nil and true or canClose
 	activeMenu = {
 		position = position,
 		eles = eles,
+		canClose = canClose,
 		onSelect = onSelect,
 		onClose = onClose
 	}
@@ -74,11 +76,11 @@ end)
 -- NUI Callbacks
 -- [ closed | selected | changed ]
 
-RegisterNUICallback("closed",function()
-	if not activeMenu then
-		return
+RegisterNUICallback("closed",function(data,cb)
+	if not activeMenu or (activeMenu and not activeMenu.canClose) then
+		return cb(false)
 	end
-
+	cb(true)
 	Closed()
 end)
 
@@ -130,6 +132,8 @@ RegisterNUICallback("changed",function(data)
 			ele.inputValue = math.min(ele.inputMax,ele.inputValue)
 		end
 	elseif ele.inputType == "text" then
+		ele.inputValue = data.value
+	elseif ele.inputType == "radio" then
 		ele.inputValue = data.value
 	end
 end)

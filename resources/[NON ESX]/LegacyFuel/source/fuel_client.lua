@@ -1,11 +1,5 @@
 if Config.UseESX then
-	Citizen.CreateThread(function()
-		while not ESX do
-			TriggerEvent('esx:getSharedObject', function(obj) ESX = obj end)
-
-			Citizen.Wait(500)
-		end
-	end)
+	ESX = exports["es_extended"]:getSharedObject()
 end
 
 local isNearPump = false
