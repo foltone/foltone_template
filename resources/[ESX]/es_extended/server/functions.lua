@@ -203,7 +203,7 @@ function Core.SavePlayers(cb)
                                      xPlayer.identifier}
     end
     MySQL.prepare(
-      "UPDATE `users` SET `accounts` = ?, `job` = ?, `job_grade` = ?, `group` = ?, `position` = ?, `inventory` = ?, `loadout` = ? WHERE `identifier` = ?",
+      "UPDATE `users` SET `accounts` = ?, `job` = ?, `job_grade` = ?, `job2` = ?, `job2_grade` = ?, `group` = ?, `position` = ?, `inventory` = ?, `loadout` = ? WHERE `identifier` = ?",
       parameters, function(results)
         if results then
           if type(cb) == 'function' then
