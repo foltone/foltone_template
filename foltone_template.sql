@@ -223,13 +223,6 @@ CREATE TABLE `users` (
   `pincode` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
---
--- Déchargement des données de la table `users`
---
-
-INSERT INTO `users` (`identifier`, `accounts`, `group`, `inventory`, `job`, `job_grade`, `job2`, `job2_grade`, `loadout`, `metadata`, `position`, `firstname`, `lastname`, `dateofbirth`, `sex`, `height`, `skin`, `status`, `is_dead`, `id`, `disabled`, `last_property`, `created_at`, `last_seen`, `phone_number`, `pincode`) VALUES
-('5bc6e2bacc160a90067f58f80837fa35a0b6a0ae', '{\"bank\":50200,\"black_money\":0,\"money\":0}', 'user', '[]', 'unemployed', 0, 'unemployed', NULL, '[]', '[]', '{\"y\":-672.052734375,\"z\":32.868896484375,\"x\":-490.5758056640625}', 'Fabrice', 'Lellouche', '04/11/1990', 'H', 200, '{\"eyebrows_2\":0,\"watches_1\":-1,\"skin_md_weight\":50,\"eyebrows_5\":0,\"face_md_weight\":50,\"cheeks_2\":0,\"jaw_2\":0,\"lipstick_2\":0,\"mask_2\":0,\"chest_3\":0,\"sex\":0,\"blush_3\":0,\"makeup_4\":0,\"blemishes_1\":0,\"eyebrows_6\":0,\"lipstick_1\":0,\"neck_thickness\":0,\"shoes_1\":8,\"chin_1\":0,\"nose_1\":0,\"bproof_1\":0,\"chin_4\":0,\"age_2\":0,\"bodyb_3\":-1,\"blush_2\":0,\"pants_2\":0,\"hair_1\":1,\"moles_1\":0,\"nose_4\":0,\"makeup_2\":0,\"complexion_1\":0,\"chin_3\":0,\"torso_1\":13,\"bodyb_1\":-1,\"jaw_1\":0,\"chin_2\":0,\"tshirt_1\":-1,\"tshirt_2\":0,\"beard_3\":0,\"eyebrows_4\":0,\"ears_1\":-1,\"decals_1\":0,\"chest_2\":0,\"bags_1\":0,\"nose_2\":0,\"blush_1\":0,\"eyebrows_3\":0,\"lip_thickness\":0,\"beard_2\":0,\"chain_2\":0,\"cheeks_3\":0,\"makeup_3\":0,\"torso_2\":0,\"chest_1\":0,\"hair_color_1\":0,\"mask_1\":-1,\"lipstick_3\":0,\"bags_2\":0,\"pants_1\":24,\"nose_3\":0,\"eyebrows_1\":0,\"helmet_2\":0,\"blemishes_2\":0,\"complexion_2\":0,\"shoes_2\":0,\"bproof_2\":0,\"bracelets_2\":0,\"glasses_2\":0,\"nose_5\":0,\"watches_2\":0,\"dad\":0,\"ears_2\":0,\"makeup_1\":0,\"beard_4\":0,\"bodyb_4\":0,\"bodyb_2\":0,\"age_1\":0,\"mom\":21,\"eye_color\":0,\"bracelets_1\":-1,\"hair_color_2\":0,\"chain_1\":0,\"nose_6\":0,\"helmet_1\":-1,\"sun_1\":0,\"beard_1\":0,\"arms\":11,\"glasses_1\":-1,\"eye_squint\":0,\"decals_2\":0,\"arms_2\":0,\"moles_2\":0,\"lipstick_4\":0,\"cheeks_1\":0,\"sun_2\":0,\"hair_2\":0}', '[{\"val\":979300,\"percent\":97.93,\"name\":\"hunger\"},{\"val\":984475,\"percent\":98.4475,\"name\":\"thirst\"}]', 0, 3, 0, NULL, '2023-08-12 11:42:20', '2023-08-12 13:33:55', NULL, NULL);
-
 -- --------------------------------------------------------
 
 --
