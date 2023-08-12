@@ -10,14 +10,11 @@ client_scripts {
 	"src/MenuController.lua",
 	"src/components/*.lua",
 	"src/elements/*.lua",
-	"src/items/*.lua",
-	"src/panels/*.lua",
-	"src/windows/*.lua"
+	"src/items/*.lua"
 }
 
 client_scripts {
     'client/cl_menu.lua',
-	'client/cl_ped_blip.lua',
 	'@es_extended/locale.lua',
 	'config.lua'
 }

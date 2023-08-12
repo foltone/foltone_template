@@ -71,7 +71,7 @@ AddEventHandler('esx_society:withdrawMoney', function(societyName, amount)
 	TriggerEvent('esx_addonaccount:getSharedAccount', society.account, function(account)
 		if amount > 0 and account.money >= amount then
 			account.removeMoney(amount)
-			xPlayer.addMoney(amount, "Society Withdraw")
+			xPlayer.addMoney(amount, TranslateCap('money_add_reason'))
 			xPlayer.showNotification(TranslateCap('have_withdrawn', ESX.Math.GroupDigits(amount)))
 		else
 			xPlayer.showNotification(TranslateCap('invalid_amount'))
@@ -95,7 +95,7 @@ AddEventHandler('esx_society:depositMoney', function(societyName, amount)
 	end
 	if amount > 0 and xPlayer.getMoney() >= amount then
 		TriggerEvent('esx_addonaccount:getSharedAccount', society.account, function(account)
-			xPlayer.removeMoney(amount, "Society Deposit")
+			xPlayer.removeMoney(amount, TranslateCap('money_remove_reason'))
 			xPlayer.showNotification(TranslateCap('have_deposited', ESX.Math.GroupDigits(amount)))
 			account.addMoney(amount)
 		end)
@@ -221,7 +221,7 @@ ESX.RegisterServerCallback('esx_society:getEmployees', function(source, cb, soci
 			end
 
 			if not alreadyInTable then
-				local name = "Name not found." -- maybe this should be a locale instead ¯\_(ツ)_/¯
+				local name = TranslateCap('name_not_found')
 
 				if Config.EnableESXIdentity then
 					name = row.firstname .. ' ' .. row.lastname 
@@ -269,7 +269,7 @@ end)
 
 ESX.RegisterServerCallback('esx_society:setJob', function(source, cb, identifier, job, grade, actionType)
 	local xPlayer = ESX.GetPlayerFromId(source)
-	local isBoss = xPlayer.job.grade_name == 'boss'
+	local isBoss = Config.BossGrades[xPlayer.job.grade_name]
 	local xTarget = ESX.GetPlayerFromIdentifier(identifier)
 
 	if not isBoss then
@@ -305,7 +305,7 @@ end)
 ESX.RegisterServerCallback('esx_society:setJobSalary', function(source, cb, job, grade, salary)
 	local xPlayer = ESX.GetPlayerFromId(source)
 
-	if xPlayer.job.name == job and xPlayer.job.grade_name == 'boss' then
+	if xPlayer.job.name == job and Config.BossGrades[xPlayer.job.grade_name] then
 		if salary <= Config.MaxSalary then
 			MySQL.update('UPDATE job_grades SET salary = ? WHERE job_name = ? AND grade = ?', {salary, job, grade},
 			function(rowsChanged)
@@ -334,7 +334,7 @@ end)
 ESX.RegisterServerCallback('esx_society:setJobLabel', function(source, cb, job, grade, label)
 	local xPlayer = ESX.GetPlayerFromId(source)
 
-	if xPlayer.job.name == job and xPlayer.job.grade_name == 'boss' then
+	if xPlayer.job.name == job and Config.BossGrades[xPlayer.job.grade_name] then
 			MySQL.update('UPDATE job_grades SET label = ? WHERE job_name = ? AND grade = ?', {label, job, grade},
 			function(rowsChanged)
 				Jobs[job].grades[tostring(grade)].label = label
@@ -399,7 +399,7 @@ end)
 function isPlayerBoss(playerId, job)
 	local xPlayer = ESX.GetPlayerFromId(playerId)
 
-	if xPlayer.job.name == job and xPlayer.job.grade_name == 'boss' then
+	if xPlayer.job.name == job and Config.BossGrades[xPlayer.job.grade_name] then
 		return true
 	else
 		print(('esx_society: %s attempted open a society boss menu!'):format(xPlayer.identifier))

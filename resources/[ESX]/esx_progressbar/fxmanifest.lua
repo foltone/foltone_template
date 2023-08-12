@@ -1,7 +1,9 @@
 fx_version 'adamant'
+
 game 'gta5'
 author 'ESX-Framework'
 lua54 'yes'
+version '1.10.1'
 description 'ESX Progressbar'
 
 client_scripts { 'Progress.lua' }
@@ -12,5 +14,4 @@ files {
     'nui/index.html',
     'nui/js/*.js',
     'nui/css/*.css',
-    'nui/img/*.png',
 }

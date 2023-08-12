@@ -1,7 +1,8 @@
 fx_version 'adamant'
+
 lua54 'yes'
 game 'gta5'
-version '1.9.0'
+version '1.10.1'
 author 'ESX-Framework'
 description 'Official NUI Notification system for ESX'
 
@@ -15,5 +16,4 @@ files {
     'nui/index.html',
     'nui/js/*.js',
     'nui/css/*.css',
-    'nui/img/*.png',
 }

@@ -8,9 +8,7 @@ client_scripts {
 	"src/MenuController.lua",
 	"src/components/*.lua",
 	"src/elements/*.lua",
-	"src/items/*.lua",
-	"src/panels/*.lua",
-	"src/windows/*.lua"
+	"src/items/*.lua"
 }
 
 client_scripts {

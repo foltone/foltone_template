@@ -21,6 +21,7 @@ AddEventHandler('onResourceStart', function(resourceName)
 				end
 			end
 		end
+		GlobalState.SharedAccounts = SharedAccounts
 
 		if next(newAccounts) then
 			MySQL.prepare('INSERT INTO addon_account_data (account_name, money) VALUES (?, ?)', newAccounts)
@@ -28,6 +29,7 @@ AddEventHandler('onResourceStart', function(resourceName)
 				local newAccount = newAccounts[i]
 				SharedAccounts[newAccount[1]] = CreateAddonAccount(newAccount[1], nil, 0)
 			end
+			GlobalState.SharedAccounts = SharedAccounts
 		end
 	end
 end)
@@ -42,6 +44,28 @@ end
 
 function GetSharedAccount(name)
 	return SharedAccounts[name]
+end
+
+function AddSharedAccount(society, amount)
+    if type(society) ~= 'table' or not society?.name or not society?.label then return end
+    -- society.name = job_name/society_name
+    -- society.label = label for the job/account
+    -- amount = if the shared account should start with x amount
+
+    -- addon account:
+    local account = MySQL.insert.await('INSERT INTO `addon_account` (name, label, shared) VALUES (?, ?, ?)', {
+        society.name, society.label, 1
+    })
+    if not account then return end
+
+    -- if addon account inserted, insert addon account data:
+    local account_data = MySQL.insert.await('INSERT INTO `addon_account_data` (account_name, money) VALUES (?, ?)', {
+        society.name, (amount or 0)
+    })
+    if not account_data then return end
+	
+    -- if all data inserted successfully to sql:
+    SharedAccounts[society.name] = CreateAddonAccount(society.name, nil, (amount or 0))
 end
 
 AddEventHandler('esx_addonaccount:getAccount', function(name, owner, cb)
@@ -70,4 +94,40 @@ AddEventHandler('esx:playerLoaded', function(playerId, xPlayer)
 	end
 
 	xPlayer.set('addonAccounts', addonAccounts)
+end)
+
+RegisterNetEvent('esx_addonaccount:refreshAccounts')
+AddEventHandler('esx_addonaccount:refreshAccounts', function()
+	local result = MySQL.query.await('SELECT * FROM addon_account')
+
+	for i = 1, #result, 1 do
+		local name    = result[i].name
+		local label   = result[i].label
+		local shared  = result[i].shared
+
+		local result2 = MySQL.query.await('SELECT * FROM addon_account_data WHERE account_name = ?', { name })
+
+		if shared == 0 then
+			table.insert(AccountsIndex, name)
+			Accounts[name] = {}
+
+			for j = 1, #result2, 1 do
+				local addonAccount = CreateAddonAccount(name, result2[j].owner, result2[j].money)
+				table.insert(Accounts[name], addonAccount)
+			end
+		else
+			local money = nil
+
+			if #result2 == 0 then
+				MySQL.insert('INSERT INTO addon_account_data (account_name, money, owner) VALUES (?, ?, ?)',
+					{ name, 0, NULL })
+				money = 0
+			else
+				money = result2[1].money
+			end
+
+			local addonAccount   = CreateAddonAccount(name, nil, money)
+			SharedAccounts[name] = addonAccount
+		end
+	end
 end)

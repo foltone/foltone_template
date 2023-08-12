@@ -1,5 +1,4 @@
 fx_version 'adamant'
-
 game 'gta5'
 
 author 'ESX-Framework'
@@ -13,6 +12,11 @@ server_scripts {
 	'@oxmysql/lib/MySQL.lua',
 	'server/classes/addonaccount.lua',
 	'server/main.lua'
+}
+
+server_exports {
+    'GetSharedAccount',
+    'AddSharedAccount'
 }
 
 dependency 'es_extended'
