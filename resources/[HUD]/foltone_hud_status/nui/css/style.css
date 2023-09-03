@@ -1,0 +1,64 @@
+#container {
+  position: absolute;
+  display: flex;
+  bottom: 0;
+  left: 0;
+  margin-left: 330px;
+  margin-bottom: 40px;
+  width: auto;
+  height: 160px;
+  transform: rotate(180deg);
+}
+
+.container-bar {
+	position: relative;
+	padding: 4px;
+}
+
+.status-bar {
+  position: relative;
+  float: left;
+  width: 10px;
+  transition: 0.4s;
+  height: 0%;
+  border-radius: 5px;
+}
+
+.status-back {
+  position: relative;
+  width: 10px;
+  height: 100%;
+  border-radius: 5px;
+}
+
+#armor {
+  background-color: rgba(93, 182, 229, 0.9);
+}
+
+#armor-container .status-back {
+  background-color: rgba(93, 182, 229, 0.4);
+}
+
+#health {
+  background-color: rgba(114, 204, 114, 0.9);
+}
+
+#health-container .status-back {
+  background-color: rgba(114, 204, 114, 0.4);
+}
+
+#hunger {
+  background-color: rgba(238, 130, 63, 0.9);
+}
+
+#hunger-container .status-back {
+  background-color: rgba(238, 130 ,63, 0.4);
+}
+
+#thirst {
+  background-color: rgba(35, 137 ,218, 0.9);
+}
+
+#thirst-container .status-back {
+  background-color: rgba(35, 137 ,218, 0.4);
+}
