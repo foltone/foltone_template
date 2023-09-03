@@ -48,7 +48,7 @@ ESX.RegisterCommand('setjob2', 'admin', function(xPlayer, args, showError)
 	if not ESX.DoesJobExist(args.job2, args.grade2) then
 		return showError(TranslateCap('command_setjob_invalid'))
 	end
-	args.playerId.setJob(args.job2, args.grade2)
+	args.playerId.setJob2(args.job2, args.grade2)
 	if Config.AdminLogging then
 		ESX.DiscordLogFields("UserActions", "Set Job2 /setjob2 Triggered!", "pink", {
 			{ name = "Player", value = xPlayer.name,       inline = true },
