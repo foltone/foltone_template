@@ -11,10 +11,6 @@ RegisterNetEvent('esx_billing:sendBill', function(playerId, sharedAccountName, l
 				print(("[^2ERROR^7] Player ^5%s^7 Attempted to Send bill from a society (^5%s^7), but does not have the correct Job - Possibly Cheats"):format(xPlayer.source, sharedAccountName))
 				return
 			end
-			if xPlayer.job2.name ~= jobName then
-				print(("[^2ERROR^7] Player ^5%s^7 Attempted to Send bill from a society (^5%s^7), but does not have the correct Job - Possibly Cheats"):format(xPlayer.source, sharedAccountName))
-				return
-			end
 			TriggerEvent('esx_addonaccount:getSharedAccount', sharedAccountName, function(account)
 				if account then
 					MySQL.insert('INSERT INTO billing (identifier, sender, target_type, target, label, amount) VALUES (?, ?, ?, ?, ?, ?)', {xTarget.identifier, xPlayer.identifier, 'society', sharedAccountName, label, amount},
