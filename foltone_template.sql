@@ -221,7 +221,7 @@ CREATE TABLE `users` (
   `last_seen` timestamp NULL DEFAULT NULL ON UPDATE current_timestamp(),
   `phone_number` varchar(20) DEFAULT NULL,
   `pincode` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
