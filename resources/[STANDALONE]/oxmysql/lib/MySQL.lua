@@ -1,53 +1,59 @@
-local promise = promise
-local Await = Citizen.Await
-local GetCurrentResourceName = GetCurrentResourceName()
-local GetResourceState = GetResourceState
+-- lib/MySQL.lua provides complete compatibility for resources designed for mysql-async
+-- As of v2.0.0 this is the preferred method of interacting with oxmysql
+-- * You can use mysql-async syntax or oxmysql syntax (refer to issue #77 or line 118)
+-- * Using this lib provides minor improvements to performance and helps debug poor queries
+-- * If using mysql-async syntax, a resource is not explicity bound to using oxmysql
 
-local function await(fn, query, parameters)
-	local p = promise.new()
-	fn(nil, query, parameters, function(result, error)
-		if error then
-			return p:reject(error)
-		end
+-- todo: new annotations; need to see if I can get it working with metatables, otherwise it'll need stubs
 
-		p:resolve(result)
-	end, GetCurrentResourceName, true)
-	return Await(p)
+local Store = {}
+
+local function addStore(query, cb)
+	assert(type(query) == 'string', 'The SQL Query must be a string')
+	local store = #Store+1
+	Store[store] = query
+	if cb then cb(store) else return store end
 end
 
+local MySQL = {
+	Sync = { store = addStore },
+	Async = { store = addStore },
+
+	ready = function(cb)
+		CreateThread(function()
+			repeat
+				Wait(50)
+			until GetResourceState('oxmysql') == 'started'
+			cb()
+		end)
+	end
+}
+
 local type = type
-local queryStore = {}
 
 local function safeArgs(query, parameters, cb, transaction)
-	local queryType = type(query)
+	if type(query) == 'number' then query = Store[query] end
 
-	if queryType == 'number' then
-		query = queryStore[query]
-	elseif transaction then
-		if queryType ~= 'table' then
+	if transaction then
+		if type(query) ~= 'table' then
 			error(("First argument expected table, received '%s'"):format(query))
 		end
-	elseif queryType ~= 'string' then
-		error(("First argument expected string, received '%s'"):format(query))
+	else
+		if type(query) ~= 'string' then
+			error(("First argument expected string, received '%s'"):format(query))
+		end
 	end
 
 	if parameters then
-		local paramType = type(parameters)
-
-		if paramType ~= 'table' and paramType ~= 'function' then
+		local type = type(parameters)
+		if type ~= 'table' and type ~= 'function' then
 			error(("Second argument expected table or function, received '%s'"):format(parameters))
-		end
-
-		if paramType == 'function' or parameters.__cfx_functionReference then
-			cb = parameters
-			parameters = nil
 		end
 	end
 
-	if cb and parameters then
-		local cbType = type(cb)
-
-		if cbType ~= 'function' and (cbType == 'table' and not cb.__cfx_functionReference) then
+	if cb then
+		local type = type(cb)
+		if type ~= 'function' and (type == 'table' and not cb.__cfx_functionReference) then
 			error(("Third argument expected function, received '%s'"):format(cb))
 		end
 	end
@@ -55,34 +61,44 @@ local function safeArgs(query, parameters, cb, transaction)
 	return query, parameters, cb
 end
 
+local promise = promise
 local oxmysql = exports.oxmysql
+local Await = Citizen.Await
+local GetCurrentResourceName = GetCurrentResourceName()
 
-local mysql_method_mt = {
-	__call = function(self, query, parameters, cb)
-		query, parameters, cb = safeArgs(query, parameters, cb, self.method == 'transaction')
-		return oxmysql[self.method](nil, query, parameters, cb, GetCurrentResourceName, false)
-	end
-}
+local function await(fn, query, parameters)
+	local p = promise.new()
+	fn(nil, query, parameters, function(result)
+		p:resolve(result)
+	end, GetCurrentResourceName)
+	return Await(p)
+end
 
-local MySQL = setmetatable(MySQL or {}, {
-	__index = function(_, index)
-		return function(...)
-			return oxmysql[index](nil, ...)
+setmetatable(MySQL, {
+	__index = function(self, method)
+		local state = GetResourceState('oxmysql')
+		if state == 'started' or state == 'starting' then
+			self[method] = setmetatable({}, {
+
+				__call = function(_, query, parameters, cb)
+					return oxmysql[method](nil, safeArgs(query, parameters, cb, method == 'transaction'))
+				end,
+
+				__index = function(_, index)
+					assert(index == 'await', ('unable to index MySQL.%s.%s, expected .await'):format(method, index))
+					self[method].await = function(query, parameters)
+						return await(oxmysql[method], safeArgs(query, parameters, nil, method == 'transaction'))
+					end
+					return self[method].await
+				end
+			})
+
+			return self[method]
+		else
+			error(('^1oxmysql resource state is %s - unable to trigger exports.oxmysql:%s^0'):format(state, method), 0)
 		end
 	end
 })
-
-for _, method in pairs({
-	'scalar', 'single', 'query', 'insert', 'update', 'prepare', 'transaction', 'rawExecute',
-}) do
-	MySQL[method] = setmetatable({
-		method = method,
-		await = function(query, parameters)
-			query, parameters = safeArgs(query, parameters, nil, method == 'transaction')
-			return await(oxmysql[method], query, parameters)
-		end
-	}, mysql_method_mt)
-end
 
 local alias = {
 	fetchAll = 'query',
@@ -97,43 +113,51 @@ local alias = {
 local alias_mt = {
 	__index = function(self, key)
 		if alias[key] then
-			local method = MySQL[alias[key]]
-			MySQL.Async[key] = method
-			MySQL.Sync[key] = method.await
+			MySQL.Async[key] = MySQL[alias[key]]
+			MySQL.Sync[key] = MySQL[alias[key]].await
 			alias[key] = nil
 			return self[key]
 		end
 	end
 }
 
-local function addStore(query, cb)
-	assert(type(query) == 'string', 'The SQL Query must be a string')
-
-	local storeN = #queryStore + 1
-	queryStore[storeN] = query
-
-	return cb and cb(storeN) or storeN
-end
-
-MySQL.Sync = setmetatable({ store = addStore }, alias_mt)
-MySQL.Async = setmetatable({ store = addStore }, alias_mt)
-
-local function onReady(cb)
-	while GetResourceState('oxmysql') ~= 'started' do
-		Wait(50)
-	end
-
-	oxmysql.awaitConnection()
-
-	return cb and cb() or true
-end
-
-MySQL.ready = setmetatable({
-	await = onReady
-}, {
-	__call = function(_, cb)
-		Citizen.CreateThreadNow(function() onReady(cb) end)
-	end,
-})
+setmetatable(MySQL.Async, alias_mt)
+setmetatable(MySQL.Sync, alias_mt)
 
 _ENV.MySQL = MySQL
+
+--[[
+exports.oxmysql:query (previously exports.oxmysql:execute)
+MySQL.Async.fetchAll = MySQL.query
+MySQL.Sync.fetchAll = MySQL.query.await
+
+
+exports.oxmysql:scalar
+MySQL.Async.fetchScalar = MySQL.scalar
+MySQL.Sync.fetchScalar = MySQL.scalar.await
+
+
+exports.oxmysql:single
+MySQL.Async.fetchSingle = MySQL.single
+MySQL.Sync.fetchSingle = MySQL.single.await
+
+
+exports.oxmysql:insert
+MySQL.Async.insert = MySQL.insert
+MySQL.Sync.insert = MySQL.insert.await
+
+
+exports.oxmysql:update
+MySQL.Async.execute = MySQL.update
+MySQL.Sync.execute = MySQL.update.await
+
+
+exports.oxmysql:transaction
+MySQL.Async.transaction = MySQL.transaction
+MySQL.Sync.transaction = MySQL.transaction.await
+
+
+exports.oxmysql:prepare
+MySQL.Async.prepare = MySQL.prepare
+MySQL.Sync.prepare = MySQL.prepare.await
+--]]
