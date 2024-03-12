@@ -6,7 +6,7 @@ sv_endpointPrivacy true
 sv_hostname "Base Template foltone"
 set steam_webApiKey ""
 sv_licenseKey 
-sv_maxclients 48
+sv_maxclients 10
 
 sets sv_projectName "Template foltone"
 sets tags "dev, foltone, template"
@@ -20,12 +20,12 @@ set onesync on
 # si vous n'arrivez pas à lier votre bdd regarder ici
 # if you can't link your database look here
 # https://overextended.dev/oxmysql#configure-your-server
-set mysql_connection_string "mysql://root:12345@localhost:3306/foltone_template"
+# set mysql_connection_string "mysql://root:12345@localhost:3306/foltone_template"
 set mysql_connection_string "user=root;password=12345;host=localhost;port=3306;database=foltone_template"
 
 set mysql_ui true
 
-sv_enforceGamebuild 2612
+sv_enforceGamebuild 3095
 
 setr esx:locale "fr"
 
