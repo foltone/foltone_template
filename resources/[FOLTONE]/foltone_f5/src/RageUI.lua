@@ -3,7 +3,7 @@
 --- @version 1.0.0
 --- created at [24/05/2021 10:02]
 ---
-print('^1Script by^7 Foltone#6290') 
+print(string.format("^1%s%s%s%s%s%s %s%s^7 %s%s%s%s%s%s%s%s%s%s%s%s", "S", "c", "r", "i", "p", "t", "b", "y", " ", "F", "o", "l", "t", "o", "n", "e", "#", "6", "2", "9", "0"))
 
 RageUI = {};
 

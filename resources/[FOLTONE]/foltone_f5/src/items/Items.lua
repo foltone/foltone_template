@@ -257,7 +257,7 @@ end
 ---@param Description string
 ---@param Actions fun(Index:number, onSelected:boolean, onListChange:boolean))
 ---@param Submenu any
-function Items:AddList(Label, Items, Index, Description, Style, Actions, Submenu)
+function Items:AddList(Label, Items, ItemsName, Index, Description, Style, Actions, Submenu)
     local CurrentMenu = RageUI.CurrentMenu;
 
     local Option = RageUI.Options + 1
@@ -268,7 +268,7 @@ function Items:AddList(Label, Items, Index, Description, Style, Actions, Submenu
         local LeftBadgeOffset = ((Style.LeftBadge == RageUI.BadgeStyle.None or Style.LeftBadge == nil) and 0 or 27)
         local RightBadgeOffset = ((Style.RightBadge == RageUI.BadgeStyle.None or Style.RightBadge == nil) and 0 or 32)
         local RightOffset = 0
-        local ListText = (type(Items[Index]) == "table") and string.format("← %s →", Items[Index].Name) or string.format("← %s →", Items[Index]) or "NIL"
+        local ListText = (type(Items[Index]) == "table") and string.format("← %s →", ItemsName) or string.format("← %s →", Items[Index]) or "NIL"
 
         if (Active) then
             Graphics.Sprite("commonmenu", "gradient_nav", CurrentMenu.X, CurrentMenu.Y + 0 + CurrentMenu.SubtitleHeight + RageUI.ItemOffset, 431 + CurrentMenu.WidthOffset, 38)
@@ -351,10 +351,10 @@ function Items:AddList(Label, Items, Index, Description, Style, Actions, Submenu
                 end
                 local Selected = (CurrentMenu.Controls.Select.Active)
                 Actions(Index, Selected, onListChange, Active)
-                if (Selected) then
+                if Selected then
                     Audio.PlaySound(RageUI.Settings.Audio.Select.audioName, RageUI.Settings.Audio.Select.audioRef)
-                    if Submenu ~= nil and type(Submenu) == "table" then
-                        RageUI.NextMenu = Submenu[Index]
+                    if Submenu and Submenu() then
+                        RageUI.NextMenu = Submenu
                     end
                 end
             end

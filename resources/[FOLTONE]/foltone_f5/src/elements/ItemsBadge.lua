@@ -155,6 +155,32 @@ RageUI.BadgeStyle = {
             BadgeColour = Selected and { R = 0, G = 0, B = 0, A = 255 } or { R = 255, G = 255, B = 255, A = 255 }
         }
     end,
+    Cross = function(Selected)
+        return {
+            BadgeTexture = Selected and "shop_box_crossb" or "shop_box_cross",
+            --BadgeDictionary = "mpinventory"
+        }
+    end,
+    Armor = function(Selected)
+        return {
+            BadgeTexture = Selected and "shop_armour_icon_b" or "shop_armour_icon_a",
+        }
+    end,
+    Player = function(Selected)
+        return {
+            -- commonmenutu@deathmatch 32x32
+            BadgeTexture = "leaderboard_players_icon",
+            BadgeDictionary = "mpleaderboard",
+            BadgeColour = Selected and { R = 0, G = 0, B = 0, A = 255 } or { R = 255, G = 255, B = 255, A = 255 }
+        }
+    end,
+    Dead = function(Selected)
+        return {
+            BadgeTexture = "deathmatch",
+            BadgeDictionary = "commonmenutu",
+            BadgeColour = Selected and { R = 0, G = 0, B = 0, A = 255 } or { R = 255, G = 255, B = 255, A = 255 }
+        }
+    end,
     Key = function(Selected)
         return {
             BadgeTexture = Selected and "mp_specitem_cuffkeys_black" or "mp_specitem_cuffkeys",
