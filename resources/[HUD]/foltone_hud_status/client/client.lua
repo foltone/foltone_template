@@ -1,18 +1,7 @@
-loaded = false
-
-
 ESX = exports["es_extended"]:getSharedObject()
 
-
-Citizen.CreateThread(function()
-    loaded = true
-    ESX.PlayerData = ESX.GetPlayerData()
-end)
-
-local health = 100
-local armor = 0
-local food = 0
-local water = 0
+ESX.PlayerData = {}
+ESX.PlayerLoaded = false
 
 function open()
     SendNUIMessage({
@@ -28,25 +17,42 @@ function close()
     })
 end
 
-Citizen.CreateThread(function()
+CreateThread(function()
+    while not ESX.PlayerLoaded do
+        Wait(500)
+    end
+    local health = 100
+    local armor = 0
+    local food = 0
+    local water = 0
+
+
     local minimap = RequestScaleformMovie("minimap")
     SetRadarBigmapEnabled(true, false)
-    while loaded == false do
-        Citizen.Wait(300)
-    end
+    
+    local playerPed = PlayerPedId()
+    
     while true do 
-        Citizen.Wait(300)
+        local wait = 750
+
+        if Config.disableHudPauseMenu then
+            if IsPauseMenuActive() then 
+                pauseMenu = true
+                close()
+            elseif not IsPauseMenuActive() and pauseMenu then
+                pauseMenu = false
+                open()
+            end
+        end
+
+        local pedhealth = GetEntityHealth(playerPed)
+
         SetRadarBigmapEnabled(false, false)
         if Config.disableHealthArmor then
             BeginScaleformMovieMethod(minimap, "SETUP_HEALTH_ARMOUR")
             ScaleformMovieMethodAddParamInt(3)
             EndScaleformMovieMethod()
         end
-        
-        local ped = GetPlayerPed(-1)
-        local playerId = PlayerId()
-        local pedhealth = GetEntityHealth(ped)
-        SetPlayerHealthRechargeMultiplier(playerId, 0)
 
         if pedhealth < 100 then
             health = 0
@@ -55,10 +61,10 @@ Citizen.CreateThread(function()
             health = pedhealth
         end
         
-        armor = GetPedArmour(ped)
+        armor = GetPedArmour(playerPed)
 
-        TriggerEvent('esx_status:getStatus', 'hunger', function(hunger)
-            TriggerEvent('esx_status:getStatus', 'thirst', function(thirst)
+        TriggerEvent("esx_status:getStatus", "hunger", function(hunger)
+            TriggerEvent("esx_status:getStatus", "thirst", function(thirst)
               food = hunger.getPercent()
               water = thirst.getPercent()
             end)
@@ -71,24 +77,14 @@ Citizen.CreateThread(function()
             food = food,
             water = water,
         })
+
+        Wait(wait)
     end
 end)
 
-Citizen.CreateThread(function()
-    while loaded == false do
-        Citizen.Wait(500)
-    end
-    local pauseMenu = false
-    while true do
-        Citizen.Wait(500)
-        if Config.disableHudPauseMenu then
-            if IsPauseMenuActive() then 
-                pauseMenu = true
-                close()
-            elseif not IsPauseMenuActive() and pauseMenu then
-                pauseMenu = false
-                open()
-            end
-        end
-    end
+
+RegisterNetEvent("esx:playerLoaded")
+AddEventHandler("esx:playerLoaded", function(xPlayer)
+    ESX.PlayerData = xPlayer
+    ESX.PlayerLoaded = true
 end)

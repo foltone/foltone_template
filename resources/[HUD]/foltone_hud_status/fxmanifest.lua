@@ -1,23 +1,23 @@
-fx_version 'adamant'
+fx_version "adamant"
 
-game 'gta5'
+game "gta5"
 
-author 'Foltone#6290'
+author "Foltone#6290"
 
 client_scripts {
-    'Config.lua',
-    'client/client.lua',
+    "Config.lua",
+    "client/client.lua",
 }
 
-ui_page 'nui/index.html'
+ui_page "client/nui/index.html"
 
 files {
-    'nui/index.html',
-    'nui/script/script.js',
-    'nui/css/style.css',     
+    "client/nui/index.html",
+    "client/nui/script/script.js",
+    "client/nui/css/style.css",     
 }
 
 dependencies {
-	'es_extended',
-	'esx_status'
+	"es_extended",
+	"esx_status"
 }
