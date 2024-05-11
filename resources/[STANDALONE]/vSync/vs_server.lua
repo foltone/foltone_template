@@ -1,25 +1,12 @@
------------------- change this -------------------
-
-admins = {
-    'steam:110000105959047',
-    --'license:1234975143578921327',
-}
-
 -- Set this to false if you don't want the weather to change automatically every 10 minutes.
-DynamicWeather = true
+local DynamicWeather = true
 
 --------------------------------------------------
-debugprint = false -- don't touch this unless you know what you're doing or you're being asked by Vespura to turn this on.
+local debugprint = false -- don't touch this unless you know what you're doing or you're being asked by Vespura to turn this on.
 --------------------------------------------------
-
-
-
-
-
-
 
 -------------------- DON'T CHANGE THIS --------------------
-AvailableWeatherTypes = {
+local AvailableWeatherTypes = {
     'EXTRASUNNY', 
     'CLEAR', 
     'NEUTRAL', 
@@ -36,7 +23,7 @@ AvailableWeatherTypes = {
     'XMAS', 
     'HALLOWEEN',
 }
-CurrentWeather = "EXTRASUNNY"
+local CurrentWeather = "EXTRASUNNY"
 local baseTime = 0
 local timeOffset = 0
 local freezeTime = false
@@ -49,15 +36,13 @@ AddEventHandler('vSync:requestSync', function()
     TriggerClientEvent('vSync:updateTime', -1, baseTime, timeOffset, freezeTime)
 end)
 
-function isAllowedToChange(player)
+ESX = exports["es_extended"]:getSharedObject()
+
+local function isAllowedToChange(player)
+    local xPlayer = ESX.GetPlayerFromId(player)
     local allowed = false
-    for i,id in ipairs(admins) do
-        for x,pid in ipairs(GetPlayerIdentifiers(player)) do
-            if debugprint then print('admin id: ' .. id .. '\nplayer id:' .. pid) end
-            if string.lower(pid) == string.lower(id) then
-                allowed = true
-            end
-        end
+    if xPlayer.getGroup() ~= 'user' then
+        allowed = true
     end
     return allowed
 end
@@ -286,9 +271,9 @@ RegisterCommand('time', function(source, args, rawCommand)
     end
 end)
 
-Citizen.CreateThread(function()
+CreateThread(function()
     while true do
-        Citizen.Wait(0)
+        Wait(0)
         local newBaseTime = os.time(os.date("!*t"))/2 + 360
         if freezeTime then
             timeOffset = timeOffset + baseTime - newBaseTime			
@@ -297,34 +282,21 @@ Citizen.CreateThread(function()
     end
 end)
 
-Citizen.CreateThread(function()
+CreateThread(function()
     while true do
-        Citizen.Wait(5000)
+        Wait(5000)
         TriggerClientEvent('vSync:updateTime', -1, baseTime, timeOffset, freezeTime)
     end
 end)
 
-Citizen.CreateThread(function()
+CreateThread(function()
     while true do
-        Citizen.Wait(300000)
+        Wait(300000)
         TriggerClientEvent('vSync:updateWeather', -1, CurrentWeather, blackout)
     end
 end)
 
-Citizen.CreateThread(function()
-    while true do
-        newWeatherTimer = newWeatherTimer - 1
-        Citizen.Wait(60000)
-        if newWeatherTimer == 0 then
-            if DynamicWeather then
-                NextWeatherStage()
-            end
-            newWeatherTimer = 10
-        end
-    end
-end)
-
-function NextWeatherStage()
+local function NextWeatherStage()
     if CurrentWeather == "CLEAR" or CurrentWeather == "CLOUDS" or CurrentWeather == "EXTRASUNNY"  then
         local new = math.random(1,2)
         if new == 1 then
@@ -359,3 +331,15 @@ function NextWeatherStage()
     end
 end
 
+CreateThread(function()
+    while true do
+        newWeatherTimer = newWeatherTimer - 1
+        Wait(60000)
+        if newWeatherTimer == 0 then
+            if DynamicWeather then
+                NextWeatherStage()
+            end
+            newWeatherTimer = 10
+        end
+    end
+end)

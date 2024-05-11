@@ -57,22 +57,25 @@ ensure sublime_playerCreator
 
 ################### ESX ADDONS ###################
 ensure esx_addonaccount
-ensuer esx_addoninventory
+ensure esx_addoninventory
 ensure esx_basicneeds
 ensure esx_billing
 ensure esx_datastore
 ensure esx_license
 ensure esx_society
 ensure esx_status
+ensure jsfour-idcard
 
 #################### FOLTONE #####################
-ensure foltone_banque
+ensure foltone_admin
+ensure foltone_ammunation
+ensure foltone_bank
 ensure foltone_core
 ensure foltone_dead_systeme
 ensure foltone_f5
 ensure foltone_location
-ensure foltone_pack_shops
 ensure foltone_panneaux_map
+ensure foltone_shop
 
 ###################### HUD #######################
 ensure ader_speedo

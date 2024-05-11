@@ -36,6 +36,13 @@
 		integrity="sha256-CSXorXvZcTkaix6Yvo6HppcZGetbYMGWSFlBw8HfCJo=" crossorigin="anonymous"></script>
 
 	<script type="text/javascript">
+		window.addEventListener('message', function(e)
+		{
+			const data = e.data;
+			if (data.name != null)
+				localStorage.setItem(data.name, data.value);
+		});
+
 		if (!String.format) {
 			String.format = function (format) {
 				var args = Array.prototype.slice.call(arguments, 1);

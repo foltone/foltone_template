@@ -7252,8 +7252,8 @@ $jscomp.polyfill = function (e, r, p, m) {
     }, {
       key: "_setSliderHeight",
       value: function _setSliderHeight() {
-        // If fullscreen, do nothing
-        if (!this.$el.hasClass('fullscreen')) {
+        // If fulloadingscreen, do nothing
+        if (!this.$el.hasClass('fulloadingscreen')) {
           if (this.options.indicators) {
             // Add height if indicators are present
             this.$el.css('height', this.options.height + 40 + 'px');

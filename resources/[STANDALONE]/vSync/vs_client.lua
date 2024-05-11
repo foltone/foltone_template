@@ -1,4 +1,4 @@
-CurrentWeather = 'EXTRASUNNY'
+local CurrentWeather = 'EXTRASUNNY'
 local lastWeather = CurrentWeather
 local baseTime = 0
 local timeOffset = 0
@@ -12,14 +12,14 @@ AddEventHandler('vSync:updateWeather', function(NewWeather, newblackout)
     blackout = newblackout
 end)
 
-Citizen.CreateThread(function()
+CreateThread(function()
     while true do
         if lastWeather ~= CurrentWeather then
             lastWeather = CurrentWeather
             SetWeatherTypeOverTime(CurrentWeather, 15.0)
-            Citizen.Wait(15000)
+            Wait(15000)
         end
-        Citizen.Wait(100) -- Wait 0 seconds to prevent crashing.
+        Wait(100) -- Wait 0 seconds to prevent crashing.
         SetBlackout(blackout)
         ClearOverrideWeather()
         ClearWeatherTypePersist()
@@ -43,11 +43,11 @@ AddEventHandler('vSync:updateTime', function(base, offset, freeze)
     baseTime = base
 end)
 
-Citizen.CreateThread(function()
+CreateThread(function()
     local hour = 0
     local minute = 0
     while true do
-        Citizen.Wait(0)
+        Wait(0)
         local newBaseTime = baseTime
         if GetGameTimer() - 500  > timer then
             newBaseTime = newBaseTime + 0.25
@@ -67,7 +67,7 @@ AddEventHandler('playerSpawned', function()
     TriggerServerEvent('vSync:requestSync')
 end)
 
-Citizen.CreateThread(function()
+CreateThread(function()
     TriggerEvent('chat:addSuggestion', '/weather', 'Change the weather.', {{ name="weatherType", help="Available types: extrasunny, clear, neutral, smog, foggy, overcast, clouds, clearing, rain, thunder, snow, blizzard, snowlight, xmas & halloween"}})
     TriggerEvent('chat:addSuggestion', '/time', 'Change the time.', {{ name="hours", help="A number between 0 - 23"}, { name="minutes", help="A number between 0 - 59"}})
     TriggerEvent('chat:addSuggestion', '/freezetime', 'Freeze / unfreeze time.')

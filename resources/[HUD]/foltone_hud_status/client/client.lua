@@ -1,8 +1,5 @@
 ESX = exports["es_extended"]:getSharedObject()
 
-ESX.PlayerData = {}
-ESX.PlayerLoaded = false
-
 function open()
     SendNUIMessage({
         type = "hud",
@@ -85,6 +82,5 @@ end)
 
 RegisterNetEvent("esx:playerLoaded")
 AddEventHandler("esx:playerLoaded", function(xPlayer)
-    ESX.PlayerData = xPlayer
     ESX.PlayerLoaded = true
 end)

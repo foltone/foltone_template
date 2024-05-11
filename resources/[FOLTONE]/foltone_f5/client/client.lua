@@ -621,11 +621,11 @@ function RageUI.PoolMenus:PersonalMenu()
                     local closestPlayer, closestPlayerCoords, distance = GetClosestPlayer()
                     if onSelected then
                         if Index == 1 then
-                            TriggerServerEvent("jsfour-idcard:open", GetPlayerServerId(PlayerId()), GetPlayerServerId(PlayerId()))
+                            TriggerServerEvent("jsfour-idcard:open", GetPlayerServerId(PlayerId()), GetPlayerServerId(PlayerId()), playerData.licenses[i].type)
                         else
                             if closestPlayer ~= -1 then
                                 if distance <= 3.0 then
-                                    TriggerServerEvent("jsfour-idcard:open", GetPlayerServerId(closestPlayer), GetPlayerServerId(PlayerId()))
+                                    TriggerServerEvent("jsfour-idcard:open", GetPlayerServerId(closestPlayer), GetPlayerServerId(PlayerId()), playerData.licenses[i].type)
                                 else
                                     Config.Notification(_U("no_players_nearby"))
                                 end
