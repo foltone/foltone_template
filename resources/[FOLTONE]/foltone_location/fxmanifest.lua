@@ -1,6 +1,10 @@
-fx_version 'cerulean'
+fx_version "cerulean"
 
-games { 'gta5' };
+author "Foltone#6290"
+
+games { "gta5" };
+
+lua54 "yes"
 
 client_scripts {
 	"src/RageUI.lua",
@@ -8,15 +12,15 @@ client_scripts {
 	"src/MenuController.lua",
 	"src/components/*.lua",
 	"src/elements/*.lua",
-	"src/items/*.lua"
-}
+	"src/items/*.lua",
+	"src/panels/*.lua",
 
-client_scripts {
-    '@es_extended/locale.lua',
-    'client/*.lua',
-	'Config.lua'
+	"config.lua",
+    "trad.lua",
+    "locales/*.lua",
+	"client/cl_main.lua"
 }
 
 server_script {
-    'server/*.lua',
+    "server/sv_main.lua",
 }
