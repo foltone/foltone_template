@@ -1,5 +1,6 @@
 Locales["en"] = {
     ["bank"] = "Bank",
+    ["atm"] = "ATM",
     ["bank_menu"] = "Bank Menu",
     ["bank_balance"] = "Bank Balance",
     ["money"] = "Money",

@@ -1,5 +1,6 @@
 Locales["fr"] = {
     ["bank"] = "Banque",
+    ["atm"] = "Distributeur",
     ["bank_menu"] = "Menu Bancaire",
     ["bank_balance"] = "Solde Bancaire",
     ["money"] = "Argent",

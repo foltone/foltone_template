@@ -167,7 +167,7 @@ CreateThread(function()
         table.insert(MenuPositions, v)
     end
     for k, v in pairs(Config.ATMPosition) do
-        CreateBlip(v, 277, 0.4, 2, _U("atm"))
+        CreateBlip(v, 277, 0.6, 2, _U("atm"))
         table.insert(MenuPositions, v)
     end
     while true do
@@ -193,42 +193,6 @@ CreateThread(function()
                 end
             end
         end
-        -- for k, v in pairs(Config.BankPosition) do
-        --     local distance = #(playerPos - v)
-        --     if distance < 10.0 then
-        --         wait = 0
-        --         Config.Marker(v)
-        --         if distance <= 1.5 and not open then
-        --             Config.DisplayText(_U("press_to_open"))
-        --             if IsControlJustPressed(0, 38) then
-        --                 RageUI.Visible(bankMenu, not RageUI.Visible(bankMenu))
-        --                 open = true
-        --                 FoltoneBank.BankOrATMSelected = k
-        --             end
-        --         elseif distance > 1.5 and open and FoltoneBank.BankOrATMSelected == k then
-        --             print("closed")
-        --             RageUI.CloseAll()
-        --             open = false
-        --             FoltoneBank.BankOrATMSelected = 0
-        --         end
-        --     end
-        -- end
-        -- for k, v in pairs(Config.ATMPosition) do
-        --     local distance = #(playerPos - v)
-        --     if distance <= 1.5 and not open then
-        --         wait = 0
-        --         Config.DisplayText(_U("press_to_open"))
-        --         if IsControlJustPressed(0, 38) then
-        --             RageUI.Visible(bankMenu, not RageUI.Visible(bankMenu))
-        --             open = true
-        --             FoltoneBank.BankOrATMSelected = k
-        --         end
-        --     elseif distance > 1.5 and open and FoltoneBank.BankOrATMSelected == k then
-        --         RageUI.CloseAll()
-        --         open = false
-        --         FoltoneBank.BankOrATMSelected = 0
-        --     end
-        -- end
         Wait(wait)
     end
 end)
