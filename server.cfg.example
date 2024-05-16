@@ -70,6 +70,7 @@ ensure jsfour-idcard
 ensure foltone_admin
 ensure foltone_ammunation
 ensure foltone_bank
+ensure foltone_barbershop
 ensure foltone_core
 ensure foltone_dead_systeme
 ensure foltone_f5
