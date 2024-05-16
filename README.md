@@ -10,7 +10,7 @@ Voici ma base template fivem, optimisé à 0.20ms général, 100% RageUi et avec
 - Lancer votre serveur
 
 ### Vidéo
-https://youtu.be/J3D7ad_v1B0
+https://youtu.be/y1A8_mHQ4bo
 
 ### Discord
 https://discord.com/invite/X9ReemrhKh
