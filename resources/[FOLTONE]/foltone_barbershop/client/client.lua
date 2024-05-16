@@ -182,14 +182,14 @@ end
 
 local resetSkin = true
 local hairstyles = {}
-local hairIndex = 0
+local hairIndex = 1
 local hairColors = {1,1, 0.0}
 local beards = {}
-local beardsIndex = 0
-local beardOpacity = 0
+local beardsIndex = 1
+local beardOpacity = 1
 local breadColors = {1,1, 0.0}
 local eyebrows = {}
-local eyebrowsIndex = 0
+local eyebrowsIndex = 1
 local eyebrowsOpacity = 0.0
 local eyebrowsColors = {1,1, 0.0}
 local function generateList(startIndex, endIndex, targetTable)
@@ -337,8 +337,11 @@ local function startHairCut(coords, chair)
     end, chair)
 end
 CreateThread(function()
-    while ESX.PlayerData == nil do
-        Wait(0)
+    while not ESX.PlayerLoaded do
+        Wait(500)
+    end
+    while not (GetEntityModel(PlayerPedId()) == GetHashKey("mp_f_freemode_01") or GetEntityModel(PlayerPedId()) == GetHashKey("mp_m_freemode_01") or GetEntityModel(PlayerPedId()) == 1885233650 or GetEntityModel(PlayerPedId()) == -1667301416) do
+        Wait(500)
     end
     Wait(1000)
     getLists()
@@ -378,5 +381,5 @@ end)
 
 RegisterNetEvent("esx:playerLoaded")
 AddEventHandler("esx:playerLoaded", function()
-    ESX.PlayerData = ESX.GetPlayerData()
+    ESX.PlayerLoaded = true
 end)
