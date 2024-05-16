@@ -1,0 +1,22 @@
+Locales["en"] = {
+    ["bank"] = "Bank",
+    ["bank_menu"] = "Bank Menu",
+    ["bank_balance"] = "Bank Balance",
+    ["money"] = "Money",
+    ["withdraw"] = "Withdraw",
+    ["deposit"] = "Deposit",
+    ["transfer"] = "Transfer",
+    ["press_to_open"] = "Press ~INPUT_CONTEXT~ to access your account",
+    ["withdraw_amount"] = "Amount to withdraw:",
+    ["deposit_amount"] = "Amount to deposit:",
+    ["transfer_amount"] = "Amount to transfer:",
+    ["transfer_target"] = "Recipient ID:",
+    ["withdraw_success"] = "You have successfully withdrawn ~g~%s$~s~.",
+    ["withdraw_error"] = "Error during withdrawal.",
+    ["deposit_success"] = "You have successfully deposited ~g~%s$~s~.",
+    ["deposit_error"] = "Error during deposit.",
+    ["transfer_success"] = "You have successfully transferred ~g~%s$~s~ to ID ~g~%s~s~.",
+    ["transfer_error"] = "Error during transfer.",
+    ["invalid_amount"] = "Invalid amount.",
+    ["invalid_target"] = "Invalid recipient."
+}

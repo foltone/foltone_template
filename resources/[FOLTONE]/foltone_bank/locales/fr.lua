@@ -1,0 +1,22 @@
+Locales["fr"] = {
+    ["bank"] = "Banque",
+    ["bank_menu"] = "Menu Bancaire",
+    ["bank_balance"] = "Solde Bancaire",
+    ["money"] = "Argent",
+    ["withdraw"] = "Retirer",
+    ["deposit"] = "Déposer",
+    ["transfer"] = "Transférer",
+    ["press_to_open"] = "Appuyez sur ~INPUT_CONTEXT~ pour accéder à votre compte",
+    ["withdraw_amount"] = "Montant à retirer :",
+    ["deposit_amount"] = "Montant à déposer :",
+    ["transfer_amount"] = "Montant à transférer :",
+    ["transfer_target"] = "ID du destinataire :",
+    ["withdraw_success"] = "Vous avez retiré ~g~%s$~s~ avec succès.",
+    ["withdraw_error"] = "Erreur lors du retrait.",
+    ["deposit_success"] = "Vous avez déposé ~b~%s$~s~ avec succès.",
+    ["deposit_error"] = "Erreur lors du dépôt.",
+    ["transfer_success"] = "Vous avez transféré ~g~%s$~s~ à l'ID ~g~%s~s~ avec succès.",
+    ["transfer_error"] = "Erreur lors du transfert.",
+    ["invalid_amount"] = "Montant invalide.",
+    ["invalid_target"] = "Destinataire invalide."
+}
