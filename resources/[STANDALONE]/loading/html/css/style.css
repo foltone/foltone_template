@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Poetsen+One&display=swap');
+
 body
 {
     margin: 0px;
@@ -15,7 +17,7 @@ body
 {
     width: 100%;
     height: 100%;
-	background-color: #1f1d2c;
+	background-color: #FFC55A;
 	background-image: url("bg/1.png");
     background-size: cover;
     position: fixed;
@@ -27,16 +29,16 @@ body
     display: block;
 }
 
-#logo
+.title 
 {
-    width: 32vw;
-    height: 65vh;
-	background-image: url("logo.png");
-    background-size: cover;
-    background-repeat: no-repeat;
-    z-index: 999999;
-    position: fixed;
-    opacity: 0.2;
+    font-family: "Poetsen One", sans-serif;
+    font-size: 5em;
+    color: #FC4100;
+    text-align: center;
+    margin-top: 10%;
+    text-shadow: 1px 1px 0 #5e2310, 1px 2px 0 #5e2310, 1px 3px 0 #5e2310, 1px 4px 0 #5e2310,
+    1px 5px 0 #5e2310, 1px 6px 0 #5e2310, 1px 7px 0 #5e2310, 1px 8px 0 #5e2310,
+    5px 13px 15px black;
 }
 
 .log
@@ -137,17 +139,17 @@ body
 
 .bgcolor-first 
 {
-    background-color: #43a2d9;
+    background-color: #497fd1;
 }
 
 .bgcolor-second 
 {
-    background-color: #2933c0;
+    background-color: #2C4E80;
 }
 
 .bgcolor-third 
 {
-    background-color: #352454;
+    background-color: #00215E;
 }
 
 .bgcolor-fourth 
@@ -157,17 +159,17 @@ body
 
 .color-first 
 {
-    color: #43a2d9;
+    color: #497fd1;
 }
 
 .color-second 
 {
-    color: #2933c0;
+    color: #2C4E80;
 }
 
 .color-third 
 {
-    color: #352454;
+    color: #00215E;
 }
 
 .color-fourth 
@@ -185,7 +187,7 @@ body
 	text-align: center;
 	padding-top: 1vh;
 	font-size: 1.3vh;
-	color: #467adb;
+	color: #FC4100;
 	font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
@@ -198,7 +200,7 @@ body
 
 .tips-title {
 	font-size: 1.6vh;
-	color: #467adb;
+	color: #FC4100;
 	font-weight: bold;
 	padding-bottom: 0.7vh;
 }
