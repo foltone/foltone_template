@@ -42,7 +42,6 @@ CreateThread(function()
             end
         end
 
-        local pedhealth = GetEntityHealth(playerPed)
 
         SetRadarBigmapEnabled(false, false)
         if Config.disableHealthArmor then
@@ -51,11 +50,10 @@ CreateThread(function()
             EndScaleformMovieMethod()
         end
 
-        if pedhealth < 100 then
-            health = 0
-        else
-            pedhealth = pedhealth - 100
-            health = pedhealth
+        local health = 100
+        health = GetEntityHealth(playerPed) - 100
+        if health < 0 then
+            health = health * -1
         end
         
         armor = GetPedArmour(playerPed)
