@@ -637,7 +637,7 @@ function RageUI.PoolMenus:FoltoneAdmin()
                             for k, v in pairs(playersList) do
                                 local playerServerId = tonumber(v.id)
                                 local player = GetPlayerFromServerId(playerServerId)
-                                local playerServerName = GetPlayerName(player)
+                                local playerServerName = v.name
                                 if playerServerId == tonumber(id) then
                                     playerSelected = {
                                         id = playerServerId,
@@ -662,7 +662,7 @@ function RageUI.PoolMenus:FoltoneAdmin()
         for k, v in pairs(playersList) do
             local playerServerId = tonumber(v.id)
             local player = GetPlayerFromServerId(playerServerId)
-            local playerServerName = GetPlayerName(player)
+            local playerServerName = v.name
             Items:AddButton(_U("player_button", playerServerId, playerServerName), nil, { RightLabel = ">", IsDisabled = timout }, function(onSelected)
                 if (onSelected) then
                     playerSelected = {
@@ -911,7 +911,7 @@ function RageUI.PoolMenus:FoltoneAdmin()
                                 playerSelected = {
                                     id = GetPlayerServerId(player),
                                     player = player,
-                                    name = GetPlayerName(player),
+                                    name = v.name,
                                     data = nil
                                 }
                                 reFreshPlayerSelectedData()

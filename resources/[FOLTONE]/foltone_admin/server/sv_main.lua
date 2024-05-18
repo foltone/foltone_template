@@ -13,7 +13,8 @@ ESX.RegisterServerCallback("foltone_admin_menu:getPlayers", function(source, cb)
     for i=1, #xPlayers, 1 do
         local xPlayer = ESX.GetPlayerFromId(xPlayers[i])
         table.insert(players, {
-            id = xPlayer.source
+            id = xPlayer.source,
+            name = xPlayer.getName()
         })
     end
     cb(players)
