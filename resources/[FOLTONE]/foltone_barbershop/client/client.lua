@@ -319,6 +319,7 @@ local function startHairCut(coords, chair)
     local heading = coords.w
     ESX.TriggerServerCallback("foltone_barbershop:check_place_enable", function(enable)
         if enable then
+            open = true
             chairSelected = chair
             DoScreenFadeOut(0)
             RageUI.Visible(menuBarber, not RageUI.Visible(menuBarber))
@@ -345,6 +346,7 @@ CreateThread(function()
     end
     Wait(1000)
     getLists()
+    Wait(1000)
     while true do
         local wait = 500
         local playerPed = PlayerPedId()
