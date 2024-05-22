@@ -78,6 +78,7 @@ CreateThread(function()
         local ammunation = Config.AmmunationsList[i]
         local ped = CreatePed(4, GetHashKey(Config.PedModel), ammunation.x, ammunation.y, ammunation.z, ammunation.w, false, true)
         SetBlockingOfNonTemporaryEvents(ped, 1)
+        SetEntityInvincible(ped, true)
         FreezeEntityPosition(ped, true)
         local blip = AddBlipForCoord(ammunation.x, ammunation.y, ammunation.z)
         SetBlipSprite(blip, Config.AmmunationBlip.id)
