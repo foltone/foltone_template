@@ -44,7 +44,7 @@ Locales["en"] = {
     ["destroy"] = "Destroy",
     ["amount"] = "Amount",
     ["no_players_nearby"] = "No players nearby",
-    ["your_inventory_weigth"] = "Your inventory %s/25kg",
+    ["your_inventory_weigth"] = "Your inventory %s/%skg",
 
     ["your_loadout"] = "Your loadout",
     ["give_weapon"] = "Give weapon",

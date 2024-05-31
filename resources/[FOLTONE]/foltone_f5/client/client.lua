@@ -342,7 +342,7 @@ function RageUI.PoolMenus:PersonalMenu()
     end, function(Panels)
     end)
     inventoryMenu:IsVisible(function(Items)
-        Items:AddSeparator(_U("your_inventory_weigth", playerData.weight))
+        Items:AddSeparator(_U("your_inventory_weigth", playerData.weight, ESX.GetConfig().MaxWeight))
         if playerData.inventory then
             for i = 1, #playerData.inventory, 1 do
                 local countList = {}

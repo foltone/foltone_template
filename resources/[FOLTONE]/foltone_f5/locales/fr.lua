@@ -44,7 +44,7 @@ Locales["fr"] = {
     ["destroy"] = "Détruire",
     ["amount"] = "Montant",
     ["no_players_nearby"] = "Aucun joueur à proximité",
-    ["your_inventory_weigth"] = "Votre inventaire %s/25kg",
+    ["your_inventory_weigth"] = "Votre inventaire %s/%skg",
 
     ["your_loadout"] = "Votre équipement",
     ["give_weapon"] = "Donner l'arme",
