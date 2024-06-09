@@ -7,7 +7,7 @@ local FoltoneClothesShop = {
     Decals1List = {}, Decals1Index = 1, Decals2List = {}, Decals2Index = 1, LastDecals1Index = 1,
     Bproof1List = {}, Bproof1Index = 1, Bproof2List = {}, Bproof2Index = 1, LastBproof1Index = 1,
     Bags1List = {}, Bags1Index = 1, Bags2List = {}, Bags2Index = 1, LastBags1Index = 1,
-    Chains1List = {}, Chains1Index = 1, Chains2List = {}, Chains2Index = 1, LastChains1Index = 1,
+    Chain1List = {}, Chain1Index = 1, Chain2List = {}, Chain2Index = 1, LastChain1Index = 1,
     Arms1List = {}, Arms1Index = 1, Arms2List = {}, Arms2Index = 1, LastArms1Index = 1,
     Pants1List = {}, Pants1Index = 1, Pants2List = {}, Pants2Index = 1, LastPants1Index = 1,
     Shoes1List = {}, Shoes1Index = 1, Shoes2List = {}, Shoes2Index = 1, LastShoes1Index = 1,
@@ -71,8 +71,8 @@ local function getLists()
     generateList(0, GetNumberOfPedTextureVariations(playerPed, 9, FoltoneClothesShop.Bproof1Index - 1), FoltoneClothesShop.Bproof2List) -- Bproof2
     generateList(0, GetNumberOfPedDrawableVariations(playerPed, 5), FoltoneClothesShop.Bags1List) -- Bags1
     generateList(0, GetNumberOfPedTextureVariations(playerPed, 5, FoltoneClothesShop.Bags1Index - 1), FoltoneClothesShop.Bags2List) -- Bags2
-    generateList(0, GetNumberOfPedDrawableVariations(playerPed, 7), FoltoneClothesShop.Chains1List) -- Chains1
-    generateList(0, GetNumberOfPedTextureVariations(playerPed, 7, FoltoneClothesShop.Chains1Index - 1), FoltoneClothesShop.Chains2List) -- Chains2
+    generateList(0, GetNumberOfPedDrawableVariations(playerPed, 7), FoltoneClothesShop.Chain1List) -- Chain1
+    generateList(0, GetNumberOfPedTextureVariations(playerPed, 7, FoltoneClothesShop.Chain1Index - 1), FoltoneClothesShop.Chain2List) -- Chain2
     generateList(0, GetNumberOfPedDrawableVariations(playerPed, 3), FoltoneClothesShop.Arms1List) -- Arms1
     generateList(0, GetNumberOfPedTextureVariations(playerPed, 3, FoltoneClothesShop.Arms1Index - 1), FoltoneClothesShop.Arms2List) -- Arms2
     generateList(0, GetNumberOfPedDrawableVariations(playerPed, 4), FoltoneClothesShop.Pants1List) -- Pants1
@@ -105,8 +105,8 @@ local function getPlayerClothe()
         ["bproof_2"] = GetPedTextureVariation(playerPed, 9),
         ["bags_1"] = GetPedDrawableVariation(playerPed, 5),
         ["bags_2"] = GetPedTextureVariation(playerPed, 5),
-        ["chains_1"] = GetPedDrawableVariation(playerPed, 7),
-        ["chains_2"] = GetPedTextureVariation(playerPed, 7),
+        ["chain_1"] = GetPedDrawableVariation(playerPed, 7),
+        ["chain_2"] = GetPedTextureVariation(playerPed, 7),
         ["arms_1"] = GetPedDrawableVariation(playerPed, 3),
         ["arms_2"] = GetPedTextureVariation(playerPed, 3),
         ["pants_1"] = GetPedDrawableVariation(playerPed, 4),
@@ -287,23 +287,23 @@ function RageUI.PoolMenus:FoltoneClothesShop()
                 SetPedComponentVariation(PlayerPedId(), 5, FoltoneClothesShop.Bags1Index - 1, FoltoneClothesShop.Bags2Index - 1, 0)
             end
         end)
-        Items:AddList(_U("chains_1"), FoltoneClothesShop.Chains1List, string.format("#%s", FoltoneClothesShop.Chains1List), FoltoneClothesShop.Chains1Index, nil, { IsDisabled = false }, function(Index, onSelected, onListChange)
+        Items:AddList(_U("chain_1"), FoltoneClothesShop.Chain1List, string.format("#%s", FoltoneClothesShop.Chain1List), FoltoneClothesShop.Chain1Index, nil, { IsDisabled = false }, function(Index, onSelected, onListChange)
             if (onListChange) then
-                FoltoneClothesShop.Chains1Index = Index
-                FoltoneClothesShop.Chains2Index = 1
-                SetPedComponentVariation(PlayerPedId(), 7, FoltoneClothesShop.Chains1Index - 1, FoltoneClothesShop.Chains2Index - 1, 0)
+                FoltoneClothesShop.Chain1Index = Index
+                FoltoneClothesShop.Chain2Index = 1
+                SetPedComponentVariation(PlayerPedId(), 7, FoltoneClothesShop.Chain1Index - 1, FoltoneClothesShop.Chain2Index - 1, 0)
             end
         end)
-        Items:AddList(_U("chains_2"), FoltoneClothesShop.Chains2List, string.format("#%s", FoltoneClothesShop.Chains2List), FoltoneClothesShop.Chains2Index, nil, { IsDisabled = false }, function(Index, onSelected, onListChange)
-            if FoltoneClothesShop.LastChains1Index ~= FoltoneClothesShop.Chains1Index then
-                FoltoneClothesShop.LastChains1Index = FoltoneClothesShop.Chains1Index
-                local Chains2Count = GetNumberOfPedTextureVariations(PlayerPedId(), 7, FoltoneClothesShop.Chains1Index - 1) - 1
-                FoltoneClothesShop.Chains2List = {}
-                generateList(0, Chains2Count, FoltoneClothesShop.Chains2List)
+        Items:AddList(_U("chain_2"), FoltoneClothesShop.Chain2List, string.format("#%s", FoltoneClothesShop.Chain2List), FoltoneClothesShop.Chain2Index, nil, { IsDisabled = false }, function(Index, onSelected, onListChange)
+            if FoltoneClothesShop.LastChain1Index ~= FoltoneClothesShop.Chain1Index then
+                FoltoneClothesShop.LastChain1Index = FoltoneClothesShop.Chain1Index
+                local Chain2Count = GetNumberOfPedTextureVariations(PlayerPedId(), 7, FoltoneClothesShop.Chain1Index - 1) - 1
+                FoltoneClothesShop.Chain2List = {}
+                generateList(0, Chain2Count, FoltoneClothesShop.Chain2List)
             end
             if (onListChange) then
-                FoltoneClothesShop.Chains2Index = Index
-                SetPedComponentVariation(PlayerPedId(), 7, FoltoneClothesShop.Chains1Index - 1, FoltoneClothesShop.Chains2Index - 1, 0)
+                FoltoneClothesShop.Chain2Index = Index
+                SetPedComponentVariation(PlayerPedId(), 7, FoltoneClothesShop.Chain1Index - 1, FoltoneClothesShop.Chain2Index - 1, 0)
             end
         end)
         Items:AddList(_U("arms_1"), FoltoneClothesShop.Arms1List, string.format("#%s", FoltoneClothesShop.Arms1List), FoltoneClothesShop.Arms1Index, nil, { IsDisabled = false }, function(Index, onSelected, onListChange)
@@ -441,33 +441,37 @@ function RageUI.PoolMenus:FoltoneClothesShop()
     end, function(Panels)
     end)
     saveClothes:IsVisible(function(Items)
-        for i = 1, #FoltoneClothesShop.PlayerClothes, 1 do
-            Items:AddList(FoltoneClothesShop.PlayerClothes[i].name, FoltoneClothesShop.OptionsList, FoltoneClothesShop.OptionsList[FoltoneClothesShop.OptionsIndex], FoltoneClothesShop.OptionsIndex, nil, { IsDisabled = false }, function(Index, onSelected, onListChange)
-                if (onListChange) then
-                    FoltoneClothesShop.OptionsIndex = Index
-                end
-                if (onSelected) then
-                    if FoltoneClothesShop.OptionsIndex == 1 then
-                        setClothe(FoltoneClothesShop.PlayerClothes[i].clothes)
-                    elseif FoltoneClothesShop.OptionsIndex == 2 then
-                        local clothesLabel = KeyboardInput(_U("name_clothes"), FoltoneClothesShop.PlayerClothes[i].name, 20)
-                        if clothesLabel then
-                            ESX.TriggerServerCallback("foltone_clotheshop:rename", function(notification)
-                                Config.Notification(notification)
-                                FoltoneClothesShop.PlayerClothes[i].name = clothesLabel
-                            end, FoltoneClothesShop.PlayerClothes[i].id, FoltoneClothesShop.PlayerClothes[i].name, clothesLabel)
+        if FoltoneClothesShop.PlayerClothes then
+            for i = 1, #FoltoneClothesShop.PlayerClothes, 1 do
+                if FoltoneClothesShop.PlayerClothes[i] then
+                    Items:AddList(FoltoneClothesShop.PlayerClothes[i].name, FoltoneClothesShop.OptionsList, FoltoneClothesShop.OptionsList[FoltoneClothesShop.OptionsIndex], FoltoneClothesShop.OptionsIndex, nil, { IsDisabled = false }, function(Index, onSelected, onListChange)
+                        if (onListChange) then
+                            FoltoneClothesShop.OptionsIndex = Index
                         end
-                    elseif FoltoneClothesShop.OptionsIndex == 3 then
-                        ESX.TriggerServerCallback("foltone_clotheshop:delete", function(notification)
-                            Config.Notification(notification)
-                            RageUI.GoBack()
-                            setTimout(50)
-                            Wait(50)
-                            FoltoneClothesShop.PlayerClothes[i] = nil
-                        end, FoltoneClothesShop.PlayerClothes[i].id)
-                    end
+                        if (onSelected) then
+                            if FoltoneClothesShop.OptionsIndex == 1 then
+                                setClothe(FoltoneClothesShop.PlayerClothes[i].clothes)
+                            elseif FoltoneClothesShop.OptionsIndex == 2 then
+                                local clothesLabel = KeyboardInput(_U("name_clothes"), FoltoneClothesShop.PlayerClothes[i].name, 20)
+                                if clothesLabel then
+                                    ESX.TriggerServerCallback("foltone_clotheshop:rename", function(notification)
+                                        Config.Notification(notification)
+                                        FoltoneClothesShop.PlayerClothes[i].name = clothesLabel
+                                    end, FoltoneClothesShop.PlayerClothes[i].id, FoltoneClothesShop.PlayerClothes[i].name, clothesLabel)
+                                end
+                            elseif FoltoneClothesShop.OptionsIndex == 3 then
+                                ESX.TriggerServerCallback("foltone_clotheshop:delete", function(notification)
+                                    Config.Notification(notification)
+                                    RageUI.GoBack()
+                                    setTimout(50)
+                                    Wait(50)
+                                    FoltoneClothesShop.PlayerClothes[i] = nil
+                                end, FoltoneClothesShop.PlayerClothes[i].id)
+                            end
+                        end
+                    end)
                 end
-            end)
+            end
         end
     end, function(Panels)
     end)
