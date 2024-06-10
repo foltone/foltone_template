@@ -41,6 +41,13 @@ https://youtu.be/G8zTOF0x32s
 ### Discord
 https://discord.gg/X9ReemrhKh
 
+### Installation
+1. Téléchargez le script
+2. Décompressez le script dans votre dossier resources
+3. Importez le SQL
+4. Ajoutez ``ensure foltone_admin_menu`` dans votre server.cfg
+5. Configurez le script en fonction de votre serveur (config.lua)
+
 ## License
 Ce projet est sous licence ``CC BY-NC 4.0 DEED`` [LICENSE](https://creativecommons.org/licenses/by-nc/4.0/) pour plus d'informations
 - Attribution - Vous devez créditer l'Œuvre, intégrer un lien vers la licence et indiquer si des modifications ont été effectuées à l'Oeuvre. Vous devez indiquer ces informations par tous les moyens raisonnables, sans toutefois suggérer que l'Offrant vous soutient ou soutient la façon dont vous avez utilisé son Oeuvre.
