@@ -1,0 +1,3 @@
+cd /d C:\VOTRE_CHEMIN_VERS_LE_DOSSIER_FOLTONE_TEMPLATE\foltone_template
+C:\VOTRE_CHEMIN_VERS_LE_DOSSIER_ARTEFACT\FXServer.exe +exec server.cfg +set gamename gta5
+@pause
