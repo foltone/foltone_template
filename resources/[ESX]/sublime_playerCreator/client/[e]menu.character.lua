@@ -220,20 +220,15 @@ function SublimeIndex.OpenCharacterCreator()
 
 
         RageUI.IsVisible(subvalid, function()
-            if iIndex.tenues.Torso1 ~= 1 and iIndex.visage.iHair ~= 1 then
-                RageUI.Button("Confirmer", "Cette action et définitive", {RightBadge = RageUI.BadgeStyle.Star, Color = {HightLightColor = {100, 178, 82, 220}, BackgroundColor = {100, 178, 82, 130}}}, true, {
-                    onSelected = function()
-                        Citizen.CreateThread(function()
-                            SublimeIndex.EndCharacterCreator()
-                        end)
-                        main = RMenu:DeleteType('main', true)
-                    end
-                })
-                RageUI.Button("Annuler", nil, {RightLabel = "←←←", Color = {HightLightColor = {180, 0, 27, 180}, BackgroundColor = {180, 0, 27, 180}}}, true, {}, main)
-            else
-                RageUI.GoBack()
-                ESX.ShowNotification("Vous n'avez pas fait les modifications necessaires de votre personnage !")
-            end
+            RageUI.Button("Confirmer", "Cette action et définitive", {RightBadge = RageUI.BadgeStyle.Star, Color = {HightLightColor = {100, 178, 82, 220}, BackgroundColor = {100, 178, 82, 130}}}, true, {
+                onSelected = function()
+                    Citizen.CreateThread(function()
+                        SublimeIndex.EndCharacterCreator()
+                    end)
+                    main = RMenu:DeleteType('main', true)
+                end
+            })
+            RageUI.Button("Annuler", nil, {RightLabel = "←←←", Color = {HightLightColor = {180, 0, 27, 180}, BackgroundColor = {180, 0, 27, 180}}}, true, {}, main)
         end)
 
 
