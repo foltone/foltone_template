@@ -236,6 +236,19 @@ CREATE TABLE `user_licenses` (
   `owner` varchar(60) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- --------------------------------------------------------
+
+--
+-- Structure de la table `user_clothes`
+--
+
+CREATE TABLE `user_clothes` (
+  `id` int(11) PRIMARY KEY NOT NULL AUTO_INCREMENT,
+  `identifier` varchar(50) NOT NULL,
+  `name` varchar(50) NOT NULL,
+  `clothes` longtext NOT NULL
+);
+
 --
 -- Index pour les tables déchargées
 --
