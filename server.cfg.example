@@ -77,7 +77,7 @@ ensure foltone_f5
 ensure foltone_location
 ensure foltone_panneaux_map
 ensure foltone_shop
-ensure foltone_clohteshop
+ensure foltone_clotheshop
 
 ###################### HUD #######################
 ensure ader_speedo
