@@ -647,10 +647,12 @@ function RageUI.PoolMenus:PersonalMenu()
                     if onSelected then
                         setTimeout(500)
                         local amount = playerData.bills[i].amount
-                        TriggerServerEvent("esx_billing:payBill", playerData.bills[i].id)
-                        ESX.TriggerServerCallback("esx_billing:getBills", function(bills)
-                            playerData.bills = bills
-                        end)
+                        ESX.TriggerServerCallback("esx_billing:payBill", function(ok)
+                            if ok then
+                                updateBills()
+                                RageUI.GoBack()
+                            end
+                        end, playerData.bills[i].id)
                     end
                 end)
             end
