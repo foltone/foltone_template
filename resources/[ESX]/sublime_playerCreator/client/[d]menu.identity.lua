@@ -17,7 +17,7 @@ end
 ---@public 
 local function endIdentity()
     if endIdentity_ then
-        local _sex if sexe == "Homme" then _sex = "H" else _sex = "F" end
+        local _sex if sexe == "Homme" then _sex = "m" else _sex = "f" end
         TriggerServerEvent(Config.Prefix.."updateIdentity", {
             lastName = nom,
             firstName = prenom,
