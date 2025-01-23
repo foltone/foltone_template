@@ -1,44 +1,87 @@
-ESX = {}
-Core = {}
-ESX.PlayerData = {}
-ESX.PlayerLoaded = false
-Core.Input = {}
-ESX.UI = {}
-ESX.UI.Menu = {}
-ESX.UI.Menu.RegisteredTypes = {}
-ESX.UI.Menu.Opened = {}
-
-ESX.Game = {}
-ESX.Game.Utils = {}
-
-ESX.Scaleform = {}
-ESX.Scaleform.Utils = {}
-
-ESX.Streaming = {}
-
+---@return boolean
 function ESX.IsPlayerLoaded()
     return ESX.PlayerLoaded
 end
 
+---@return table
 function ESX.GetPlayerData()
     return ESX.PlayerData
 end
 
+---@param name string
+---@param func function
+---@return nil
+function ESX.SecureNetEvent(name, func)
+    local invoker = GetInvokingResource()
+    local invokingResource = invoker and invoker ~= 'unknown' and invoker or 'es_extended'
+    if not invokingResource then
+        return
+    end
+
+    if not Core.Events[invokingResource] then
+        Core.Events[invokingResource] = {}
+    end
+
+    local event = RegisterNetEvent(name, function(...)
+        if source == '' then
+            return
+        end
+
+        local success, result = pcall(func, ...)
+        if not success then
+            error(("%s"):format(result))
+        end
+    end)
+    local eventIndex = #Core.Events[invokingResource] + 1
+    Core.Events[invokingResource][eventIndex] = event
+end
+
+local addonResourcesState = {
+    ['esx_progressbar'] = GetResourceState('esx_progressbar') ~= 'missing',
+    ['esx_notify'] = GetResourceState('esx_notify') ~= 'missing',
+    ['esx_textui'] = GetResourceState('esx_textui') ~= 'missing',
+    ['esx_context'] = GetResourceState('esx_context') ~= 'missing',
+}
+
+local function IsResourceFound(resource)
+	return addonResourcesState[resource] or error(('Resource [^5%s^1] is Missing!'):format(resource))
+end
+
+function ESX.DisableSpawnManager()
+    if GetResourceState("spawnmanager") == "started" then
+        exports.spawnmanager:setAutoSpawn(false)
+    end
+end
+
+---@param items string | table The item(s) to search for
+---@param count? boolean Whether to return the count of the item as well
+---@return table | number
 function ESX.SearchInventory(items, count)
-    items = type(items) == "string" and { items } or items
+    local item
+    if type(items) == 'string' then
+        item, items = items, {items}
+    end
 
     local data = {}
-    for i = 1, #items do
-        for c = 1, #ESX.PlayerData.inventory do
-            if ESX.PlayerData.inventory[c].name == items[i] then
-                data[items[i]] = (count and ESX.PlayerData.inventory[c].count) or ESX.PlayerData.inventory[c]
+    for i = 1, #ESX.PlayerData.inventory do
+        local e = ESX.PlayerData.inventory[i]
+        for ii = 1, #items do
+            if e.name == items[ii] then
+                data[table.remove(items, ii)] = count and e.count or e
+                break
             end
+        end
+        if #items == 0 then
+            break
         end
     end
 
-    return #items == 1 and data[items[1]] or data
+    return not item and data or data[item]
 end
 
+---@param key string Table key to set
+---@param val any Value to set
+---@return nil
 function ESX.SetPlayerData(key, val)
     local current = ESX.PlayerData[key]
     ESX.PlayerData[key] = val
@@ -49,111 +92,176 @@ function ESX.SetPlayerData(key, val)
     end
 end
 
-function ESX.Progressbar(message, length, Options)
-    if GetResourceState("esx_progressbar") ~= "missing" then
-        return exports["esx_progressbar"]:Progressbar(message, length, Options)
-    end
+---@param freeze boolean Whether to freeze the player
+---@return nil
+function Core.FreezePlayer(freeze)
+    local ped = PlayerPedId()
+    SetPlayerControl(ESX.playerId, not freeze, 0)
 
-    print("[^1ERROR^7] ^5ESX Progressbar^7 is Missing!")
+    if freeze then
+        SetEntityCollision(ped, false, false)
+        FreezeEntityPosition(ped, true)
+    else
+        SetEntityCollision(ped, true, true)
+        FreezeEntityPosition(ped, false)
+    end
 end
 
+---@param skin table Skin data to set
+---@param coords table Coords to spawn the player at
+---@param cb function Callback function
+---@return nil
+function ESX.SpawnPlayer(skin, coords, cb)
+    local p = promise.new()
+    TriggerEvent("skinchanger:loadSkin", skin, function()
+        p:resolve()
+    end)
+    Citizen.Await(p)
+
+    RequestCollisionAtCoord(coords.x, coords.y, coords.z)
+
+    local playerPed = PlayerPedId()
+    local timer = GetGameTimer()
+
+    Core.FreezePlayer(true)
+    SetEntityCoordsNoOffset(playerPed, coords.x, coords.y, coords.z, false, false, true)
+    SetEntityHeading(playerPed, coords.heading)
+
+    RequestCollisionAtCoord(coords.x, coords.y, coords.z)
+    while not HasCollisionLoadedAroundEntity(playerPed) and (GetGameTimer() - timer) < 5000 do
+        Wait(0)
+    end
+
+    NetworkResurrectLocalPlayer(coords.x, coords.y, coords.z, coords.heading, 0, true)
+    TriggerEvent('playerSpawned', coords)
+    cb()
+end
+
+---@param message string
+---@param length? number Timeout in milliseconds
+---@param options? ProgressBarOptions
+---@return boolean Success Whether the progress bar was successfully created or not
+function ESX.Progressbar(message, length, options)
+	return IsResourceFound('esx_progressbar') and exports['esx_progressbar']:Progressbar(message, length, options)
+end
+
+function ESX.CancelProgressbar()
+    return IsResourceFound('esx_progressbar') and exports['esx_progressbar']:CancelProgressbar()
+end
+
+---@param message string The message to show
+---@param notifyType? string The type of notification to show
+---@param length? number The length of the notification
+---@return nil
 function ESX.ShowNotification(message, notifyType, length)
-    if GetResourceState("esx_notify") ~= "missing" then
-        return exports["esx_notify"]:Notify(notifyType, length, message)
-    end
-
-    print("[^1ERROR^7] ^5ESX Notify^7 is Missing!")
+	return IsResourceFound('esx_notify') and exports['esx_notify']:Notify(notifyType, length, message)
 end
 
-function ESX.TextUI(message, notifyType)
-    if GetResourceState("esx_textui") ~= "missing" then
-        return exports["esx_textui"]:TextUI(message, notifyType)
-    end
-
-    print("[^1ERROR^7] ^5ESX TextUI^7 is Missing!")
+function ESX.TextUI(...)
+	return IsResourceFound('esx_textui') and exports['esx_textui']:TextUI(...)
 end
 
+---@return nil
 function ESX.HideUI()
-    if GetResourceState("esx_textui") ~= "missing" then
-        return exports["esx_textui"]:HideUI()
-    end
-
-    print("[^1ERROR^7] ^5ESX TextUI^7 is Missing!")
+	return IsResourceFound('esx_textui') and exports['esx_textui']:HideUI()
 end
 
+---@param sender string
+---@param subject string
+---@param msg string
+---@param textureDict string
+---@param iconType integer
+---@param flash boolean
+---@param saveToBrief? boolean
+---@param hudColorIndex? integer
+---@return nil
 function ESX.ShowAdvancedNotification(sender, subject, msg, textureDict, iconType, flash, saveToBrief, hudColorIndex)
-    if saveToBrief == nil then
-        saveToBrief = true
-    end
     AddTextEntry("esxAdvancedNotification", msg)
     BeginTextCommandThefeedPost("esxAdvancedNotification")
     if hudColorIndex then
         ThefeedSetNextPostBackgroundColor(hudColorIndex)
     end
     EndTextCommandThefeedPostMessagetext(textureDict, textureDict, false, iconType, sender, subject)
-    EndTextCommandThefeedPostTicker(flash or false, saveToBrief)
+    EndTextCommandThefeedPostTicker(flash, saveToBrief == nil or saveToBrief)
 end
 
+---@param msg string The message to show
+---@param thisFrame? boolean Whether to show the message this frame
+---@param beep? boolean Whether to beep
+---@param duration? number The duration of the message
+---@return nil
 function ESX.ShowHelpNotification(msg, thisFrame, beep, duration)
     AddTextEntry("esxHelpNotification", msg)
-
     if thisFrame then
         DisplayHelpTextThisFrame("esxHelpNotification", false)
     else
-        if beep == nil then
-            beep = true
-        end
         BeginTextCommandDisplayHelp("esxHelpNotification")
-        EndTextCommandDisplayHelp(0, false, beep, duration or -1)
+        EndTextCommandDisplayHelp(0, false, beep == nil or beep, duration or -1)
     end
 end
 
+---@param msg string The message to show
+---@param coords table The coords to show the message at
+---@return nil
 function ESX.ShowFloatingHelpNotification(msg, coords)
     AddTextEntry("esxFloatingHelpNotification", msg)
-    SetFloatingHelpTextWorldPosition(1, coords)
+    SetFloatingHelpTextWorldPosition(1, coords.x, coords.y, coords.z)
     SetFloatingHelpTextStyle(1, 1, 2, -1, 3, 0)
     BeginTextCommandDisplayHelp("esxFloatingHelpNotification")
     EndTextCommandDisplayHelp(2, false, false, -1)
 end
 
-ESX.HashString = function(str)
-    local format = string.format
-    local upper = string.upper
-    local gsub = string.gsub
-    local hash = joaat(str)
-    local input_map = format("~INPUT_%s~", upper(format("%x", hash)))
-    input_map = gsub(input_map, "FFFFFFFF", "")
-
-    return input_map
+---@param msg string The message to show
+---@param time number The duration of the message
+---@return nil
+function ESX.DrawMissionText(msg, time)
+    ClearPrints()
+    BeginTextCommandPrint('STRING')
+    AddTextComponentSubstringPlayerName(msg)
+    EndTextCommandPrint(time, true)
 end
 
-local contextAvailable = GetResourceState("esx_context") ~= "missing"
+---@param str string The string to hash
+---@return string The hashed string
+function ESX.HashString(str)
+    return ('~INPUT_%s~'):format(('%x'):format(joaat(str) & 0x7fffffff + 2 ^ 31):upper())
+end
 
 function ESX.OpenContext(...)
-    return contextAvailable and exports["esx_context"]:Open(...) or not contextAvailable and print("[^1ERROR^7] Tried to ^5open^7 context menu, but ^5esx_context^7 is missing!")
+    return IsResourceFound('esx_context') and exports['esx_context']:Open(...)
 end
 
 function ESX.PreviewContext(...)
-    return contextAvailable and exports["esx_context"]:Preview(...) or not contextAvailable and print("[^1ERROR^7] Tried to ^5preview^7 context menu, but ^5esx_context^7 is missing!")
+    return IsResourceFound('esx_context') and exports['esx_context']:Preview(...)
 end
 
 function ESX.CloseContext(...)
-    return contextAvailable and exports["esx_context"]:Close(...) or not contextAvailable and print("[^1ERROR^7] Tried to ^5close^7 context menu, but ^5esx_context^7 is missing!")
+    return IsResourceFound('esx_context') and exports['esx_context']:Close(...)
 end
 
 function ESX.RefreshContext(...)
-    return contextAvailable and exports["esx_context"]:Refresh(...) or not contextAvailable and print("[^1ERROR^7] Tried to ^5Refresh^7 context menu, but ^5esx_context^7 is missing!")
+    return IsResourceFound('esx_context') and exports['esx_context']:Refresh(...)
 end
 
-ESX.RegisterInput = function(command_name, label, input_group, key, on_press, on_release)
-    RegisterCommand(on_release ~= nil and "+" .. command_name or command_name, on_press)
-    Core.Input[command_name] = on_release ~= nil and ESX.HashString("+" .. command_name) or ESX.HashString(command_name)
+---@param command_name string The command name
+---@param label string The label to show
+---@param input_group string The input group
+---@param key string The key to bind
+---@param on_press function The function to call on press
+---@param on_release? function The function to call on release
+function ESX.RegisterInput(command_name, label, input_group, key, on_press, on_release)
+	local command = on_release and '+' .. command_name or command_name
+    RegisterCommand(command, on_press, false)
+    Core.Input[command_name] = ESX.HashString(command)
     if on_release then
-        RegisterCommand("-" .. command_name, on_release)
+        RegisterCommand('-' .. command_name, on_release, false)
     end
-    RegisterKeyMapping(on_release ~= nil and "+" .. command_name or command_name, label, input_group, key)
+    RegisterKeyMapping(command, label or '', input_group or 'keyboard', key or '')
 end
 
+---@param menuType string
+---@param open function The function to call on open
+---@param close function The function to call on close
 function ESX.UI.Menu.RegisterType(menuType, open, close)
     ESX.UI.Menu.RegisteredTypes[menuType] = {
         open = open,
@@ -161,7 +269,34 @@ function ESX.UI.Menu.RegisterType(menuType, open, close)
     }
 end
 
+---@class ESXMenu
+---@field type string
+---@field namespace string
+---@field resourceName string
+---@field name string
+---@field data table
+---@field submit? function
+---@field cancel? function
+---@field change? function
+---@field close function
+---@field update function
+---@field refresh function
+---@field setElement function
+---@field setElements function
+---@field setTitle function
+---@field removeElement function
+
+---@param menuType string
+---@param namespace string
+---@param name string
+---@param data table
+---@param submit? function
+---@param cancel? function
+---@param change? function
+---@param close? function
+---@return ESXMenu
 function ESX.UI.Menu.Open(menuType, namespace, name, data, submit, cancel, change, close)
+    ---@class ESXMenu
     local menu = {}
 
     menu.type = menuType
@@ -242,26 +377,55 @@ function ESX.UI.Menu.Open(menuType, namespace, name, data, submit, cancel, chang
     return menu
 end
 
-function ESX.UI.Menu.Close(menuType, namespace, name)
+---@param menuType string
+---@param namespace string
+---@param name string
+---@param cancel? boolean Should the close be classified as a cancel
+---@return nil
+function ESX.UI.Menu.Close(menuType, namespace, name, cancel)
     for i = 1, #ESX.UI.Menu.Opened, 1 do
         if ESX.UI.Menu.Opened[i] then
             if ESX.UI.Menu.Opened[i].type == menuType and ESX.UI.Menu.Opened[i].namespace == namespace and ESX.UI.Menu.Opened[i].name == name then
-                ESX.UI.Menu.Opened[i].close()
+                if not cancel then
+                    ESX.UI.Menu.Opened[i].close()
+                else
+                    local menu = ESX.UI.Menu.Opened[i]
+                    ESX.UI.Menu.RegisteredTypes[menu.type].close(menu.namespace, menu.name)
+
+                    if type(menu.cancel) ~= "nil" then
+                        menu.cancel(menu.data, menu)
+                    end
+                end
                 ESX.UI.Menu.Opened[i] = nil
             end
         end
     end
 end
 
-function ESX.UI.Menu.CloseAll()
+---@param cancel? boolean Should the close be classified as a cancel
+---@return nil
+function ESX.UI.Menu.CloseAll(cancel)
     for i = 1, #ESX.UI.Menu.Opened, 1 do
         if ESX.UI.Menu.Opened[i] then
-            ESX.UI.Menu.Opened[i].close()
+            if not cancel then
+                ESX.UI.Menu.Opened[i].close()
+            else
+                local menu = ESX.UI.Menu.Opened[i]
+                ESX.UI.Menu.RegisteredTypes[menu.type].close(menu.namespace, menu.name)
+
+                if type(menu.cancel) ~= "nil" then
+                    menu.cancel(menu.data, menu)
+                end
+            end
             ESX.UI.Menu.Opened[i] = nil
         end
     end
 end
 
+---@param menuType string
+---@param namespace string
+---@param name string
+---@return ESXMenu | nil
 function ESX.UI.Menu.GetOpened(menuType, namespace, name)
     for i = 1, #ESX.UI.Menu.Opened, 1 do
         if ESX.UI.Menu.Opened[i] then
@@ -272,14 +436,17 @@ function ESX.UI.Menu.GetOpened(menuType, namespace, name)
     end
 end
 
+---@return ESXMenu[]
 function ESX.UI.Menu.GetOpenedMenus()
     return ESX.UI.Menu.Opened
 end
 
-function ESX.UI.Menu.IsOpen(menuType, namespace, name)
-    return ESX.UI.Menu.GetOpened(menuType, namespace, name) ~= nil
-end
+ESX.UI.Menu.IsOpen = ESX.UI.Menu.GetOpened
 
+---@param add boolean Whether the item is being added or removed
+---@param item string The item to show
+---@param count number How many of the item to show
+---@return nil
 function ESX.UI.ShowInventoryItemNotification(add, item, count)
     SendNUIMessage({
         action = "inventoryNotification",
@@ -289,6 +456,8 @@ function ESX.UI.ShowInventoryItemNotification(add, item, count)
     })
 end
 
+---@param ped integer The ped to get the mugshot of
+---@param transparent? boolean Whether the mugshot should be transparent
 function ESX.Game.GetPedMugshot(ped, transparent)
     if not DoesEntityExist(ped) then
         return
@@ -302,17 +471,19 @@ function ESX.Game.GetPedMugshot(ped, transparent)
     return mugshot, GetPedheadshotTxdString(mugshot)
 end
 
+---@param entity integer The entity to get the coords of
+---@param coords table | vector3 | vector4 The coords to teleport the entity to
+---@param cb? function The callback function
 function ESX.Game.Teleport(entity, coords, cb)
-    local vector = type(coords) == "vector4" and coords or type(coords) == "vector3" and vector4(coords, 0.0) or vec(coords.x, coords.y, coords.z, coords.heading or 0.0)
 
     if DoesEntityExist(entity) then
-        RequestCollisionAtCoord(vector.xyz)
+        RequestCollisionAtCoord(coords.x, coords.y, coords.z)
         while not HasCollisionLoadedAroundEntity(entity) do
             Wait(0)
         end
 
-        SetEntityCoords(entity, vector.xyz, false, false, false, false)
-        SetEntityHeading(entity, vector.w)
+        SetEntityCoords(entity, coords.x, coords.y, coords.z, false, false, false, false)
+        SetEntityHeading(entity, coords.w or coords.heading or 0.0)
     end
 
     if cb then
@@ -320,39 +491,56 @@ function ESX.Game.Teleport(entity, coords, cb)
     end
 end
 
+---@param object integer | string The object to spawn
+---@param coords table | vector3 The coords to spawn the object at
+---@param cb? function The callback function
+---@param networked? boolean Whether the object should be networked
+---@return integer | nil
 function ESX.Game.SpawnObject(object, coords, cb, networked)
-    networked = networked == nil and true or networked
-
     local model = type(object) == "number" and object or joaat(object)
-    local vector = type(coords) == "vector3" and coords or vec(coords.x, coords.y, coords.z)
-    CreateThread(function()
-        ESX.Streaming.RequestModel(model)
 
-        local obj = CreateObject(model, vector.xyz, networked, false, true)
-        if cb then
-            cb(obj)
-        end
-    end)
+    ESX.Streaming.RequestModel(model)
+
+	local obj = CreateObject(model, coords.x, coords.y, coords.z, networked == nil or networked, false, true)
+	return cb and cb(obj) or obj
 end
 
+---@param object integer | string The object to spawn
+---@param coords table | vector3 The coords to spawn the object at
+---@param cb? function The callback function
+---@return nil
 function ESX.Game.SpawnLocalObject(object, coords, cb)
     ESX.Game.SpawnObject(object, coords, cb, false)
 end
 
+---@param vehicle integer The vehicle to delete
+---@return nil
 function ESX.Game.DeleteVehicle(vehicle)
     SetEntityAsMissionEntity(vehicle, true, true)
     DeleteVehicle(vehicle)
 end
 
+---@param object integer The object to delete
+---@return nil
 function ESX.Game.DeleteObject(object)
     SetEntityAsMissionEntity(object, false, true)
     DeleteObject(object)
 end
 
+---@param vehicleModel integer | string The vehicle to spawn
+---@param coords table | vector3 The coords to spawn the vehicle at
+---@param heading number The heading of the vehicle
+---@param cb? fun(vehicle: number) The callback function
+---@param networked? boolean Whether the vehicle should be networked
+---@return number? vehicle
 function ESX.Game.SpawnVehicle(vehicleModel, coords, heading, cb, networked)
+    if cb and not ESX.IsFunctionReference(cb) then
+        error("Invalid callback function")
+    end
+
     local model = type(vehicleModel) == "number" and vehicleModel or joaat(vehicleModel)
     local vector = type(coords) == "vector3" and coords or vec(coords.x, coords.y, coords.z)
-    networked = networked == nil and true or networked
+    local isNetworked = networked == nil or networked
 
     local playerCoords = GetEntityCoords(ESX.PlayerData.ped)
     if not vector or not playerCoords then
@@ -362,13 +550,20 @@ function ESX.Game.SpawnVehicle(vehicleModel, coords, heading, cb, networked)
     local dist = #(playerCoords - vector)
     if dist > 424 then -- Onesync infinity Range (https://docs.fivem.net/docs/scripting-reference/onesync/)
         local executingResource = GetInvokingResource() or "Unknown"
-        return print(("[^1ERROR^7] Resource ^5%s^7 Tried to spawn vehicle on the client but the position is too far away (Out of onesync range)."):format(executingResource))
+        return error(("Resource ^5%s^1 Tried to spawn vehicle on the client but the position is too far away (Out of onesync range)."):format(executingResource))
     end
 
+    local promise = not cb and promise.new()
     CreateThread(function()
-        ESX.Streaming.RequestModel(model)
+        local modelHash = ESX.Streaming.RequestModel(model)
+        if not modelHash then
+            if promise then
+                return promise:reject(("Tried to spawn invalid vehicle - ^5%s^7!"):format(model))
+            end
+           error(("Tried to spawn invalid vehicle - ^5%s^7!"):format(model))
+        end
 
-        local vehicle = CreateVehicle(model, vector.xyz, heading, networked, true)
+        local vehicle = CreateVehicle(model, vector.x, vector.y, vector.z, heading, isNetworked, true)
 
         if networked then
             local id = NetworkGetNetworkIdFromEntity(vehicle)
@@ -380,32 +575,45 @@ function ESX.Game.SpawnVehicle(vehicleModel, coords, heading, cb, networked)
         SetModelAsNoLongerNeeded(model)
         SetVehRadioStation(vehicle, "OFF")
 
-        RequestCollisionAtCoord(vector.xyz)
+        RequestCollisionAtCoord(vector.x, vector.y, vector.z)
         while not HasCollisionLoadedAroundEntity(vehicle) do
             Wait(0)
         end
 
-        if cb then
+        if promise then
+            promise:resolve(vehicle)
+        elseif cb then
             cb(vehicle)
         end
     end)
+
+    if promise then
+        return Citizen.Await(promise)
+    end
 end
 
+---@param vehicle integer The vehicle to spawn
+---@param coords table | vector3 The coords to spawn the vehicle at
+---@param heading number The heading of the vehicle
+---@param cb? function The callback function
+---@return nil
 function ESX.Game.SpawnLocalVehicle(vehicle, coords, heading, cb)
     ESX.Game.SpawnVehicle(vehicle, coords, heading, cb, false)
 end
 
+---@param vehicle integer The vehicle to check
+---@return boolean
 function ESX.Game.IsVehicleEmpty(vehicle)
-    local passengers = GetVehicleNumberOfPassengers(vehicle)
-    local driverSeatFree = IsVehicleSeatFree(vehicle, -1)
-
-    return passengers == 0 and driverSeatFree
+    return GetVehicleNumberOfPassengers(vehicle) == 0 and IsVehicleSeatFree(vehicle, -1)
 end
 
+---@return table
 function ESX.Game.GetObjects() -- Leave the function for compatibility
     return GetGamePool("CObject")
 end
 
+---@param onlyOtherPeds? boolean Whether to exlude the player ped
+---@return table
 function ESX.Game.GetPeds(onlyOtherPeds)
     local pool = GetGamePool("CPed")
 
@@ -422,19 +630,24 @@ function ESX.Game.GetPeds(onlyOtherPeds)
     return pool
 end
 
+---@return table
 function ESX.Game.GetVehicles() -- Leave the function for compatibility
     return GetGamePool("CVehicle")
 end
 
+---@param onlyOtherPlayers? boolean Whether to exclude the player
+---@param returnKeyValue? boolean Whether to return the key value pair
+---@param returnPeds? boolean Whether to return the peds
+---@return table
 function ESX.Game.GetPlayers(onlyOtherPlayers, returnKeyValue, returnPeds)
-    local players, myPlayer = {}, PlayerId()
+    local players = {}
     local active = GetActivePlayers()
 
     for i = 1, #active do
         local currentPlayer = active[i]
         local ped = GetPlayerPed(currentPlayer)
 
-        if DoesEntityExist(ped) and ((onlyOtherPlayers and currentPlayer ~= myPlayer) or not onlyOtherPlayers) then
+        if DoesEntityExist(ped) and ((onlyOtherPlayers and currentPlayer ~= ESX.playerId) or not onlyOtherPlayers) then
             if returnKeyValue then
                 players[currentPlayer] = ped
             else
@@ -446,22 +659,38 @@ function ESX.Game.GetPlayers(onlyOtherPlayers, returnKeyValue, returnPeds)
     return players
 end
 
+---@param coords? table | vector3 The coords to get the closest object to
+---@param modelFilter? table The model filter
+---@return integer, integer
 function ESX.Game.GetClosestObject(coords, modelFilter)
     return ESX.Game.GetClosestEntity(ESX.Game.GetObjects(), false, coords, modelFilter)
 end
 
+---@param coords? table | vector3 The coords to get the closest ped to
+---@param modelFilter? table The model filter
+---@return integer, integer
 function ESX.Game.GetClosestPed(coords, modelFilter)
     return ESX.Game.GetClosestEntity(ESX.Game.GetPeds(true), false, coords, modelFilter)
 end
 
+---@param coords? table | vector3 The coords to get the closest player to
+---@return integer, integer
 function ESX.Game.GetClosestPlayer(coords)
     return ESX.Game.GetClosestEntity(ESX.Game.GetPlayers(true, true), true, coords, nil)
 end
 
+---@param coords? table | vector3 The coords to get the closest vehicle to
+---@param modelFilter? table The model filter
+---@return integer, integer
 function ESX.Game.GetClosestVehicle(coords, modelFilter)
     return ESX.Game.GetClosestEntity(ESX.Game.GetVehicles(), false, coords, modelFilter)
 end
 
+---@param entities table The entities to search through
+---@param isPlayerEntities boolean Whether the entities are players
+---@param coords table | vector3 The coords to search from
+---@param maxDistance number The max distance to search within
+---@return table
 local function EnumerateEntitiesWithinDistance(entities, isPlayerEntities, coords, maxDistance)
     local nearbyEntities = {}
 
@@ -483,18 +712,53 @@ local function EnumerateEntitiesWithinDistance(entities, isPlayerEntities, coord
     return nearbyEntities
 end
 
+---@param coords table | vector3 The coords to search from
+---@param maxDistance number The max distance to search within
+---@return table
 function ESX.Game.GetPlayersInArea(coords, maxDistance)
     return EnumerateEntitiesWithinDistance(ESX.Game.GetPlayers(true, true), true, coords, maxDistance)
 end
 
+---@param coords table | vector3 The coords to search from
+---@param maxDistance number The max distance to search within
+---@return table
 function ESX.Game.GetVehiclesInArea(coords, maxDistance)
     return EnumerateEntitiesWithinDistance(ESX.Game.GetVehicles(), false, coords, maxDistance)
 end
 
+---@param coords table | vector3 The coords to search from
+---@param maxDistance number The max distance to search within
+---@return boolean
 function ESX.Game.IsSpawnPointClear(coords, maxDistance)
     return #ESX.Game.GetVehiclesInArea(coords, maxDistance) == 0
 end
 
+---@param shape integer The shape to get the test result from
+---@return boolean, table, table, integer, integer
+function ESX.Game.GetShapeTestResultSync(shape)
+	local handle, hit, coords, normal, material, entity
+	repeat
+        handle, hit, coords, normal, material, entity = GetShapeTestResultIncludingMaterial(shape)
+        Wait(0)
+	until handle ~= 1
+	return hit, coords, normal, material, entity
+end
+
+---@param depth number The depth to raycast
+---@vararg any The arguments to pass to the shape test
+---@return table, boolean, table, table, integer, integer
+function ESX.Game.RaycastScreen(depth, ...)
+	local world, normal = GetWorldCoordFromScreenCoord(.5, .5)
+	local origin = world + normal
+	local target = world + normal * depth
+	return target, ESX.Game.GetShapeTestResultSync(StartShapeTestLosProbe(origin.x, origin.y, origin.z, target.x, target.y, target.z, ...))
+end
+
+---@param entities table The entities to search through
+---@param isPlayerEntities boolean Whether the entities are players
+---@param coords? table | vector3 The coords to search from
+---@param modelFilter? table The model filter
+---@return integer, integer
 function ESX.Game.GetClosestEntity(entities, isPlayerEntities, coords, modelFilter)
     local closestEntity, closestEntityDistance, filteredEntities = -1, -1, nil
 
@@ -508,9 +772,9 @@ function ESX.Game.GetClosestEntity(entities, isPlayerEntities, coords, modelFilt
     if modelFilter then
         filteredEntities = {}
 
-        for _, entity in pairs(entities) do
-            if modelFilter[GetEntityModel(entity)] then
-                filteredEntities[#filteredEntities + 1] = entity
+        for currentEntityIndex = 1, #entities do
+            if modelFilter[GetEntityModel(entities[currentEntityIndex])] then
+                filteredEntities[#filteredEntities + 1] = entities[currentEntityIndex]
             end
         end
     end
@@ -526,21 +790,16 @@ function ESX.Game.GetClosestEntity(entities, isPlayerEntities, coords, modelFilt
     return closestEntity, closestEntityDistance
 end
 
+---@return integer | nil, vector3 | nil
 function ESX.Game.GetVehicleInDirection()
-    local playerPed = ESX.PlayerData.ped
-    local playerCoords = GetEntityCoords(playerPed)
-    local inDirection = GetOffsetFromEntityInWorldCoords(playerPed, 0.0, 5.0, 0.0)
-    local rayHandle = StartExpensiveSynchronousShapeTestLosProbe(playerCoords, inDirection, 10, playerPed, 0)
-    local _, hit, _, _, entityHit = GetShapeTestResult(rayHandle)
-
-    if hit == 1 and GetEntityType(entityHit) == 2 then
-        local entityCoords = GetEntityCoords(entityHit)
-        return entityHit, entityCoords
+    local _, hit, coords, _, _, entity = ESX.Game.RaycastScreen(5, 10, ESX.PlayerData.ped)
+    if hit and IsEntityAVehicle(entity) then
+        return entity, coords
     end
-
-    return nil
 end
 
+---@param vehicle integer The vehicle to get the properties of
+---@return table | nil
 function ESX.Game.GetVehicleProperties(vehicle)
     if not DoesEntityExist(vehicle) then
         return
@@ -696,6 +955,9 @@ function ESX.Game.GetVehicleProperties(vehicle)
     }
 end
 
+---@param vehicle integer The vehicle to set the properties of
+---@param props table The properties to set
+---@return nil
 function ESX.Game.SetVehicleProperties(vehicle, props)
     if not DoesEntityExist(vehicle) then
         return
@@ -772,7 +1034,10 @@ function ESX.Game.SetVehicleProperties(vehicle, props)
 
     if props.extras ~= nil then
         for extraId, enabled in pairs(props.extras) do
-            SetVehicleExtra(vehicle, tonumber(extraId), enabled and 0 or 1)
+            extraId = tonumber(extraId)
+            if extraId then
+                SetVehicleExtra(vehicle, extraId, not enabled)
+            end
         end
     end
 
@@ -934,7 +1199,10 @@ function ESX.Game.SetVehicleProperties(vehicle, props)
     if props.windowsBroken ~= nil then
         for k, v in pairs(props.windowsBroken) do
             if v then
-                RemoveVehicleWindow(vehicle, tonumber(k))
+                k = tonumber(k)
+                if k then
+                    RemoveVehicleWindow(vehicle, k)
+                end
             end
         end
     end
@@ -942,7 +1210,10 @@ function ESX.Game.SetVehicleProperties(vehicle, props)
     if props.doorsBroken ~= nil then
         for k, v in pairs(props.doorsBroken) do
             if v then
-                SetVehicleDoorBroken(vehicle, tonumber(k), true)
+                k = tonumber(k)
+                if k then
+                    SetVehicleDoorBroken(vehicle, k, true)
+                end
             end
         end
     end
@@ -950,12 +1221,20 @@ function ESX.Game.SetVehicleProperties(vehicle, props)
     if props.tyreBurst ~= nil then
         for k, v in pairs(props.tyreBurst) do
             if v then
-                SetVehicleTyreBurst(vehicle, tonumber(k), true, 1000.0)
+                k = tonumber(k)
+                if k then
+                    SetVehicleTyreBurst(vehicle, k, true, 1000.0)
+                end
             end
         end
     end
 end
 
+---@param coords vector3 | table coords to get the closest pickup to
+---@param text string The text to display
+---@param size? number The size of the text
+---@param font? number The font of the text
+---@return nil
 function ESX.Game.Utils.DrawText3D(coords, text, size, font)
     local vector = type(coords) == "vector3" and coords or vec(coords.x, coords.y, coords.z)
 
@@ -971,12 +1250,12 @@ function ESX.Game.Utils.DrawText3D(coords, text, size, font)
 
     SetTextScale(0.0, 0.55 * scale)
     SetTextFont(font)
-    SetTextProportional(1)
+    SetTextProportional(true)
     SetTextColour(255, 255, 255, 215)
     BeginTextCommandDisplayText("STRING")
     SetTextCentre(true)
     AddTextComponentSubstringPlayerName(text)
-    SetDrawOrigin(vector.xyz, 0)
+    SetDrawOrigin(vector.x, vector.y, vector.z, 0)
     EndTextCommandDisplayText(0.0, 0.0)
     ClearDrawOrigin()
 end
@@ -992,6 +1271,7 @@ function ESX.GetAccount(account)
     return nil
 end
 
+---@return nil
 function ESX.ShowInventory()
     if not Config.EnableDefaultInventory then
         return
@@ -1128,8 +1408,8 @@ function ESX.ShowInventory()
                         { unselectable = true, icon = "fas fa-users", title = "Nearby Players" },
                     }
 
-                    for _, playerNearby in ipairs(playersNearby) do
-                        players[GetPlayerServerId(playerNearby)] = true
+                    for currentNearbyPlayerIndex = 1, #playersNearby do
+                        players[GetPlayerServerId(playersNearby[currentNearbyPlayerIndex])] = true
                     end
 
                     ESX.TriggerServerCallback("esx:getPlayerNames", function(returnedPlayers)
@@ -1262,20 +1542,11 @@ function ESX.ShowInventory()
     end)
 end
 
-RegisterNetEvent("esx:showNotification")
-AddEventHandler("esx:showNotification", function(msg, notifyType, length)
-    ESX.ShowNotification(msg, notifyType, length)
-end)
+ESX.SecureNetEvent('esx:showNotification', ESX.ShowNotification)
 
-RegisterNetEvent("esx:showAdvancedNotification")
-AddEventHandler("esx:showAdvancedNotification", function(sender, subject, msg, textureDict, iconType, flash, saveToBrief, hudColorIndex)
-    ESX.ShowAdvancedNotification(sender, subject, msg, textureDict, iconType, flash, saveToBrief, hudColorIndex)
-end)
+ESX.SecureNetEvent('esx:showAdvancedNotification', ESX.ShowAdvancedNotification)
 
-RegisterNetEvent("esx:showHelpNotification")
-AddEventHandler("esx:showHelpNotification", function(msg, thisFrame, beep, duration)
-    ESX.ShowHelpNotification(msg, thisFrame, beep, duration)
-end)
+ESX.SecureNetEvent('esx:showHelpNotification', ESX.ShowHelpNotification)
 
 AddEventHandler("onResourceStop", function(resourceName)
     for i = 1, #ESX.UI.Menu.Opened, 1 do
@@ -1325,12 +1596,17 @@ local mismatchedTypes = {
 }
 
 ---@param model number|string
----@return string
-function ESX.GetVehicleType(model)
+---@return string | boolean
+function ESX.GetVehicleTypeClient(model)
     model = type(model) == "string" and joaat(model) or model
     if not IsModelInCdimage(model) then
-        return
+        return false
     end
+
+    if not IsModelAVehicle(model) then
+        return false
+    end
+
     if mismatchedTypes[model] then
         return mismatchedTypes[model]
     end
@@ -1348,3 +1624,5 @@ function ESX.GetVehicleType(model)
 
     return types[vehicleType] or "automobile"
 end
+
+ESX.GetVehicleType = ESX.GetVehicleTypeClient

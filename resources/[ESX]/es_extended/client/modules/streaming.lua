@@ -1,85 +1,70 @@
+ESX.Streaming = {}
+
+---@param modelHash number | string
+---@param cb? function
+---@return number | nil
 function ESX.Streaming.RequestModel(modelHash, cb)
-    modelHash = (type(modelHash) == "number" and modelHash or joaat(modelHash))
+    modelHash = type(modelHash) == "number" and modelHash or joaat(modelHash)
 
-    if not HasModelLoaded(modelHash) and IsModelInCdimage(modelHash) then
-        RequestModel(modelHash)
+    if not IsModelInCdimage(modelHash) then return end
 
-        while not HasModelLoaded(modelHash) do
-            Wait(0)
-        end
-    end
+	RequestModel(modelHash)
+	while not HasModelLoaded(modelHash) do Wait(500) end
 
-    if cb ~= nil then
-        cb()
-    end
+	return cb and cb(modelHash) or modelHash
 end
 
+---@param textureDict string
+---@param cb? function
+---@return string | nil
 function ESX.Streaming.RequestStreamedTextureDict(textureDict, cb)
-    if not HasStreamedTextureDictLoaded(textureDict) then
-        RequestStreamedTextureDict(textureDict)
+	RequestStreamedTextureDict(textureDict, false)
 
-        while not HasStreamedTextureDictLoaded(textureDict) do
-            Wait(0)
-        end
-    end
+	while not HasStreamedTextureDictLoaded(textureDict) do Wait(500) end
 
-    if cb ~= nil then
-        cb()
-    end
+	return cb and cb(textureDict) or textureDict
 end
 
+---@param assetName string
+---@param cb? function
+---@return string | nil
 function ESX.Streaming.RequestNamedPtfxAsset(assetName, cb)
-    if not HasNamedPtfxAssetLoaded(assetName) then
-        RequestNamedPtfxAsset(assetName)
+	RequestNamedPtfxAsset(assetName)
 
-        while not HasNamedPtfxAssetLoaded(assetName) do
-            Wait(0)
-        end
-    end
+	while not HasNamedPtfxAssetLoaded(assetName) do Wait(500) end
 
-    if cb ~= nil then
-        cb()
-    end
+	return cb and cb(assetName) or assetName
 end
 
+---@param animSet string
+---@param cb? function
+---@return string | nil
 function ESX.Streaming.RequestAnimSet(animSet, cb)
-    if not HasAnimSetLoaded(animSet) then
-        RequestAnimSet(animSet)
+	RequestAnimSet(animSet)
 
-        while not HasAnimSetLoaded(animSet) do
-            Wait(0)
-        end
-    end
+	while not HasAnimSetLoaded(animSet) do Wait(500) end
 
-    if cb ~= nil then
-        cb()
-    end
+	return cb and cb(animSet) or animSet
 end
 
+---@param animDict string
+---@param cb? function
+---@return string | nil
 function ESX.Streaming.RequestAnimDict(animDict, cb)
-    if not HasAnimDictLoaded(animDict) then
-        RequestAnimDict(animDict)
+	RequestAnimDict(animDict)
 
-        while not HasAnimDictLoaded(animDict) do
-            Wait(0)
-        end
-    end
+	while not HasAnimDictLoaded(animDict) do Wait(500) end
 
-    if cb ~= nil then
-        cb()
-    end
+	return cb and cb(animDict) or animDict
 end
 
+---@param weaponHash number | string
+---@param cb? function
+---@return string | number | nil
 function ESX.Streaming.RequestWeaponAsset(weaponHash, cb)
-    if not HasWeaponAssetLoaded(weaponHash) then
-        RequestWeaponAsset(weaponHash)
+	RequestWeaponAsset(weaponHash, 31, 0)
 
-        while not HasWeaponAssetLoaded(weaponHash) do
-            Wait(0)
-        end
-    end
+	while not HasWeaponAssetLoaded(weaponHash) do Wait(500) end
 
-    if cb ~= nil then
-        cb()
-    end
+	return cb and cb(weaponHash) or weaponHash
 end

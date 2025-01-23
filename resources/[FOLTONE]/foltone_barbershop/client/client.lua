@@ -89,11 +89,11 @@ local chairPositionList = {
     vector4(-816.22216796875, -182.97079467773, 36.569408416748, 209.99996948242),
     vector4(-817.95422363281, -183.97079467773, 36.569408416748, 209.99996948242)
 }
-local timout = false
-local function setTimout(time)
-    timout = true
+local timeout = false
+local function setTimeout(time)
+    timeout = true
     Citizen.SetTimeout(time, function()
-        timout = false
+        timeout = false
     end)
 end
 local function helpNotification(msg)
@@ -228,7 +228,7 @@ local function closeMenu()
     eyebrowsColors = {1,1, 0.0}
     chairSelected = nil
     sit = false
-    setTimout(1000)
+    setTimeout(1000)
 end
 local menuBarber = RageUI.CreateMenu("", _U("menu_subtitle"))
 function menuBarber.Closed()
@@ -354,11 +354,11 @@ CreateThread(function()
         for k, v in pairs(chairPositionList) do
             local chairCoords = vector3(v.x, v.y, v.z)
             local distance = #(playerCoords - chairCoords)
-            if distance <= 1.5 and not sit and not open and k ~= chairSelected then
+            if distance <= 1.5 and not sit and not open and k ~= chairSelected and not timeout then
                 wait = 0
                 helpNotification(_U("press_barber"))
                 if IsControlJustPressed(0, 38) then
-                    setTimout(1000)
+                    setTimeout(1000)
                     startHairCut(v, k)
                 end
             end

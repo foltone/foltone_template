@@ -1,120 +1,219 @@
-local isInVehicle, isEnteringVehicle, isJumping, inPauseMenu = false, false, false, false
-local playerPed = PlayerPedId()
-local current = {}
+Actions = {}
+Actions._index = Actions
 
-local function GetPedVehicleSeat(ped, vehicle)
+Actions.inVehicle = false
+Actions.enteringVehicle = false
+Actions.inPauseMenu = false
+Actions.currentWeapon = false
+
+function Actions:GetSeatPedIsIn()
     for i = -1, 16 do
-        if GetPedInVehicleSeat(vehicle, i) == ped then
+        if GetPedInVehicleSeat(self.vehicle, i) == ESX.PlayerData.ped then
             return i
         end
     end
     return -1
 end
 
-local function GetData(vehicle)
-    if not DoesEntityExist(vehicle) then
+function Actions:GetVehicleData()
+    if not DoesEntityExist(self.vehicle) then
         return
     end
-    local model = GetEntityModel(vehicle)
-    local displayName = GetDisplayNameFromVehicleModel(model)
-    local netId = vehicle
-    if NetworkGetEntityIsNetworked(vehicle) then
-        netId = VehToNet(vehicle)
-    end
-    return displayName, netId
+
+    local vehicleModel = GetEntityModel(self.vehicle)
+    local displayName = GetDisplayNameFromVehicleModel(vehicleModel)
+    local netId = NetworkGetEntityIsNetworked(self.vehicle) and VehToNet(self.vehicle) or self.vehicle
+    local plate = GetVehicleNumberPlateText(self.vehicle)
+
+    return displayName, netId, plate
 end
 
-CreateThread(function()
-    while not ESX.PlayerLoaded do Wait(200) end
-    while true do
-        ESX.SetPlayerData("coords", GetEntityCoords(playerPed))
-        if playerPed ~= PlayerPedId() then
-            playerPed = PlayerPedId()
-            ESX.SetPlayerData("ped", playerPed)
-            TriggerEvent("esx:playerPedChanged", playerPed)
-            TriggerServerEvent("esx:playerPedChanged", PedToNet(playerPed))
-            if Config.DisableHealthRegeneration then
-                SetPlayerHealthRechargeMultiplier(PlayerId(), 0.0)
-            end
-        end
+function Actions:SetVehicleStatus()
+    ESX.SetPlayerData("vehicle", self.vehicle)
+    ESX.SetPlayerData("seat", self.seat)
+end
 
-        if IsPedJumping(playerPed) and not isJumping then
-            isJumping = true
-            TriggerEvent("esx:playerJumping")
-            TriggerServerEvent("esx:playerJumping")
-        elseif not IsPedJumping(playerPed) and isJumping then
-            isJumping = false
-        end
+function Actions:TrackPedCoords()
+    local playerPed = ESX.PlayerData.ped
+    local coords = GetEntityCoords(playerPed)
 
-        if IsPauseMenuActive() and not inPauseMenu then
-            inPauseMenu = true
-            TriggerEvent("esx:pauseMenuActive", inPauseMenu)
-        elseif not IsPauseMenuActive() and inPauseMenu then
-            inPauseMenu = false
-            TriggerEvent("esx:pauseMenuActive", inPauseMenu)
-        end
+    ESX.SetPlayerData("coords", coords)
+end
 
-        if not isInVehicle and not IsPlayerDead(PlayerId()) then
-            if DoesEntityExist(GetVehiclePedIsTryingToEnter(playerPed)) and not isEnteringVehicle then
-                -- trying to enter a vehicle!
-                local vehicle = GetVehiclePedIsTryingToEnter(playerPed)
-                local plate = GetVehicleNumberPlateText(vehicle)
-                local seat = GetSeatPedIsTryingToEnter(playerPed)
-                local _, netId = GetData(vehicle)
-                isEnteringVehicle = true
-                TriggerEvent("esx:enteringVehicle", vehicle, plate, seat, netId)
-                TriggerServerEvent("esx:enteringVehicle", plate, seat, netId)
-            elseif not DoesEntityExist(GetVehiclePedIsTryingToEnter(playerPed)) and not IsPedInAnyVehicle(playerPed, true) and isEnteringVehicle then
-                -- vehicle entering aborted
-                TriggerEvent("esx:enteringVehicleAborted")
-                TriggerServerEvent("esx:enteringVehicleAborted")
-                isEnteringVehicle = false
-            elseif IsPedInAnyVehicle(playerPed, false) then
-                -- suddenly appeared in a vehicle, possible teleport
-                isEnteringVehicle = false
-                isInVehicle = true
-                current.vehicle = GetVehiclePedIsUsing(playerPed)
-                current.seat = GetPedVehicleSeat(playerPed, current.vehicle)
-                current.plate = GetVehicleNumberPlateText(current.vehicle)
-                current.displayName, current.netId = GetData(current.vehicle)
-                TriggerEvent("esx:enteredVehicle", current.vehicle, current.plate, current.seat, current.displayName, current.netId)
-                TriggerServerEvent("esx:enteredVehicle", current.plate, current.seat, current.displayName, current.netId)
-            end
-        elseif isInVehicle then
-            if not IsPedInAnyVehicle(playerPed, false) or IsPlayerDead(PlayerId()) then
-                -- bye, vehicle
-                TriggerEvent("esx:exitedVehicle", current.vehicle, current.plate, current.seat, current.displayName, current.netId)
-                TriggerServerEvent("esx:exitedVehicle", current.plate, current.seat, current.displayName, current.netId)
-                isInVehicle = false
-                current = {}
-            end
+function Actions:TrackPed()
+    local playerPed = ESX.PlayerData.ped
+    local newPed = PlayerPedId()
+
+    if playerPed ~= newPed then
+        ESX.SetPlayerData("ped", newPed)
+
+        TriggerEvent("esx:playerPedChanged", newPed)
+
+        if Config.EnableDebug then
+            print("[DEBUG] Player ped changed:", newPed)
         end
-        Wait(200)
     end
-end)
+end
 
-if Config.EnableDebug then
-    AddEventHandler("esx:playerPedChanged", function(netId)
-        print("esx:playerPedChanged", netId)
-    end)
+function Actions:TrackPauseMenu()
+    local isActive = IsPauseMenuActive()
 
-    AddEventHandler("esx:playerJumping", function()
-        print("esx:playerJumping")
-    end)
+    if isActive ~= self.inPauseMenu then
+        self.inPauseMenu = isActive
+        TriggerEvent("esx:pauseMenuActive", isActive)
 
-    AddEventHandler("esx:enteringVehicle", function(vehicle, plate, seat, netId)
-        print("esx:enteringVehicle", "vehicle", vehicle, "plate", plate, "seat", seat, "netId", netId)
-    end)
+        if Config.EnableDebug then
+            print("[DEBUG] Pause menu active:", isActive)
+        end
+    end
+end
 
-    AddEventHandler("esx:enteringVehicleAborted", function()
-        print("esx:enteringVehicleAborted")
-    end)
+function Actions:EnterVehicle()
+    self.seat = GetSeatPedIsTryingToEnter(ESX.PlayerData.ped)
 
-    AddEventHandler("esx:enteredVehicle", function(vehicle, plate, seat, displayName, netId)
-        print("esx:enteredVehicle", "vehicle", vehicle, "plate", plate, "seat", seat, "displayName", displayName, "netId", netId)
-    end)
+    local _, netId, plate = self:GetVehicleData()
 
-    AddEventHandler("esx:exitedVehicle", function(vehicle, plate, seat, displayName, netId)
-        print("esx:exitedVehicle", "vehicle", vehicle, "plate", plate, "seat", seat, "displayName", displayName, "netId", netId)
+    self.enteringVehicle = true
+    TriggerEvent("esx:enteringVehicle", self.vehicle, plate, self.seat, netId)
+    TriggerServerEvent("esx:enteringVehicle", plate, self.seat, netId)
+
+    self:SetVehicleStatus()
+
+    if Config.EnableDebug then
+        print("[DEBUG] Entering vehicle:", self.vehicle, plate, self.seat, netId)
+    end
+end
+
+function Actions:ResetVehicleData()
+    self.enteringVehicle = false
+    self.vehicle = false
+    self.seat = false
+    self.inVehicle = false
+
+    self:SetVehicleStatus()
+end
+
+function Actions:EnterAborted()
+    self:ResetVehicleData()
+
+    TriggerEvent("esx:enteringVehicleAborted")
+    TriggerServerEvent("esx:enteringVehicleAborted")
+
+    if Config.EnableDebug then
+        print("[DEBUG] Entering vehicle aborted")
+    end
+end
+
+function Actions:WarpEnter()
+    self.enteringVehicle = false
+    self.inVehicle = true
+
+    self.seat = self:GetSeatPedIsIn()
+
+    local displayName, netId, plate = self:GetVehicleData()
+
+    self:SetVehicleStatus()
+    TriggerEvent("esx:enteredVehicle", self.vehicle, plate, self.seat, displayName, netId)
+    TriggerServerEvent("esx:enteredVehicle", plate, self.seat, displayName, netId)
+
+    if Config.EnableDebug then
+        print("[DEBUG] Entered vehicle:", self.vehicle, plate, self.seat, displayName, netId)
+    end
+end
+
+function Actions:ExitVehicle()
+    local currentVehicle = GetVehiclePedIsIn(ESX.PlayerData.ped, false)
+
+    if currentVehicle ~= self.vehicle or ESX.PlayerData.dead then
+        local displayName, netId, plate = self:GetVehicleData()
+
+        TriggerEvent("esx:exitedVehicle", self.vehicle, plate, self.seat, displayName, netId)
+        TriggerServerEvent("esx:exitedVehicle", plate, self.seat, displayName, netId)
+
+        if Config.EnableDebug then
+            print("[DEBUG] Exited vehicle:", self.vehicle, plate, self.seat, displayName, netId)
+        end
+
+        self:ResetVehicleData()
+    end
+end
+
+function Actions:TrackVehicle()
+    if not self.inVehicle and not ESX.PlayerData.dead then
+        local tempVehicle = GetVehiclePedIsTryingToEnter(ESX.PlayerData.ped)
+
+        if DoesEntityExist(tempVehicle) and not self.enteringVehicle then
+            self.vehicle = tempVehicle
+            self:EnterVehicle()
+        elseif not DoesEntityExist(tempVehicle) and not IsPedInAnyVehicle(ESX.PlayerData.ped, true) and self.enteringVehicle then
+            self:EnterAborted()
+        elseif IsPedInAnyVehicle(ESX.PlayerData.ped, false) then
+            self.vehicle = GetVehiclePedIsIn(ESX.PlayerData.ped, false)
+            self:WarpEnter()
+        end
+    elseif self.inVehicle then
+        self:ExitVehicle()
+        self:TrackSeat()
+    end
+end
+
+function Actions:TrackSeat()
+    if not self.inVehicle then
+        return
+    end
+
+    local newSeat = self:GetSeatPedIsIn()
+    if newSeat ~= self.seat then
+        self.seat = newSeat
+        ESX.SetPlayerData("seat", self.seat)
+        TriggerEvent("esx:vehicleSeatChanged", self.seat)
+
+        if Config.EnableDebug then
+            print("[DEBUG] Vehicle seat changed:", self.seat)
+        end
+    end
+end
+
+function Actions:TrackWeapon()
+    ---@type number|false
+    local newWeapon = GetSelectedPedWeapon(ESX.PlayerData.ped)
+    newWeapon = newWeapon ~= `WEAPON_UNARMED` and newWeapon or false
+
+    if newWeapon ~= self.currentWeapon then
+        self.currentWeapon = newWeapon
+        ESX.SetPlayerData("weapon", self.currentWeapon)
+        TriggerEvent("esx:weaponChanged", self.currentWeapon)
+
+        if Config.EnableDebug then
+            print("[DEBUG] Weapon changed:", self.currentWeapon)
+        end
+    end
+end
+
+function Actions:SlowLoop()
+    CreateThread(function()
+        while ESX.PlayerLoaded do
+            self:TrackPedCoords()
+            self:TrackPauseMenu()
+            self:TrackVehicle()
+            self:TrackWeapon()
+            Wait(500)
+        end
     end)
 end
+
+function Actions:PedLoop()
+    CreateThread(function()
+        while ESX.PlayerLoaded do
+            self:TrackPed()
+            Wait(0)
+        end
+    end)
+end
+
+function Actions:Init()
+    self:SlowLoop()
+    self:PedLoop()
+end
+
+Actions:Init()

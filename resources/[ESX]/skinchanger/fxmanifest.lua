@@ -1,9 +1,9 @@
 fx_version 'adamant'
 
 game 'gta5'
+description 'Saves/loads character appearances for ESX Legacy.'
+version '1.12.3'
 lua54 'yes'
-description 'Official ESX-Legacy resource for handling the Player`s Skin'
-version '1.10.4'
 
 client_scripts {
 	'@es_extended/locale.lua',
