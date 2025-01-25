@@ -342,15 +342,14 @@ AddEventHandler("playerDropped", function(reason)
     if xPlayer then
         TriggerEvent("esx:playerDropped", playerId, reason)
         local job = xPlayer.getJob().name
-        local currentJob = Core.JobsPlayerCount[job]
-        Core.JobsPlayerCount[job] = ((currentJob and currentJob > 0) and currentJob or 1) - 1
-
-        GlobalState[("%s:count"):format(job)] = Core.JobsPlayerCount[job]
-
         local job2 = xPlayer.getJob2().name
+        local currentJob = Core.JobsPlayerCount[job]
         local currentJob2 = Core.JobsPlayerCount[job2]
+        Core.JobsPlayerCount[job] = ((currentJob and currentJob > 0) and currentJob or 1) - 1
         Core.JobsPlayerCount[job2] = ((currentJob2 and currentJob2 > 0) and currentJob2 or 1) - 1
 
+        GlobalState[("%s:count"):format(job)] = Core.JobsPlayerCount[job]
+        GlobalState[("%s:count"):format(job2)] = Core.JobsPlayerCount[job2]
         Core.playersByIdentifier[xPlayer.identifier] = nil
 
         Core.SavePlayer(xPlayer, function()

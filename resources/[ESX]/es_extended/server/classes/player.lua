@@ -69,7 +69,6 @@ function CreateExtendedPlayer(playerId, identifier, group, accounts, inventory, 
     if type(self.metadata.job2Duty) ~= "boolean" then
         self.metadata.job2Duty = self.job2.name ~= "unemployed" and Config.DefaultJobDuty or false
     end
-    job2.onDuty = self.metadata.job2Duty
 
     ExecuteCommand(("add_principal identifier.%s group.%s"):format(self.license, self.group))
 
@@ -564,15 +563,19 @@ function CreateExtendedPlayer(playerId, identifier, group, accounts, inventory, 
         Player(self.source).state:set("job", self.job, true)
     end
 
-    function self.setJob2(newJob, grade, onDuty)
+    ---@param newJob2
+    ---@param grade
+    ---@param onDuty
+    ---@return nil
+    function self.setJob2(newJob2, grade, onDuty)
         grade = tostring(grade)
-        local lastJob = self.job2
+        local lastJob2 = self.job2
 
-        if not ESX.DoesJobExist(newJob, grade) then
-            return print(("[ESX] [^3WARNING^7] Ignoring invalid ^5.setJob2()^7 usage for ID: ^5%s^7, Job: ^5%s^7"):format(self.source, newJob))
+        if not ESX.DoesJobExist(newJob2, grade) then
+            return print(("[ESX] [^3WARNING^7] Ignoring invalid ^5.setJob2()^7 usage for ID: ^5%s^7, Job: ^5%s^7"):format(self.source, newJob2))
         end
 
-        if newJob == "unemployed" then
+        if newJob2 == "unemployed" then
             onDuty = false
         end
 
@@ -580,7 +583,7 @@ function CreateExtendedPlayer(playerId, identifier, group, accounts, inventory, 
             onDuty = Config.DefaultJobDuty
         end
 
-        local jobObject, gradeObject = ESX.Jobs[newJob], ESX.Jobs[newJob].grades[grade]
+        local jobObject, gradeObject = ESX.Jobs[newJob2], ESX.Jobs[newJob2].grades[grade]
 
         self.job2 = {
             id = jobObject.id,
@@ -592,14 +595,14 @@ function CreateExtendedPlayer(playerId, identifier, group, accounts, inventory, 
             grade_name = gradeObject.name,
             grade_label = gradeObject.label,
             grade_salary = gradeObject.salary,
-            
+
             skin_male = gradeObject.skin_male and json.decode(gradeObject.skin_male) or {},
             skin_female = gradeObject.skin_female and json.decode(gradeObject.skin_female) or {},
         }
 
         self.metadata.job2Duty = onDuty
-        TriggerEvent("esx:setJob2", self.source, self.job2, lastJob)
-        self.triggerEvent("esx:setJob2", self.job2, lastJob)
+        TriggerEvent("esx:setJob2", self.source, self.job2, lastJob2)
+        self.triggerEvent("esx:setJob2", self.job2, lastJob2)
         Player(self.source).state:set("job2", self.job2, true)
     end
 

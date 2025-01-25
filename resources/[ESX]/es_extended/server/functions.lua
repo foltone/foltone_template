@@ -335,19 +335,9 @@ function ESX.GetNumPlayers(key, val)
 
     if type(val) == "table" then
         local numPlayers = {}
-        if key == "job" then
+        if key == "job" or key == "job2" then
             for _, v in ipairs(val) do
                 numPlayers[v] = (Core.JobsPlayerCount[v] or 0)
-            end
-            return numPlayers
-        end
-        if key == "job2" then
-            for _, v in ipairs(val) do
-                numPlayers[v] = 0
-            end
-            local filteredPlayers = ESX.GetExtendedPlayers(key, val)
-            for i, v in pairs(filteredPlayers) do
-                numPlayers[i] = (#v or 0)
             end
             return numPlayers
         end
@@ -359,10 +349,7 @@ function ESX.GetNumPlayers(key, val)
         return numPlayers
     end
 
-    if key == "job" then
-        return (Core.JobsPlayerCount[val] or 0)
-    end
-    if key == "job2" then
+    if key == "job" or key == "job2" then
         return (Core.JobsPlayerCount[val] or 0)
     end
 

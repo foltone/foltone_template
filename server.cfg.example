@@ -25,7 +25,7 @@ set mysql_connection_string "user=root;password=12345;host=localhost;port=3306;d
 
 set mysql_ui true
 
-sv_enforceGamebuild 3095
+sv_enforceGamebuild 3258
 
 setr esx:locale "fr"
 
