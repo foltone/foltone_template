@@ -69,6 +69,7 @@ function CreateExtendedPlayer(playerId, identifier, group, accounts, inventory, 
     if type(self.metadata.job2Duty) ~= "boolean" then
         self.metadata.job2Duty = self.job2.name ~= "unemployed" and Config.DefaultJobDuty or false
     end
+    job2.onDuty = self.metadata.job2Duty
 
     ExecuteCommand(("add_principal identifier.%s group.%s"):format(self.license, self.group))
 
