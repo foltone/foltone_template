@@ -67,17 +67,7 @@ ensure esx_status
 ensure jsfour-idcard
 
 #################### FOLTONE #####################
-ensure foltone_admin
-ensure foltone_ammunation
-ensure foltone_bank
-ensure foltone_barbershop
-ensure foltone_core
-ensure foltone_dead_systeme
-ensure foltone_f5
-ensure foltone_location
-ensure foltone_panneaux_map
-ensure foltone_shop
-ensure foltone_clotheshop
+ensure [FOLTONE]
 
 ###################### HUD #######################
 ensure ader_speedo
