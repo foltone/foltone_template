@@ -44,7 +44,7 @@ AddEventHandler('esx_society:checkSocietyBalance', function(society)
 	local xPlayer = ESX.GetPlayerFromId(source)
 	local society = GetSociety(society)
 
-	if xPlayer.job.name ~= society.name then
+	if xPlayer.job.name ~= society.name and xPlayer.job2.name ~= society.name then
 		print(('esx_society: %s attempted to call checkSocietyBalance!'):format(xPlayer.identifier))
 		return
 	end
@@ -64,7 +64,7 @@ AddEventHandler('esx_society:withdrawMoney', function(societyName, amount)
 	end
 	local xPlayer = ESX.GetPlayerFromId(source)
 	amount = ESX.Math.Round(tonumber(amount))
-	if xPlayer.job.name ~= society.name then
+	if xPlayer.job.name ~= society.name and xPlayer.job2.name ~= society.name then
 		return print(('[^3WARNING^7] Player ^5%s^7 attempted to withdraw from society - ^5%s^7!'):format(source, society.name))
 	end
 
@@ -90,7 +90,7 @@ AddEventHandler('esx_society:depositMoney', function(societyName, amount)
 	end
 	amount = ESX.Math.Round(tonumber(amount))
 
-	if xPlayer.job.name ~= society.name then
+	if xPlayer.job.name ~= society.name and xPlayer.job2.name ~= society.name then
 		return print(('[^3WARNING^7] Player ^5%s^7 attempted to deposit to society - ^5%s^7!'):format(source, society.name))
 	end
 	if amount > 0 and xPlayer.getMoney() >= amount then
@@ -111,7 +111,7 @@ AddEventHandler('esx_society:washMoney', function(society, amount)
 	local account = xPlayer.getAccount('black_money')
 	amount = ESX.Math.Round(tonumber(amount))
 
-	if xPlayer.job.name ~= society then
+	if xPlayer.job.name ~= society and xPlayer.job2.name ~= society then
 		return print(('[^3WARNING^7] Player ^5%s^7 attempted to wash money in society - ^5%s^7!'):format(source, society))
 	end
 	if amount and amount > 0 and account.money >= amount then
@@ -246,6 +246,76 @@ ESX.RegisterServerCallback('esx_society:getEmployees', function(source, cb, soci
 
 end)
 
+ESX.RegisterServerCallback('esx_society:getEmployees2', function(source, cb, society)
+	local employees = {}
+
+	local xPlayers = ESX.GetExtendedPlayers('job2', society)
+	for i=1, #(xPlayers) do 
+		local xPlayer = xPlayers[i]
+
+		local name = xPlayer.name
+		if Config.EnableESXIdentity and name == GetPlayerName(xPlayer.source) then
+			name = xPlayer.get('firstName') .. ' ' .. xPlayer.get('lastName')
+		end
+
+		table.insert(employees, {
+			name = name,
+			identifier = xPlayer.identifier,
+			job = {
+				name = society,
+				label = xPlayer.job2.label,
+				grade = xPlayer.job2.grade,
+				grade_name = xPlayer.job2.grade_name,
+				grade_label = xPlayer.job2.grade_label
+			}
+		})
+	end
+
+	local query = "SELECT identifier, job2_grade FROM `users` WHERE `job2`= ? ORDER BY job2_grade DESC"
+
+	if Config.EnableESXIdentity then
+		query = "SELECT identifier, job2_grade, firstname, lastname FROM `users` WHERE `job2`= ? ORDER BY job2_grade DESC"
+	end
+
+	MySQL.query(query, {society},
+	function(result)
+		for k, row in pairs(result) do
+			local alreadyInTable
+			local identifier = row.identifier
+
+			for k, v in pairs(employees) do
+				if v.identifier == identifier then
+					alreadyInTable = true
+				end
+			end
+
+			if not alreadyInTable then
+				local name = TranslateCap('name_not_found')
+
+				if Config.EnableESXIdentity then
+					name = row.firstname .. ' ' .. row.lastname 
+				end
+				
+				table.insert(employees, {
+					name = name,
+					identifier = identifier,
+					job = {
+						name = society,
+						label = Jobs[society].label,
+						grade = row.job2_grade,
+						grade_name = Jobs[society].grades[tostring(row.job2_grade)].name,
+						grade_label = Jobs[society].grades[tostring(row.job2_grade)].label
+					}
+				})
+			end
+		end
+
+		cb(employees)
+	end)
+
+end)
+	
+
 ESX.RegisterServerCallback('esx_society:getJob', function(source, cb, society)
 	if not Jobs[society] then
 		return cb(false)
@@ -286,6 +356,40 @@ ESX.RegisterServerCallback('esx_society:setJob', function(source, cb, identifier
 	end
 
 	xTarget.setJob(job, grade)
+
+	if actionType == 'hire' then
+		xTarget.showNotification(TranslateCap('you_have_been_hired', job))
+		xPlayer.showNotification(TranslateCap("you_have_hired", xTarget.getName()))
+	elseif actionType == 'promote' then
+		xTarget.showNotification(TranslateCap('you_have_been_promoted'))
+		xPlayer.showNotification(TranslateCap("you_have_promoted", xTarget.getName(), xTarget.getJob().label))
+	elseif actionType == 'fire' then
+		xTarget.showNotification(TranslateCap('you_have_been_fired', xTarget.getJob().label))
+		xPlayer.showNotification(TranslateCap("you_have_fired", xTarget.getName()))
+	end
+
+	cb()
+end)
+
+ESX.RegisterServerCallback('esx_society:setJob2', function(source, cb, identifier, job, grade, actionType)
+	local xPlayer = ESX.GetPlayerFromId(source)
+	local isBoss = Config.BossGrades[xPlayer.job.grade_name]
+	local xTarget = ESX.GetPlayerFromIdentifier(identifier)
+
+	if not isBoss then
+		print(('[^3WARNING^7] Player ^5%s^7 attempted to setJob2 for Player ^5%s^7!'):format(source, xTarget.source))
+		return cb()
+	end
+
+	if not xTarget then
+		MySQL.update('UPDATE users SET job2 = ?, job2_grade = ? WHERE identifier = ?', {job, grade, identifier},
+		function()
+			cb()
+		end)
+		return
+	end
+
+	xTarget.setJob2(job, grade)
 
 	if actionType == 'hire' then
 		xTarget.showNotification(TranslateCap('you_have_been_hired', job))
@@ -367,7 +471,8 @@ ESX.RegisterServerCallback('esx_society:getOnlinePlayers', function(source, cb)
 				source = xPlayer.source,
 				identifier = xPlayer.identifier,
 				name = xPlayer.name,
-				job = xPlayer.job
+				job = xPlayer.job,
+				job2 = xPlayer.job2
 			})
 		end
 		cb(onlinePlayers)
@@ -401,6 +506,9 @@ function isPlayerBoss(playerId, job)
 
 	if xPlayer.job.name == job and Config.BossGrades[xPlayer.job.grade_name] then
 		return true
+	elseif xPlayer.job2.name == job and Config.BossGrades[xPlayer.job2.grade_name] then
+		return true
+	end
 	else
 		print(('esx_society: %s attempted open a society boss menu!'):format(xPlayer.identifier))
 		return false

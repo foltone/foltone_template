@@ -70,17 +70,7 @@ function StartPayCheck()
                         end
                     end
                     if salary2 > 0 then
-                        if job2 == "unemployed" then -- unemployed
-                            xPlayer.addAccountMoney("bank", salary2, "Welfare Check")
-                            TriggerClientEvent("esx:showAdvancedNotification", player, TranslateCap("bank"), TranslateCap("received_paycheck"), TranslateCap("received_help", salary2), "CHAR_BANK_MAZE", 9)
-                            if Config.LogPaycheck then
-                                ESX.DiscordLogFields("Paycheck", "Paycheck - Unemployment Benefits", "green", {
-                                    { name = "Player", value = xPlayer.name, inline = true },
-                                    { name = "ID", value = xPlayer.source, inline = true },
-                                    { name = "Amount", value = salary2, inline = true },
-                                })
-                            end
-                        elseif Config.EnableSocietyPayouts then -- possibly a society
+                        if Config.EnableSocietyPayouts then -- possibly a society
                             TriggerEvent("esx_society:getSociety", xPlayer.job2.name, function(society)
                                 if society ~= nil then -- verified society
                                     TriggerEvent("esx_addonaccount:getSharedAccount", society.account, function(account)
