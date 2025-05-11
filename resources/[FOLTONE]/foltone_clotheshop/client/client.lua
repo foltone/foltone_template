@@ -107,7 +107,7 @@ local function getPlayerClothe()
         ["bags_2"] = GetPedTextureVariation(playerPed, 5),
         ["chain_1"] = GetPedDrawableVariation(playerPed, 7),
         ["chain_2"] = GetPedTextureVariation(playerPed, 7),
-        ["arms_1"] = GetPedDrawableVariation(playerPed, 3),
+        ["arms"] = GetPedDrawableVariation(playerPed, 3),
         ["arms_2"] = GetPedTextureVariation(playerPed, 3),
         ["pants_1"] = GetPedDrawableVariation(playerPed, 4),
         ["pants_2"] = GetPedTextureVariation(playerPed, 4),
@@ -306,7 +306,7 @@ function RageUI.PoolMenus:FoltoneClothesShop()
                 SetPedComponentVariation(PlayerPedId(), 7, FoltoneClothesShop.Chain1Index - 1, FoltoneClothesShop.Chain2Index - 1, 0)
             end
         end)
-        Items:AddList(_U("arms_1"), FoltoneClothesShop.Arms1List, string.format("#%s", FoltoneClothesShop.Arms1List), FoltoneClothesShop.Arms1Index, nil, { IsDisabled = false }, function(Index, onSelected, onListChange)
+        Items:AddList(_U("arms"), FoltoneClothesShop.Arms1List, string.format("#%s", FoltoneClothesShop.Arms1List), FoltoneClothesShop.Arms1Index, nil, { IsDisabled = false }, function(Index, onSelected, onListChange)
             if (onListChange) then
                 FoltoneClothesShop.Arms1Index = Index
                 FoltoneClothesShop.Arms2Index = 1
