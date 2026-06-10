@@ -3,7 +3,7 @@ SetGameType("ESX Legacy")
 
 local oneSyncState = GetConvar("onesync", "off")
 local newPlayer = "INSERT INTO `users` SET `accounts` = ?, `identifier` = ?, `ssn` = ?, `group` = ?"
-local loadPlayer = "SELECT `accounts`, `ssn`, `job`, `job_grade`, `group`, `position`, `inventory`, `skin`, `loadout`, `metadata`"
+local loadPlayer = "SELECT `accounts`, `ssn`, `job`, `job_grade`, `job2`, `job2_grade`, `group`, `position`, `inventory`, `skin`, `loadout`, `metadata`"
 
 if Config.Multichar then
     newPlayer = newPlayer .. ", `firstname` = ?, `lastname` = ?, `dateofbirth` = ?, `sex` = ?, `height` = ?"
@@ -88,10 +88,14 @@ local function onPlayerDropped(playerId, reason, cb)
 
     TriggerEvent("esx:playerDropped", playerId, reason)
     local job = xPlayer.getJob().name
+    local job2 = xPlayer.getJob2().name
     local currentJob = Core.JobsPlayerCount[job]
+    local currentJob2 = Core.JobsPlayerCount[job2]
     Core.JobsPlayerCount[job] = ((currentJob and currentJob > 0) and currentJob or 1) - 1
+    Core.JobsPlayerCount[job2] = ((currentJob2 and currentJob2 > 0) and currentJob2 or 1) - 1
 
     GlobalState[("%s:count"):format(job)] = Core.JobsPlayerCount[job]
+    GlobalState[("%s:count"):format(job2)] = Core.JobsPlayerCount[job2]
 
     Core.SavePlayer(xPlayer, function()
         GlobalState["playerCount"] = GlobalState["playerCount"] - 1
@@ -245,6 +249,31 @@ function loadESXPlayer(identifier, playerId, isNew)
         skin_female = gradeObject.skin_female and json.decode(gradeObject.skin_female) or {},
     }
 
+    -- Job 2
+    local job2, grade2 = result.job2, tostring(result.job2_grade)
+
+    if not ESX.DoesJobExist(job2, grade2) then
+        print(("[^3WARNING^7] Ignoring invalid job2 for ^5%s^7 [job: ^5%s^7, grade: ^5%s^7]"):format(identifier, job2, grade2))
+        job2, grade2 = "unemployed", "0"
+    end
+
+    local job2Object, grade2Object = ESX.Jobs[job2], ESX.Jobs[job2].grades[grade2]
+
+    userData.job2 = {
+        id = job2Object.id,
+        name = job2Object.name,
+        label = job2Object.label,
+        type = job2Object.type,
+
+        grade = tonumber(grade2),
+        grade_name = grade2Object.name,
+        grade_label = grade2Object.label,
+        grade_salary = grade2Object.salary,
+
+        skin_male = grade2Object.skin_male and json.decode(grade2Object.skin_male) or {},
+        skin_female = grade2Object.skin_female and json.decode(grade2Object.skin_female) or {},
+    }
+
     -- Inventory
     if not Config.CustomInventory then
         local inventory = (result.inventory and result.inventory ~= "") and json.decode(result.inventory) or {}
@@ -313,7 +342,7 @@ function loadESXPlayer(identifier, playerId, isNew)
     userData.metadata = (result.metadata and result.metadata ~= "") and json.decode(result.metadata) or {}
 
     -- xPlayer Creation
-    local xPlayer = CreateExtendedPlayer(playerId, identifier, userData.ssn, userData.group, userData.accounts, userData.inventory, userData.weight, userData.job, userData.loadout, GetPlayerName(playerId), userData.coords, userData.metadata)
+    local xPlayer = CreateExtendedPlayer(playerId, identifier, userData.ssn, userData.group, userData.accounts, userData.inventory, userData.weight, userData.job, userData.job2, userData.loadout, GetPlayerName(playerId), userData.coords, userData.metadata)
 
     GlobalState["playerCount"] = GlobalState["playerCount"] + 1
     ESX.Players[playerId] = xPlayer
@@ -381,12 +410,30 @@ AddEventHandler("esx:playerLoaded", function(_, xPlayer, isNew)
 
     Core.JobsPlayerCount[job] = (Core.JobsPlayerCount[job] or 0) + 1
     GlobalState[jobKey] = Core.JobsPlayerCount[job]
+
+    local job2 = xPlayer.getJob2().name
+    local job2Key = ("%s:count"):format(job2)
+
+    Core.JobsPlayerCount[job2] = (Core.JobsPlayerCount[job2] or 0) + 1
+    GlobalState[job2Key] = Core.JobsPlayerCount[job2]
     if isNew then
         Player(xPlayer.source).state:set('isNew', true, false)
     end
 end)
 
 AddEventHandler("esx:setJob", function(_, job, lastJob)
+    local lastJobKey = ("%s:count"):format(lastJob.name)
+    local jobKey = ("%s:count"):format(job.name)
+    local currentLastJob = Core.JobsPlayerCount[lastJob.name]
+
+    Core.JobsPlayerCount[lastJob.name] = ((currentLastJob and currentLastJob > 0) and currentLastJob or 1) - 1
+    Core.JobsPlayerCount[job.name] = (Core.JobsPlayerCount[job.name] or 0) + 1
+
+    GlobalState[lastJobKey] = Core.JobsPlayerCount[lastJob.name]
+    GlobalState[jobKey] = Core.JobsPlayerCount[job.name]
+end)
+
+AddEventHandler("esx:setJob2", function(_, job, lastJob)
     local lastJobKey = ("%s:count"):format(lastJob.name)
     local jobKey = ("%s:count"):format(job.name)
     local currentLastJob = Core.JobsPlayerCount[lastJob.name]
@@ -674,6 +721,7 @@ ESX.RegisterServerCallback("esx:getPlayerData", function(source, cb)
         accounts = xPlayer.getAccounts(),
         inventory = xPlayer.getInventory(),
         job = xPlayer.getJob(),
+        job2 = xPlayer.getJob2(),
         loadout = xPlayer.getLoadout(),
         money = xPlayer.getMoney(),
         position = xPlayer.getCoords(true),
@@ -701,6 +749,7 @@ ESX.RegisterServerCallback("esx:getOtherPlayerData", function(_, cb, target)
         accounts = xPlayer.getAccounts(),
         inventory = xPlayer.getInventory(),
         job = xPlayer.getJob(),
+        job2 = xPlayer.getJob2(),
         loadout = xPlayer.getLoadout(),
         money = xPlayer.getMoney(),
         position = xPlayer.getCoords(true),

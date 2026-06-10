@@ -102,6 +102,7 @@ return {
     ["command_setcoords_y"] = "Y value",
     ["command_setcoords_z"] = "Z value",
     ["command_setjob"] = "Set a player`s job",
+    ["command_setjob2"] = "Set a player`s secondary job",
     ["command_setjob_job"] = "Name",
     ["command_setjob_grade"] = "Job grade",
     ["command_setjob_invalid"] = "the job, grade or both are invalid",

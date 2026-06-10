@@ -56,6 +56,37 @@ ESX.RegisterCommand(
     }
 )
 
+ESX.RegisterCommand(
+    "setjob2",
+    "admin",
+    function(xPlayer, args, showError)
+        if not ESX.DoesJobExist(args.job, args.grade) then
+            return showError(TranslateCap("command_setjob_invalid"))
+        end
+
+        args.playerId.setJob2(args.job, args.grade)
+        if Config.AdminLogging then
+            ESX.DiscordLogFields("UserActions", "Set Job 2 /setjob2 Triggered!", "pink", {
+                { name = "Player", value = xPlayer and xPlayer.name or "Server Console", inline = true },
+                { name = "ID", value = xPlayer and xPlayer.source or "Unknown ID", inline = true },
+                { name = "Target", value = args.playerId.name, inline = true },
+                { name = "Job", value = args.job, inline = true },
+                { name = "Grade", value = args.grade, inline = true },
+            })
+        end
+    end,
+    true,
+    {
+        help = TranslateCap("command_setjob2"),
+        validate = true,
+        arguments = {
+            { name = "playerId", help = TranslateCap("commandgeneric_playerid"), type = "player" },
+            { name = "job", help = TranslateCap("command_setjob_job"), type = "string" },
+            { name = "grade", help = TranslateCap("command_setjob_grade"), type = "number" },
+        },
+    }
+)
+
 local upgrades = Config.SpawnVehMaxUpgrades and {
     plate = "ADMINCAR",
     modEngine = 3,
@@ -566,9 +597,16 @@ ESX.RegisterCommand("job", { "user", "admin" }, function(xPlayer, _, _)
     print(("%s, your job is: ^5%s^0 - ^5%s^0 - ^5%s^0"):format(xPlayer.getName(), job.name, job.grade_label, job.onDuty and "On Duty" or "Off Duty"))
 end, false)
 
+ESX.RegisterCommand("job2", { "user", "admin" }, function(xPlayer, _, _)
+    local job2 = xPlayer.getJob2()
+
+    print(("%s, your job 2 is: ^5%s^0 - ^5%s^0 - ^5%s^0"):format(xPlayer.getName(), job2.name, job2.grade_label, job2.onDuty and "On Duty" or "Off Duty"))
+end, false)
+
 ESX.RegisterCommand("info", { "user", "admin" }, function(xPlayer)
     local job = xPlayer.getJob().name
-    print(("^2ID: ^5%s^0 | ^2Name: ^5%s^0 | ^2Group: ^5%s^0 | ^2Job: ^5%s^0"):format(xPlayer.source, xPlayer.getName(), xPlayer.getGroup(), job))
+    local job2 = xPlayer.getJob2().name
+    print(("^2ID: ^5%s^0 | ^2Name: ^5%s^0 | ^2Group: ^5%s^0 | ^2Job: ^5%s^0 | ^2Job 2: ^5%s^0"):format(xPlayer.source, xPlayer.getName(), xPlayer.getGroup(), job, job2))
 end, false)
 
 ESX.RegisterCommand("playtime", { "user", "admin" }, function(xPlayer)

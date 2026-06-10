@@ -100,6 +100,7 @@ return {
     ["command_setcoords_y"] = "Valeur de l'axe Y",
     ["command_setcoords_z"] = "Valeur de l'axe Z",
     ["command_setjob"] = "Définir le métier d'un joueur",
+    ["command_setjob2"] = "Définir le métier secondaire d'un joueur",
     ["command_setjob_job"] = "Nom du métier à définir",
     ["command_setjob_grade"] = "Grade du métier",
     ["command_setjob_invalid"] = "Le métier, le grade, ou les deux sont invalides",

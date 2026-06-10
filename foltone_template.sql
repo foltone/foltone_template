@@ -119,6 +119,7 @@ INSERT INTO `items` (`name`, `label`, `weight`, `rare`, `can_remove`) VALUES
 CREATE TABLE `jobs` (
   `name` varchar(50) NOT NULL,
   `label` varchar(50) DEFAULT NULL,
+  `type` varchar(50) NOT NULL DEFAULT 'civ',
   `whitelisted` tinyint(1) NOT NULL DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -126,8 +127,8 @@ CREATE TABLE `jobs` (
 -- Déchargement des données de la table `jobs`
 --
 
-INSERT INTO `jobs` (`name`, `label`, `whitelisted`) VALUES
-('unemployed', 'Unemployed', 0);
+INSERT INTO `jobs` (`name`, `label`, `type`, `whitelisted`) VALUES
+('unemployed', 'Unemployed', 'civ', 0);
 
 -- --------------------------------------------------------
 
@@ -197,6 +198,7 @@ CREATE TABLE `society_moneywash` (
 
 CREATE TABLE `users` (
   `identifier` varchar(60) NOT NULL,
+  `ssn` varchar(11) NOT NULL,
   `accounts` longtext DEFAULT NULL,
   `group` varchar(50) DEFAULT 'user',
   `inventory` longtext DEFAULT NULL,
@@ -337,7 +339,8 @@ ALTER TABLE `society_moneywash`
 --
 ALTER TABLE `users`
   ADD PRIMARY KEY (`identifier`),
-  ADD UNIQUE KEY `id` (`id`);
+  ADD UNIQUE KEY `id` (`id`),
+  ADD UNIQUE KEY `unique_ssn` (`ssn`);
 
 --
 -- Index pour la table `user_licenses`
