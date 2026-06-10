@@ -1,4 +1,4 @@
-Locales["hu"] = {
+return {
     -- Inventory
     ["inventory"] = "Inventory ( Súly %s / %s )",
     ["use"] = "Használ",
@@ -104,6 +104,7 @@ Locales["hu"] = {
     ["commanderror_argumentmismatch"] = "Érvénytelen argumentumszám (%s megadva, %s szükséges)",
     ["commanderror_argumentmismatch_number"] = "Érvénytelen argumentum #%s adat típus (szöveg megadva, szám szükséges)",
     ["commanderror_argumentmismatch_string"] = "Invalid Argument #%s data type (passed number, wanted string)",
+    ["commanderror_argumentmismatch_positive_number"] = "Érvénytelen argumentum #%s adattípus (negatív/nulla átadva, pozitív szám szükséges)",
     ["commanderror_invaliditem"] = "Érvénytelen tárgy",
     ["commanderror_invalidweapon"] = "Érvénytelen fegyver",
     ["commanderror_console"] = "Parancs nem használható konzolból",
@@ -229,10 +230,10 @@ Locales["hu"] = {
     ["weapon_tactilerifle"] = "Service Carbine",
 
     -- Drug Wars DLC
-    ["weapon_candycane"] = "Candy Cane", -- not translated
+    ["weapon_candycane"] = "Candy Cane",     -- not translated
     ["weapon_acidpackage"] = "Acid Package", -- not translated
-    ["weapon_pistolxm3"] = "WM 29 Pistol", -- not translated
-    ["weapon_railgunxm3"] = "Railgun", -- not translated
+    ["weapon_pistolxm3"] = "WM 29 Pistol",   -- not translated
+    ["weapon_railgunxm3"] = "Railgun",       -- not translated
 
     -- Thrown
     ["weapon_ball"] = "Baseball",

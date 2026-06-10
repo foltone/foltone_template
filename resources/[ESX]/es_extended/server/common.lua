@@ -1,17 +1,6 @@
 ESX.Players = {}
 ESX.Jobs = {}
 ESX.Items = {}
-Core = {}
-Core.JobsPlayerCount = {}
-Core.UsableItemsCallbacks = {}
-Core.RegisteredCommands = {}
-Core.Pickups = {}
-Core.PickupId = 0
-Core.PlayerFunctionOverrides = {}
-Core.DatabaseConnected = false
-Core.playersByIdentifier = {}
-
-Core.vehicleTypesByModel = {}
 
 RegisterNetEvent("esx:onPlayerSpawn", function()
     ESX.Players[source].spawned = true
@@ -34,11 +23,9 @@ end
 
 MySQL.ready(function()
     Core.DatabaseConnected = true
+
     if not Config.CustomInventory then
-        local items = MySQL.query.await("SELECT * FROM items")
-        for _, v in ipairs(items) do
-            ESX.Items[v.name] = { label = v.label, weight = v.weight, rare = v.rare, canRemove = v.can_remove }
-        end
+        ESX.RefreshItems()
     end
 
     ESX.RefreshJobs()

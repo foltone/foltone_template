@@ -1,4 +1,4 @@
-Locales["fr"] = {
+return {
     -- Inventory
     ["inventory"] = "Inventaire ( Poids %s / %s )",
     ["use"] = "Utiliser",
@@ -100,6 +100,7 @@ Locales["fr"] = {
     ["command_setcoords_y"] = "Valeur de l'axe Y",
     ["command_setcoords_z"] = "Valeur de l'axe Z",
     ["command_setjob"] = "Définir le métier d'un joueur",
+    ["command_setjob2"] = "Définir le métier secondaire d'un joueur",
     ["command_setjob_job"] = "Nom du métier à définir",
     ["command_setjob_grade"] = "Grade du métier",
     ["command_setjob_invalid"] = "Le métier, le grade, ou les deux sont invalides",
@@ -108,6 +109,7 @@ Locales["fr"] = {
     ["commanderror_argumentmismatch"] = "Le nombre d'arguments est invalide (Argument·s donné·s: %s, Argument·s demandé·s: %s)",
     ["commanderror_argumentmismatch_number"] = "Type de données de l'argument #%s invalide (Type donné: texte, Type demandé: nombre)",
     ["commanderror_argumentmismatch_string"] = "Type de données de l'argument #%s invalide (Type donné: nombre, Type demandé: texte)",
+    ["commanderror_argumentmismatch_positive_number"] = "Argument invalide #%s type de données (passé négatif/zéro, nombre positif requis)",
     ["commanderror_invaliditem"] = "Le nom de l'objet est invalide",
     ["commanderror_invalidweapon"] = "Le nom de l'arme est invalide",
     ["commanderror_console"] = "Cette commande ne peut pas être éxécutée depuis la console",

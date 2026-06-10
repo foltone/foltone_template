@@ -98,8 +98,8 @@ function StartPayCheck()
                                             { name = "ID", value = xPlayer.source, inline = true },
                                             { name = "Amount", value = salary2, inline = true },
                                         })
-                                        TriggerClientEvent("esx:showAdvancedNotification", player, TranslateCap("bank"), TranslateCap("received_paycheck"), TranslateCap("received_salary", salary2), "CHAR_BANK_MAZE", 9)
                                     end
+                                    TriggerClientEvent("esx:showAdvancedNotification", player, TranslateCap("bank"), TranslateCap("received_paycheck"), TranslateCap("received_salary", salary2), "CHAR_BANK_MAZE", 9)
                                 end
                             end)
                         else -- generic job

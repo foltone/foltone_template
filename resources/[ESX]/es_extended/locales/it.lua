@@ -1,4 +1,4 @@
-Locales["it"] = {
+return {
     -- Inventory
     ["inventory"] = "Inventario ( Peso %s / %s )",
     ["use"] = "Usa",
@@ -108,6 +108,7 @@ Locales["it"] = {
     ["commanderror_argumentmismatch"] = "Conta argomenti non valida (passati %s, richiesti %s)",
     ["commanderror_argumentmismatch_number"] = "Argomento #%s di tipologia errata (passato testo, richiesto numero)",
     ["commanderror_argumentmismatch_string"] = "Invalid Argument #%s data type (passed number, wanted string)",
+    ["commanderror_argumentmismatch_positive_number"] = "Argomento #%s tipo di dato non valido (passato negativo/zero, richiesto numero positivo)",
     ["commanderror_invaliditem"] = "Oggetto non valido",
     ["commanderror_invalidweapon"] = "Arma non valida",
     ["commanderror_console"] = "Comando non eseguibile dalla console",

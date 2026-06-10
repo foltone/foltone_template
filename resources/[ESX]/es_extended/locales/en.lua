@@ -1,4 +1,4 @@
-Locales["en"] = {
+return {
     -- Inventory
     ["inventory"] = "Inventory ( Weight %s / %s )",
     ["use"] = "Use",
@@ -65,6 +65,8 @@ Locales["en"] = {
     ["command_repair_success_target"] = "An admin repaired your vehicle",
     ["command_clear"] = "Clear chat Text",
     ["command_clearall"] = "Clear chat Text for all players",
+    ["command_refreshitems"] = "Reload all items from the database.",
+    ["command_refreshitems_success"] = "Successfully reloaded %d items.",
     ["command_clearinventory"] = "Remove All items from the Players Inventory",
     ["command_clearloadout"] = "Remove All weapons from the Players Loadout",
     ["command_freeze"] = "Freeze a player",
@@ -100,6 +102,7 @@ Locales["en"] = {
     ["command_setcoords_y"] = "Y value",
     ["command_setcoords_z"] = "Z value",
     ["command_setjob"] = "Set a player`s job",
+    ["command_setjob2"] = "Set a player`s secondary job",
     ["command_setjob_job"] = "Name",
     ["command_setjob_grade"] = "Job grade",
     ["command_setjob_invalid"] = "the job, grade or both are invalid",
@@ -108,6 +111,7 @@ Locales["en"] = {
     ["commanderror_argumentmismatch"] = "Invalid Argument Count (passed %s, wanted %s)",
     ["commanderror_argumentmismatch_number"] = "Invalid Argument #%s data type (passed string, wanted number)",
     ["commanderror_argumentmismatch_string"] = "Invalid Argument #%s data type (passed number, wanted string)",
+    ["commanderror_argumentmismatch_positive_number"] = "Invalid Argument #%s data type (passed negative/zero, wanted positive number)",
     ["commanderror_invaliditem"] = "Invalid item",
     ["commanderror_invalidweapon"] = "Invalid weapon",
     ["commanderror_console"] = "Command Cannot be executed from console",

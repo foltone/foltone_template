@@ -1,4 +1,4 @@
-Locales["sl"] = {
+return {
     -- Inventory
     ["inventory"] = "Shramba ( Teza %s / %s )",
     ["use"] = "Uporabi",
@@ -104,6 +104,7 @@ Locales["sl"] = {
     ["commanderror_argumentmismatch"] = "Neveljavno stetje argumentov (podano %s, zeleno %s)",
     ["commanderror_argumentmismatch_number"] = "Neveljaven podatkovni tip argumenta #%s (posredovan niz, zeleno stevilo)",
     ["commanderror_argumentmismatch_string"] = "Invalid Argument #%s data type (passed number, wanted string)",
+    ["commanderror_argumentmismatch_positive_number"] = "Neveljaven argument #%s tip podatkov (podano negativno/nič, zahtevano pozitivno število)",
     ["commanderror_invaliditem"] = "Neveljaven element",
     ["commanderror_invalidweapon"] = "Neveljavno orozje",
     ["commanderror_console"] = "Ukaza ni mogoce izvesti s konzole",
@@ -229,10 +230,10 @@ Locales["sl"] = {
     ["weapon_tactilerifle"] = "Service Carbine",
 
     -- Drug Wars DLC
-    ["weapon_candycane"] = "Candy Cane", -- not translated
+    ["weapon_candycane"] = "Candy Cane",     -- not translated
     ["weapon_acidpackage"] = "Acid Package", -- not translated
-    ["weapon_pistolxm3"] = "WM 29 Pistol", -- not translated
-    ["weapon_railgunxm3"] = "Railgun", -- not translated
+    ["weapon_pistolxm3"] = "WM 29 Pistol",   -- not translated
+    ["weapon_railgunxm3"] = "Railgun",       -- not translated
 
     -- Thrown
     ["weapon_ball"] = "Baseball",

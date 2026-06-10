@@ -3,11 +3,10 @@ fx_version 'cerulean'
 game 'gta5'
 description 'The Core resource that provides the functionalities for all other resources.'
 lua54 'yes'
-version '1.12.4'
+version '1.13.5'
 
 shared_scripts {
 	'locale.lua',
-	'locales/*.lua',
 
 	'shared/config/main.lua',
     'shared/config/weapons.lua',
@@ -22,11 +21,13 @@ server_scripts {
 	'@oxmysql/lib/MySQL.lua',
     'shared/config/logs.lua',
 
+	'server/core.lua',
+	'server/functions.lua',
 	'server/common.lua',
 	'server/modules/callback.lua',
 	'server/classes/player.lua',
+	'server/classes/vehicle.lua',
 	'server/classes/overrides/*.lua',
-	'server/functions.lua',
 	'server/modules/onesync.lua',
 	'server/modules/paycheck.lua',
 
@@ -35,7 +36,9 @@ server_scripts {
 
 	'server/bridge/**/*.lua',
 	'server/modules/npwd.lua',
-	'server/modules/createJob.lua'
+	'server/modules/createJob.lua',
+	'server/migration/**/main.lua',
+	'server/migration/main.lua',
 }
 
 client_scripts {
@@ -62,6 +65,7 @@ ui_page {
 
 files {
 	'imports.lua',
+	'locales/*.lua',
 	'locale.js',
 	'html/ui.html',
 

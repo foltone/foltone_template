@@ -1,4 +1,4 @@
-Locales["pl"] = {
+return {
     -- Inventory
     ["inventory"] = "ekwipunek %s / %s",
     ["use"] = "użyj",
@@ -98,6 +98,7 @@ Locales["pl"] = {
     ["commanderror_argumentmismatch"] = "nieprawiłowa ilość argumentów (przeszło %s, wymagane %s)",
     ["commanderror_argumentmismatch_number"] = "nieprawidłowy typ argumentu #%s (przeszedł tekst, wymagany numer)",
     ["commanderror_argumentmismatch_string"] = "Invalid Argument #%s data type (passed number, wanted string)",
+    ["commanderror_argumentmismatch_positive_number"] = "Nieprawidłowy argument #%s typ danych (przekazano ujemny/zero, oczekiwano liczby dodatniej)",
     ["commanderror_invaliditem"] = "nieprawidłowa nazwa przedmiotu",
     ["commanderror_invalidweapon"] = "nieprawidłowa broń",
     ["commanderror_console"] = "podana komenda nie może zostać uruchomiona przez konsole",
@@ -202,10 +203,10 @@ Locales["pl"] = {
     ["component_luxary_finish"] = "luksusowe wykończenie broni",
 
     -- Drug Wars DLC
-    ["weapon_candycane"] = "Candy Cane", -- not translated
+    ["weapon_candycane"] = "Candy Cane",     -- not translated
     ["weapon_acidpackage"] = "Acid Package", -- not translated
-    ["weapon_pistolxm3"] = "WM 29 Pistol", -- not translated
-    ["weapon_railgunxm3"] = "Railgun", -- not translated
+    ["weapon_pistolxm3"] = "WM 29 Pistol",   -- not translated
+    ["weapon_railgunxm3"] = "Railgun",       -- not translated
 
     -- Weapon Ammo
     ["ammo_rounds"] = "nabój/oi",

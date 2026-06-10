@@ -344,7 +344,10 @@ if not Config.CustomInventory then
             arguments = {
                 { name = "playerId", help = TranslateCap("commandgeneric_playerid"), type = "player" },
                 { name = "item", help = TranslateCap("command_giveitem_item"), type = "item" },
-                { name = "count", help = TranslateCap("command_giveitem_count"), type = "number" },
+                { name = "count", help = TranslateCap("command_giveitem_count"), type = "number", Validator = {
+                    validate = function(x) return x > 0 end,
+                    err = TranslateCap("commanderror_argumentmismatch_positive_number", "count")
+                }},
             },
         }
     )
@@ -470,6 +473,12 @@ ESX.RegisterCommand("refreshjobs", "admin", function()
 end, true, { help = TranslateCap("command_clearall") })
 
 if not Config.CustomInventory then
+    ESX.RegisterCommand("refreshitems", "admin", function(xPlayer)
+        local itemCount = ESX.RefreshItems()
+
+        xPlayer.showNotification(Translate("command_refreshitems_success", itemCount), true, false, 140)
+    end, true, { help = TranslateCap("command_refreshitems") })
+
     ESX.RegisterCommand(
         "clearinventory",
         "admin",
