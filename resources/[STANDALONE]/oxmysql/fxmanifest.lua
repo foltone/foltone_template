@@ -2,16 +2,17 @@ fx_version 'cerulean'
 game 'common'
 use_experimental_fxv2_oal 'yes'
 lua54 'yes'
+node_version '22'
 
 name 'oxmysql'
 author 'Overextended'
-version '2.10.1'
+version '2.14.1'
 license 'LGPL-3.0-or-later'
-repository 'https://github.com/overextended/oxmysql.git'
+repository 'git+https://github.com/overextended/oxmysql.git'
 description 'FXServer to MySQL communication via node-mysql2'
 
 dependencies {
-    '/server:7290',
+    '/server:12913',
 }
 
 client_script 'ui.lua'

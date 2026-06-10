@@ -5,7 +5,10 @@ var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
-var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __knownSymbol = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
+var __typeError = (msg) => {
+  throw TypeError(msg);
+};
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 var __esm = (fn, res) => function __init() {
   return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
@@ -33,1069 +36,293 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
   mod
 ));
-var __publicField = (obj, key, value) => {
-  __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
-  return value;
-};
-var __accessCheck = (obj, member, msg) => {
-  if (!member.has(obj))
-    throw TypeError("Cannot " + msg);
-};
-var __privateGet = (obj, member, getter) => {
-  __accessCheck(obj, member, "read from private field");
-  return getter ? getter.call(obj) : member.get(obj);
-};
-var __privateAdd = (obj, member, value) => {
-  if (member.has(obj))
-    throw TypeError("Cannot add the same private member more than once");
-  member instanceof WeakSet ? member.add(obj) : member.set(obj, value);
-};
-var __privateSet = (obj, member, value, setter) => {
-  __accessCheck(obj, member, "write to private field");
-  setter ? setter.call(obj, value) : member.set(obj, value);
-  return value;
-};
-var __privateWrapper = (obj, member, setter, getter) => ({
-  set _(value) {
-    __privateSet(obj, member, value, setter);
-  },
-  get _() {
-    return __privateGet(obj, member, getter);
+var __using = (stack, value, async) => {
+  if (value != null) {
+    if (typeof value !== "object" && typeof value !== "function") __typeError("Object expected");
+    var dispose;
+    if (async) dispose = value[__knownSymbol("asyncDispose")];
+    if (dispose === void 0) dispose = value[__knownSymbol("dispose")];
+    if (typeof dispose !== "function") __typeError("Object not disposable");
+    stack.push([async, dispose, value]);
+  } else if (async) {
+    stack.push([async]);
   }
-});
-var __privateMethod = (obj, member, method) => {
-  __accessCheck(obj, member, "access private method");
-  return method;
+  return value;
+};
+var __callDispose = (stack, error, hasError) => {
+  var E = typeof SuppressedError === "function" ? SuppressedError : function(e2, s2, m2, _) {
+    return _ = Error(m2), _.name = "SuppressedError", _.error = e2, _.suppressed = s2, _;
+  };
+  var fail = (e2) => error = hasError ? new E(e2, error, "An error was suppressed during disposal") : (hasError = true, e2);
+  var next = (it) => {
+    while (it = stack.pop()) {
+      try {
+        var result = it[1] && it[1].call(it[2]);
+        if (it[0]) return Promise.resolve(result).then(next, (e2) => (fail(e2), next()));
+      } catch (e2) {
+        fail(e2);
+      }
+    }
+    if (hasError) throw error;
+  };
+  return next();
 };
 
-// node_modules/.pnpm/lru-cache@7.18.3/node_modules/lru-cache/index.js
-var require_lru_cache = __commonJS({
-  "node_modules/.pnpm/lru-cache@7.18.3/node_modules/lru-cache/index.js"(exports2, module2) {
-    var perf = typeof performance === "object" && performance && typeof performance.now === "function" ? performance : Date;
-    var hasAbortController = typeof AbortController === "function";
-    var _a4;
-    var AC = hasAbortController ? AbortController : (_a4 = class {
-      constructor() {
-        this.signal = new AS();
-      }
-      abort(reason = new Error("This operation was aborted")) {
-        this.signal.reason = this.signal.reason || reason;
-        this.signal.aborted = true;
-        this.signal.dispatchEvent({
-          type: "abort",
-          target: this.signal
-        });
-      }
-    }, __name(_a4, "AbortController"), _a4);
-    var hasAbortSignal = typeof AbortSignal === "function";
-    var hasACAbortSignal = typeof AC.AbortSignal === "function";
-    var _a5;
-    var AS = hasAbortSignal ? AbortSignal : hasACAbortSignal ? AC.AbortController : (_a5 = class {
-      constructor() {
-        this.reason = void 0;
-        this.aborted = false;
-        this._listeners = [];
-      }
-      dispatchEvent(e2) {
-        if (e2.type === "abort") {
-          this.aborted = true;
-          this.onabort(e2);
-          this._listeners.forEach((f3) => f3(e2), this);
+// node_modules/lru.min/lib/index.js
+var require_lib = __commonJS({
+  "node_modules/lru.min/lib/index.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.createLRU = void 0;
+    var createLRU = /* @__PURE__ */ __name((options) => {
+      let { max } = options;
+      if (!(Number.isInteger(max) && max > 0))
+        throw new TypeError("`max` must be a positive integer");
+      let size = 0;
+      let head = 0;
+      let tail = 0;
+      let free = [];
+      const { onEviction } = options;
+      const keyMap = /* @__PURE__ */ new Map();
+      const keyList = new Array(max).fill(void 0);
+      const valList = new Array(max).fill(void 0);
+      const next = new Array(max).fill(0);
+      const prev = new Array(max).fill(0);
+      const linkTail = /* @__PURE__ */ __name((index) => {
+        next[tail] = index;
+        prev[index] = tail;
+        next[index] = 0;
+        tail = index;
+      }, "linkTail");
+      const moveToTail = /* @__PURE__ */ __name((index) => {
+        if (index === tail)
+          return;
+        const nextIndex = next[index];
+        const prevIndex = prev[index];
+        if (index === head)
+          head = nextIndex;
+        else
+          next[prevIndex] = nextIndex;
+        prev[nextIndex] = prevIndex;
+        linkTail(index);
+      }, "moveToTail");
+      const _shrink = /* @__PURE__ */ __name((newMax) => {
+        let current = tail;
+        const preserve = Math.min(size, newMax);
+        const remove = size - preserve;
+        const newKeyList = new Array(preserve);
+        const newValList = new Array(preserve);
+        for (let i2 = 0; i2 < remove; i2++) {
+          const key = keyList[head];
+          onEviction === null || onEviction === void 0 ? void 0 : onEviction(key, valList[head]);
+          keyMap.delete(key);
+          head = next[head];
         }
-      }
-      onabort() {
-      }
-      addEventListener(ev, fn) {
-        if (ev === "abort") {
-          this._listeners.push(fn);
+        for (let i2 = preserve - 1; i2 >= 0; i2--) {
+          newKeyList[i2] = keyList[current];
+          newValList[i2] = valList[current];
+          keyMap.set(keyList[current], i2);
+          current = prev[current];
         }
-      }
-      removeEventListener(ev, fn) {
-        if (ev === "abort") {
-          this._listeners = this._listeners.filter((f3) => f3 !== fn);
+        head = 0;
+        tail = preserve - 1;
+        size = preserve;
+        keyList.length = newMax;
+        valList.length = newMax;
+        next.length = newMax;
+        prev.length = newMax;
+        for (let i2 = 0; i2 < preserve; i2++) {
+          keyList[i2] = newKeyList[i2];
+          valList[i2] = newValList[i2];
+          next[i2] = i2 + 1;
+          prev[i2] = i2 - 1;
         }
-      }
-    }, __name(_a5, "AbortSignal"), _a5);
-    var warned = /* @__PURE__ */ new Set();
-    var deprecatedOption = /* @__PURE__ */ __name((opt, instead) => {
-      const code = `LRU_CACHE_OPTION_${opt}`;
-      if (shouldWarn(code)) {
-        warn(code, `${opt} option`, `options.${instead}`, LRUCache);
-      }
-    }, "deprecatedOption");
-    var deprecatedMethod = /* @__PURE__ */ __name((method, instead) => {
-      const code = `LRU_CACHE_METHOD_${method}`;
-      if (shouldWarn(code)) {
-        const { prototype } = LRUCache;
-        const { get } = Object.getOwnPropertyDescriptor(prototype, method);
-        warn(code, `${method} method`, `cache.${instead}()`, get);
-      }
-    }, "deprecatedMethod");
-    var deprecatedProperty = /* @__PURE__ */ __name((field, instead) => {
-      const code = `LRU_CACHE_PROPERTY_${field}`;
-      if (shouldWarn(code)) {
-        const { prototype } = LRUCache;
-        const { get } = Object.getOwnPropertyDescriptor(prototype, field);
-        warn(code, `${field} property`, `cache.${instead}`, get);
-      }
-    }, "deprecatedProperty");
-    var emitWarning = /* @__PURE__ */ __name((...a) => {
-      typeof process === "object" && process && typeof process.emitWarning === "function" ? process.emitWarning(...a) : console.error(...a);
-    }, "emitWarning");
-    var shouldWarn = /* @__PURE__ */ __name((code) => !warned.has(code), "shouldWarn");
-    var warn = /* @__PURE__ */ __name((code, what, instead, fn) => {
-      warned.add(code);
-      const msg = `The ${what} is deprecated. Please use ${instead} instead.`;
-      emitWarning(msg, "DeprecationWarning", code, fn);
-    }, "warn");
-    var isPosInt = /* @__PURE__ */ __name((n) => n && n === Math.floor(n) && n > 0 && isFinite(n), "isPosInt");
-    var getUintArray = /* @__PURE__ */ __name((max) => !isPosInt(max) ? null : max <= Math.pow(2, 8) ? Uint8Array : max <= Math.pow(2, 16) ? Uint16Array : max <= Math.pow(2, 32) ? Uint32Array : max <= Number.MAX_SAFE_INTEGER ? ZeroArray : null, "getUintArray");
-    var _ZeroArray = class _ZeroArray extends Array {
-      constructor(size) {
-        super(size);
-        this.fill(0);
-      }
-    };
-    __name(_ZeroArray, "ZeroArray");
-    var ZeroArray = _ZeroArray;
-    var _Stack = class _Stack {
-      constructor(max) {
-        if (max === 0) {
-          return [];
-        }
-        const UintArray = getUintArray(max);
-        this.heap = new UintArray(max);
-        this.length = 0;
-      }
-      push(n) {
-        this.heap[this.length++] = n;
-      }
-      pop() {
-        return this.heap[--this.length];
-      }
-    };
-    __name(_Stack, "Stack");
-    var Stack = _Stack;
-    var _LRUCache = class _LRUCache {
-      constructor(options = {}) {
-        const {
-          max = 0,
-          ttl,
-          ttlResolution = 1,
-          ttlAutopurge,
-          updateAgeOnGet,
-          updateAgeOnHas,
-          allowStale,
-          dispose,
-          disposeAfter,
-          noDisposeOnSet,
-          noUpdateTTL,
-          maxSize = 0,
-          maxEntrySize = 0,
-          sizeCalculation,
-          fetchMethod,
-          fetchContext,
-          noDeleteOnFetchRejection,
-          noDeleteOnStaleGet,
-          allowStaleOnFetchRejection,
-          allowStaleOnFetchAbort,
-          ignoreFetchAbort
-        } = options;
-        const { length, maxAge, stale } = options instanceof _LRUCache ? {} : options;
-        if (max !== 0 && !isPosInt(max)) {
-          throw new TypeError("max option must be a nonnegative integer");
-        }
-        const UintArray = max ? getUintArray(max) : Array;
-        if (!UintArray) {
-          throw new Error("invalid max value: " + max);
-        }
-        this.max = max;
-        this.maxSize = maxSize;
-        this.maxEntrySize = maxEntrySize || this.maxSize;
-        this.sizeCalculation = sizeCalculation || length;
-        if (this.sizeCalculation) {
-          if (!this.maxSize && !this.maxEntrySize) {
-            throw new TypeError(
-              "cannot set sizeCalculation without setting maxSize or maxEntrySize"
-            );
-          }
-          if (typeof this.sizeCalculation !== "function") {
-            throw new TypeError("sizeCalculation set to non-function");
-          }
-        }
-        this.fetchMethod = fetchMethod || null;
-        if (this.fetchMethod && typeof this.fetchMethod !== "function") {
-          throw new TypeError(
-            "fetchMethod must be a function if specified"
-          );
-        }
-        this.fetchContext = fetchContext;
-        if (!this.fetchMethod && fetchContext !== void 0) {
-          throw new TypeError(
-            "cannot set fetchContext without fetchMethod"
-          );
-        }
-        this.keyMap = /* @__PURE__ */ new Map();
-        this.keyList = new Array(max).fill(null);
-        this.valList = new Array(max).fill(null);
-        this.next = new UintArray(max);
-        this.prev = new UintArray(max);
-        this.head = 0;
-        this.tail = 0;
-        this.free = new Stack(max);
-        this.initialFill = 1;
-        this.size = 0;
-        if (typeof dispose === "function") {
-          this.dispose = dispose;
-        }
-        if (typeof disposeAfter === "function") {
-          this.disposeAfter = disposeAfter;
-          this.disposed = [];
-        } else {
-          this.disposeAfter = null;
-          this.disposed = null;
-        }
-        this.noDisposeOnSet = !!noDisposeOnSet;
-        this.noUpdateTTL = !!noUpdateTTL;
-        this.noDeleteOnFetchRejection = !!noDeleteOnFetchRejection;
-        this.allowStaleOnFetchRejection = !!allowStaleOnFetchRejection;
-        this.allowStaleOnFetchAbort = !!allowStaleOnFetchAbort;
-        this.ignoreFetchAbort = !!ignoreFetchAbort;
-        if (this.maxEntrySize !== 0) {
-          if (this.maxSize !== 0) {
-            if (!isPosInt(this.maxSize)) {
-              throw new TypeError(
-                "maxSize must be a positive integer if specified"
-              );
-            }
-          }
-          if (!isPosInt(this.maxEntrySize)) {
-            throw new TypeError(
-              "maxEntrySize must be a positive integer if specified"
-            );
-          }
-          this.initializeSizeTracking();
-        }
-        this.allowStale = !!allowStale || !!stale;
-        this.noDeleteOnStaleGet = !!noDeleteOnStaleGet;
-        this.updateAgeOnGet = !!updateAgeOnGet;
-        this.updateAgeOnHas = !!updateAgeOnHas;
-        this.ttlResolution = isPosInt(ttlResolution) || ttlResolution === 0 ? ttlResolution : 1;
-        this.ttlAutopurge = !!ttlAutopurge;
-        this.ttl = ttl || maxAge || 0;
-        if (this.ttl) {
-          if (!isPosInt(this.ttl)) {
-            throw new TypeError(
-              "ttl must be a positive integer if specified"
-            );
-          }
-          this.initializeTTLTracking();
-        }
-        if (this.max === 0 && this.ttl === 0 && this.maxSize === 0) {
-          throw new TypeError(
-            "At least one of max, maxSize, or ttl is required"
-          );
-        }
-        if (!this.ttlAutopurge && !this.max && !this.maxSize) {
-          const code = "LRU_CACHE_UNBOUNDED";
-          if (shouldWarn(code)) {
-            warned.add(code);
-            const msg = "TTL caching without ttlAutopurge, max, or maxSize can result in unbounded memory consumption.";
-            emitWarning(msg, "UnboundedCacheWarning", code, _LRUCache);
-          }
-        }
-        if (stale) {
-          deprecatedOption("stale", "allowStale");
-        }
-        if (maxAge) {
-          deprecatedOption("maxAge", "ttl");
-        }
-        if (length) {
-          deprecatedOption("length", "sizeCalculation");
-        }
-      }
-      getRemainingTTL(key) {
-        return this.has(key, { updateAgeOnHas: false }) ? Infinity : 0;
-      }
-      initializeTTLTracking() {
-        this.ttls = new ZeroArray(this.max);
-        this.starts = new ZeroArray(this.max);
-        this.setItemTTL = (index, ttl, start = perf.now()) => {
-          this.starts[index] = ttl !== 0 ? start : 0;
-          this.ttls[index] = ttl;
-          if (ttl !== 0 && this.ttlAutopurge) {
-            const t2 = setTimeout(() => {
-              if (this.isStale(index)) {
-                this.delete(this.keyList[index]);
-              }
-            }, ttl + 1);
-            if (t2.unref) {
-              t2.unref();
-            }
-          }
-        };
-        this.updateItemAge = (index) => {
-          this.starts[index] = this.ttls[index] !== 0 ? perf.now() : 0;
-        };
-        this.statusTTL = (status, index) => {
-          if (status) {
-            status.ttl = this.ttls[index];
-            status.start = this.starts[index];
-            status.now = cachedNow || getNow();
-            status.remainingTTL = status.now + status.ttl - status.start;
-          }
-        };
-        let cachedNow = 0;
-        const getNow = /* @__PURE__ */ __name(() => {
-          const n = perf.now();
-          if (this.ttlResolution > 0) {
-            cachedNow = n;
-            const t2 = setTimeout(
-              () => cachedNow = 0,
-              this.ttlResolution
-            );
-            if (t2.unref) {
-              t2.unref();
-            }
-          }
-          return n;
-        }, "getNow");
-        this.getRemainingTTL = (key) => {
-          const index = this.keyMap.get(key);
+        free = [];
+        for (let i2 = preserve; i2 < newMax; i2++)
+          free.push(i2);
+      }, "_shrink");
+      const _grow = /* @__PURE__ */ __name((newMax) => {
+        keyList.length = newMax;
+        valList.length = newMax;
+        next.length = newMax;
+        prev.length = newMax;
+        keyList.fill(void 0, max);
+        valList.fill(void 0, max);
+        next.fill(0, max);
+        prev.fill(0, max);
+      }, "_grow");
+      return {
+        /** Adds a key-value pair to the cache. Updates the value if the key already exists. */
+        set(key, value) {
+          if (key === void 0)
+            return;
+          let index = keyMap.get(key);
           if (index === void 0) {
-            return 0;
-          }
-          return this.ttls[index] === 0 || this.starts[index] === 0 ? Infinity : this.starts[index] + this.ttls[index] - (cachedNow || getNow());
-        };
-        this.isStale = (index) => {
-          return this.ttls[index] !== 0 && this.starts[index] !== 0 && (cachedNow || getNow()) - this.starts[index] > this.ttls[index];
-        };
-      }
-      updateItemAge(_index) {
-      }
-      statusTTL(_status, _index) {
-      }
-      setItemTTL(_index, _ttl, _start) {
-      }
-      isStale(_index) {
-        return false;
-      }
-      initializeSizeTracking() {
-        this.calculatedSize = 0;
-        this.sizes = new ZeroArray(this.max);
-        this.removeItemSize = (index) => {
-          this.calculatedSize -= this.sizes[index];
-          this.sizes[index] = 0;
-        };
-        this.requireSize = (k, v, size, sizeCalculation) => {
-          if (this.isBackgroundFetch(v)) {
-            return 0;
-          }
-          if (!isPosInt(size)) {
-            if (sizeCalculation) {
-              if (typeof sizeCalculation !== "function") {
-                throw new TypeError("sizeCalculation must be a function");
-              }
-              size = sizeCalculation(v, k);
-              if (!isPosInt(size)) {
-                throw new TypeError(
-                  "sizeCalculation return invalid (expect positive integer)"
-                );
-              }
+            if (size === max) {
+              index = head;
+              const evictKey = keyList[index];
+              onEviction === null || onEviction === void 0 ? void 0 : onEviction(evictKey, valList[index]);
+              keyMap.delete(evictKey);
+              head = next[index];
+              prev[head] = 0;
             } else {
-              throw new TypeError(
-                "invalid size value (must be positive integer). When maxSize or maxEntrySize is used, sizeCalculation or size must be set."
-              );
+              index = free.length > 0 ? free.pop() : size;
+              size++;
+            }
+            keyMap.set(key, index);
+            keyList[index] = key;
+            valList[index] = value;
+            if (size === 1)
+              head = tail = index;
+            else
+              linkTail(index);
+          } else {
+            onEviction === null || onEviction === void 0 ? void 0 : onEviction(key, valList[index]);
+            valList[index] = value;
+            moveToTail(index);
+          }
+        },
+        /** Retrieves the value for a given key and moves the key to the most recent position. */
+        get(key) {
+          const index = keyMap.get(key);
+          if (index === void 0)
+            return;
+          if (index !== tail)
+            moveToTail(index);
+          return valList[index];
+        },
+        /** Retrieves the value for a given key without changing its position. */
+        peek: /* @__PURE__ */ __name((key) => {
+          const index = keyMap.get(key);
+          return index !== void 0 ? valList[index] : void 0;
+        }, "peek"),
+        /** Checks if a key exists in the cache. */
+        has: /* @__PURE__ */ __name((key) => keyMap.has(key), "has"),
+        /** Iterates over all keys in the cache, from most recent to least recent. */
+        *keys() {
+          let current = tail;
+          for (let i2 = 0; i2 < size; i2++) {
+            yield keyList[current];
+            current = prev[current];
+          }
+        },
+        /** Iterates over all values in the cache, from most recent to least recent. */
+        *values() {
+          let current = tail;
+          for (let i2 = 0; i2 < size; i2++) {
+            yield valList[current];
+            current = prev[current];
+          }
+        },
+        /** Iterates over `[key, value]` pairs in the cache, from most recent to least recent. */
+        *entries() {
+          let current = tail;
+          for (let i2 = 0; i2 < size; i2++) {
+            yield [keyList[current], valList[current]];
+            current = prev[current];
+          }
+        },
+        /** Iterates over each value-key pair in the cache, from most recent to least recent. */
+        forEach: /* @__PURE__ */ __name((callback) => {
+          let current = tail;
+          for (let i2 = 0; i2 < size; i2++) {
+            const key = keyList[current];
+            const value = valList[current];
+            callback(value, key);
+            current = prev[current];
+          }
+        }, "forEach"),
+        /** Deletes a key-value pair from the cache. */
+        delete(key) {
+          const index = keyMap.get(key);
+          if (index === void 0)
+            return false;
+          onEviction === null || onEviction === void 0 ? void 0 : onEviction(key, valList[index]);
+          keyMap.delete(key);
+          free.push(index);
+          keyList[index] = void 0;
+          valList[index] = void 0;
+          const prevIndex = prev[index];
+          const nextIndex = next[index];
+          if (index === head)
+            head = nextIndex;
+          else
+            next[prevIndex] = nextIndex;
+          if (index === tail)
+            tail = prevIndex;
+          else
+            prev[nextIndex] = prevIndex;
+          size--;
+          return true;
+        },
+        /** Evicts the oldest item or the specified number of the oldest items from the cache. */
+        evict: /* @__PURE__ */ __name((number) => {
+          let toPrune = Math.min(number, size);
+          while (toPrune > 0) {
+            const evictHead = head;
+            const key = keyList[evictHead];
+            onEviction === null || onEviction === void 0 ? void 0 : onEviction(key, valList[evictHead]);
+            keyMap.delete(key);
+            keyList[evictHead] = void 0;
+            valList[evictHead] = void 0;
+            head = next[evictHead];
+            prev[head] = 0;
+            size--;
+            free.push(evictHead);
+            toPrune--;
+          }
+          if (size === 0)
+            head = tail = 0;
+        }, "evict"),
+        /** Clears all key-value pairs from the cache. */
+        clear() {
+          if (onEviction) {
+            let current = head;
+            for (let i2 = 0; i2 < size; i2++) {
+              onEviction(keyList[current], valList[current]);
+              current = next[current];
             }
           }
+          keyMap.clear();
+          keyList.fill(void 0);
+          valList.fill(void 0);
+          free = [];
+          size = 0;
+          head = tail = 0;
+        },
+        /** Resizes the cache to a new maximum size, evicting items if necessary. */
+        resize: /* @__PURE__ */ __name((newMax) => {
+          if (!(Number.isInteger(newMax) && newMax > 0))
+            throw new TypeError("`max` must be a positive integer");
+          if (newMax === max)
+            return;
+          if (newMax < max)
+            _shrink(newMax);
+          else
+            _grow(newMax);
+          max = newMax;
+        }, "resize"),
+        /** Returns the maximum number of items that can be stored in the cache. */
+        get max() {
+          return max;
+        },
+        /** Returns the number of items currently stored in the cache. */
+        get size() {
           return size;
-        };
-        this.addItemSize = (index, size, status) => {
-          this.sizes[index] = size;
-          if (this.maxSize) {
-            const maxSize = this.maxSize - this.sizes[index];
-            while (this.calculatedSize > maxSize) {
-              this.evict(true);
-            }
-          }
-          this.calculatedSize += this.sizes[index];
-          if (status) {
-            status.entrySize = size;
-            status.totalCalculatedSize = this.calculatedSize;
-          }
-        };
-      }
-      removeItemSize(_index) {
-      }
-      addItemSize(_index, _size2) {
-      }
-      requireSize(_k, _v, size, sizeCalculation) {
-        if (size || sizeCalculation) {
-          throw new TypeError(
-            "cannot set size without setting maxSize or maxEntrySize on cache"
-          );
+        },
+        /** Returns the number of currently available slots in the cache before reaching the maximum size. */
+        get available() {
+          return max - size;
         }
-      }
-      *indexes({ allowStale = this.allowStale } = {}) {
-        if (this.size) {
-          for (let i2 = this.tail; true; ) {
-            if (!this.isValidIndex(i2)) {
-              break;
-            }
-            if (allowStale || !this.isStale(i2)) {
-              yield i2;
-            }
-            if (i2 === this.head) {
-              break;
-            } else {
-              i2 = this.prev[i2];
-            }
-          }
-        }
-      }
-      *rindexes({ allowStale = this.allowStale } = {}) {
-        if (this.size) {
-          for (let i2 = this.head; true; ) {
-            if (!this.isValidIndex(i2)) {
-              break;
-            }
-            if (allowStale || !this.isStale(i2)) {
-              yield i2;
-            }
-            if (i2 === this.tail) {
-              break;
-            } else {
-              i2 = this.next[i2];
-            }
-          }
-        }
-      }
-      isValidIndex(index) {
-        return index !== void 0 && this.keyMap.get(this.keyList[index]) === index;
-      }
-      *entries() {
-        for (const i2 of this.indexes()) {
-          if (this.valList[i2] !== void 0 && this.keyList[i2] !== void 0 && !this.isBackgroundFetch(this.valList[i2])) {
-            yield [this.keyList[i2], this.valList[i2]];
-          }
-        }
-      }
-      *rentries() {
-        for (const i2 of this.rindexes()) {
-          if (this.valList[i2] !== void 0 && this.keyList[i2] !== void 0 && !this.isBackgroundFetch(this.valList[i2])) {
-            yield [this.keyList[i2], this.valList[i2]];
-          }
-        }
-      }
-      *keys() {
-        for (const i2 of this.indexes()) {
-          if (this.keyList[i2] !== void 0 && !this.isBackgroundFetch(this.valList[i2])) {
-            yield this.keyList[i2];
-          }
-        }
-      }
-      *rkeys() {
-        for (const i2 of this.rindexes()) {
-          if (this.keyList[i2] !== void 0 && !this.isBackgroundFetch(this.valList[i2])) {
-            yield this.keyList[i2];
-          }
-        }
-      }
-      *values() {
-        for (const i2 of this.indexes()) {
-          if (this.valList[i2] !== void 0 && !this.isBackgroundFetch(this.valList[i2])) {
-            yield this.valList[i2];
-          }
-        }
-      }
-      *rvalues() {
-        for (const i2 of this.rindexes()) {
-          if (this.valList[i2] !== void 0 && !this.isBackgroundFetch(this.valList[i2])) {
-            yield this.valList[i2];
-          }
-        }
-      }
-      [Symbol.iterator]() {
-        return this.entries();
-      }
-      find(fn, getOptions) {
-        for (const i2 of this.indexes()) {
-          const v = this.valList[i2];
-          const value = this.isBackgroundFetch(v) ? v.__staleWhileFetching : v;
-          if (value === void 0)
-            continue;
-          if (fn(value, this.keyList[i2], this)) {
-            return this.get(this.keyList[i2], getOptions);
-          }
-        }
-      }
-      forEach(fn, thisp = this) {
-        for (const i2 of this.indexes()) {
-          const v = this.valList[i2];
-          const value = this.isBackgroundFetch(v) ? v.__staleWhileFetching : v;
-          if (value === void 0)
-            continue;
-          fn.call(thisp, value, this.keyList[i2], this);
-        }
-      }
-      rforEach(fn, thisp = this) {
-        for (const i2 of this.rindexes()) {
-          const v = this.valList[i2];
-          const value = this.isBackgroundFetch(v) ? v.__staleWhileFetching : v;
-          if (value === void 0)
-            continue;
-          fn.call(thisp, value, this.keyList[i2], this);
-        }
-      }
-      get prune() {
-        deprecatedMethod("prune", "purgeStale");
-        return this.purgeStale;
-      }
-      purgeStale() {
-        let deleted = false;
-        for (const i2 of this.rindexes({ allowStale: true })) {
-          if (this.isStale(i2)) {
-            this.delete(this.keyList[i2]);
-            deleted = true;
-          }
-        }
-        return deleted;
-      }
-      dump() {
-        const arr = [];
-        for (const i2 of this.indexes({ allowStale: true })) {
-          const key = this.keyList[i2];
-          const v = this.valList[i2];
-          const value = this.isBackgroundFetch(v) ? v.__staleWhileFetching : v;
-          if (value === void 0)
-            continue;
-          const entry = { value };
-          if (this.ttls) {
-            entry.ttl = this.ttls[i2];
-            const age = perf.now() - this.starts[i2];
-            entry.start = Math.floor(Date.now() - age);
-          }
-          if (this.sizes) {
-            entry.size = this.sizes[i2];
-          }
-          arr.unshift([key, entry]);
-        }
-        return arr;
-      }
-      load(arr) {
-        this.clear();
-        for (const [key, entry] of arr) {
-          if (entry.start) {
-            const age = Date.now() - entry.start;
-            entry.start = perf.now() - age;
-          }
-          this.set(key, entry.value, entry);
-        }
-      }
-      dispose(_v, _k, _reason) {
-      }
-      set(k, v, {
-        ttl = this.ttl,
-        start,
-        noDisposeOnSet = this.noDisposeOnSet,
-        size = 0,
-        sizeCalculation = this.sizeCalculation,
-        noUpdateTTL = this.noUpdateTTL,
-        status
-      } = {}) {
-        size = this.requireSize(k, v, size, sizeCalculation);
-        if (this.maxEntrySize && size > this.maxEntrySize) {
-          if (status) {
-            status.set = "miss";
-            status.maxEntrySizeExceeded = true;
-          }
-          this.delete(k);
-          return this;
-        }
-        let index = this.size === 0 ? void 0 : this.keyMap.get(k);
-        if (index === void 0) {
-          index = this.newIndex();
-          this.keyList[index] = k;
-          this.valList[index] = v;
-          this.keyMap.set(k, index);
-          this.next[this.tail] = index;
-          this.prev[index] = this.tail;
-          this.tail = index;
-          this.size++;
-          this.addItemSize(index, size, status);
-          if (status) {
-            status.set = "add";
-          }
-          noUpdateTTL = false;
-        } else {
-          this.moveToTail(index);
-          const oldVal = this.valList[index];
-          if (v !== oldVal) {
-            if (this.isBackgroundFetch(oldVal)) {
-              oldVal.__abortController.abort(new Error("replaced"));
-            } else {
-              if (!noDisposeOnSet) {
-                this.dispose(oldVal, k, "set");
-                if (this.disposeAfter) {
-                  this.disposed.push([oldVal, k, "set"]);
-                }
-              }
-            }
-            this.removeItemSize(index);
-            this.valList[index] = v;
-            this.addItemSize(index, size, status);
-            if (status) {
-              status.set = "replace";
-              const oldValue = oldVal && this.isBackgroundFetch(oldVal) ? oldVal.__staleWhileFetching : oldVal;
-              if (oldValue !== void 0)
-                status.oldValue = oldValue;
-            }
-          } else if (status) {
-            status.set = "update";
-          }
-        }
-        if (ttl !== 0 && this.ttl === 0 && !this.ttls) {
-          this.initializeTTLTracking();
-        }
-        if (!noUpdateTTL) {
-          this.setItemTTL(index, ttl, start);
-        }
-        this.statusTTL(status, index);
-        if (this.disposeAfter) {
-          while (this.disposed.length) {
-            this.disposeAfter(...this.disposed.shift());
-          }
-        }
-        return this;
-      }
-      newIndex() {
-        if (this.size === 0) {
-          return this.tail;
-        }
-        if (this.size === this.max && this.max !== 0) {
-          return this.evict(false);
-        }
-        if (this.free.length !== 0) {
-          return this.free.pop();
-        }
-        return this.initialFill++;
-      }
-      pop() {
-        if (this.size) {
-          const val = this.valList[this.head];
-          this.evict(true);
-          return val;
-        }
-      }
-      evict(free) {
-        const head = this.head;
-        const k = this.keyList[head];
-        const v = this.valList[head];
-        if (this.isBackgroundFetch(v)) {
-          v.__abortController.abort(new Error("evicted"));
-        } else {
-          this.dispose(v, k, "evict");
-          if (this.disposeAfter) {
-            this.disposed.push([v, k, "evict"]);
-          }
-        }
-        this.removeItemSize(head);
-        if (free) {
-          this.keyList[head] = null;
-          this.valList[head] = null;
-          this.free.push(head);
-        }
-        this.head = this.next[head];
-        this.keyMap.delete(k);
-        this.size--;
-        return head;
-      }
-      has(k, { updateAgeOnHas = this.updateAgeOnHas, status } = {}) {
-        const index = this.keyMap.get(k);
-        if (index !== void 0) {
-          if (!this.isStale(index)) {
-            if (updateAgeOnHas) {
-              this.updateItemAge(index);
-            }
-            if (status)
-              status.has = "hit";
-            this.statusTTL(status, index);
-            return true;
-          } else if (status) {
-            status.has = "stale";
-            this.statusTTL(status, index);
-          }
-        } else if (status) {
-          status.has = "miss";
-        }
-        return false;
-      }
-      // like get(), but without any LRU updating or TTL expiration
-      peek(k, { allowStale = this.allowStale } = {}) {
-        const index = this.keyMap.get(k);
-        if (index !== void 0 && (allowStale || !this.isStale(index))) {
-          const v = this.valList[index];
-          return this.isBackgroundFetch(v) ? v.__staleWhileFetching : v;
-        }
-      }
-      backgroundFetch(k, index, options, context) {
-        const v = index === void 0 ? void 0 : this.valList[index];
-        if (this.isBackgroundFetch(v)) {
-          return v;
-        }
-        const ac = new AC();
-        if (options.signal) {
-          options.signal.addEventListener(
-            "abort",
-            () => ac.abort(options.signal.reason)
-          );
-        }
-        const fetchOpts = {
-          signal: ac.signal,
-          options,
-          context
-        };
-        const cb = /* @__PURE__ */ __name((v2, updateCache = false) => {
-          const { aborted } = ac.signal;
-          const ignoreAbort = options.ignoreFetchAbort && v2 !== void 0;
-          if (options.status) {
-            if (aborted && !updateCache) {
-              options.status.fetchAborted = true;
-              options.status.fetchError = ac.signal.reason;
-              if (ignoreAbort)
-                options.status.fetchAbortIgnored = true;
-            } else {
-              options.status.fetchResolved = true;
-            }
-          }
-          if (aborted && !ignoreAbort && !updateCache) {
-            return fetchFail(ac.signal.reason);
-          }
-          if (this.valList[index] === p) {
-            if (v2 === void 0) {
-              if (p.__staleWhileFetching) {
-                this.valList[index] = p.__staleWhileFetching;
-              } else {
-                this.delete(k);
-              }
-            } else {
-              if (options.status)
-                options.status.fetchUpdated = true;
-              this.set(k, v2, fetchOpts.options);
-            }
-          }
-          return v2;
-        }, "cb");
-        const eb = /* @__PURE__ */ __name((er) => {
-          if (options.status) {
-            options.status.fetchRejected = true;
-            options.status.fetchError = er;
-          }
-          return fetchFail(er);
-        }, "eb");
-        const fetchFail = /* @__PURE__ */ __name((er) => {
-          const { aborted } = ac.signal;
-          const allowStaleAborted = aborted && options.allowStaleOnFetchAbort;
-          const allowStale = allowStaleAborted || options.allowStaleOnFetchRejection;
-          const noDelete = allowStale || options.noDeleteOnFetchRejection;
-          if (this.valList[index] === p) {
-            const del = !noDelete || p.__staleWhileFetching === void 0;
-            if (del) {
-              this.delete(k);
-            } else if (!allowStaleAborted) {
-              this.valList[index] = p.__staleWhileFetching;
-            }
-          }
-          if (allowStale) {
-            if (options.status && p.__staleWhileFetching !== void 0) {
-              options.status.returnedStale = true;
-            }
-            return p.__staleWhileFetching;
-          } else if (p.__returned === p) {
-            throw er;
-          }
-        }, "fetchFail");
-        const pcall = /* @__PURE__ */ __name((res, rej) => {
-          this.fetchMethod(k, v, fetchOpts).then((v2) => res(v2), rej);
-          ac.signal.addEventListener("abort", () => {
-            if (!options.ignoreFetchAbort || options.allowStaleOnFetchAbort) {
-              res();
-              if (options.allowStaleOnFetchAbort) {
-                res = /* @__PURE__ */ __name((v2) => cb(v2, true), "res");
-              }
-            }
-          });
-        }, "pcall");
-        if (options.status)
-          options.status.fetchDispatched = true;
-        const p = new Promise(pcall).then(cb, eb);
-        p.__abortController = ac;
-        p.__staleWhileFetching = v;
-        p.__returned = null;
-        if (index === void 0) {
-          this.set(k, p, { ...fetchOpts.options, status: void 0 });
-          index = this.keyMap.get(k);
-        } else {
-          this.valList[index] = p;
-        }
-        return p;
-      }
-      isBackgroundFetch(p) {
-        return p && typeof p === "object" && typeof p.then === "function" && Object.prototype.hasOwnProperty.call(
-          p,
-          "__staleWhileFetching"
-        ) && Object.prototype.hasOwnProperty.call(p, "__returned") && (p.__returned === p || p.__returned === null);
-      }
-      // this takes the union of get() and set() opts, because it does both
-      async fetch(k, {
-        // get options
-        allowStale = this.allowStale,
-        updateAgeOnGet = this.updateAgeOnGet,
-        noDeleteOnStaleGet = this.noDeleteOnStaleGet,
-        // set options
-        ttl = this.ttl,
-        noDisposeOnSet = this.noDisposeOnSet,
-        size = 0,
-        sizeCalculation = this.sizeCalculation,
-        noUpdateTTL = this.noUpdateTTL,
-        // fetch exclusive options
-        noDeleteOnFetchRejection = this.noDeleteOnFetchRejection,
-        allowStaleOnFetchRejection = this.allowStaleOnFetchRejection,
-        ignoreFetchAbort = this.ignoreFetchAbort,
-        allowStaleOnFetchAbort = this.allowStaleOnFetchAbort,
-        fetchContext = this.fetchContext,
-        forceRefresh = false,
-        status,
-        signal
-      } = {}) {
-        if (!this.fetchMethod) {
-          if (status)
-            status.fetch = "get";
-          return this.get(k, {
-            allowStale,
-            updateAgeOnGet,
-            noDeleteOnStaleGet,
-            status
-          });
-        }
-        const options = {
-          allowStale,
-          updateAgeOnGet,
-          noDeleteOnStaleGet,
-          ttl,
-          noDisposeOnSet,
-          size,
-          sizeCalculation,
-          noUpdateTTL,
-          noDeleteOnFetchRejection,
-          allowStaleOnFetchRejection,
-          allowStaleOnFetchAbort,
-          ignoreFetchAbort,
-          status,
-          signal
-        };
-        let index = this.keyMap.get(k);
-        if (index === void 0) {
-          if (status)
-            status.fetch = "miss";
-          const p = this.backgroundFetch(k, index, options, fetchContext);
-          return p.__returned = p;
-        } else {
-          const v = this.valList[index];
-          if (this.isBackgroundFetch(v)) {
-            const stale = allowStale && v.__staleWhileFetching !== void 0;
-            if (status) {
-              status.fetch = "inflight";
-              if (stale)
-                status.returnedStale = true;
-            }
-            return stale ? v.__staleWhileFetching : v.__returned = v;
-          }
-          const isStale = this.isStale(index);
-          if (!forceRefresh && !isStale) {
-            if (status)
-              status.fetch = "hit";
-            this.moveToTail(index);
-            if (updateAgeOnGet) {
-              this.updateItemAge(index);
-            }
-            this.statusTTL(status, index);
-            return v;
-          }
-          const p = this.backgroundFetch(k, index, options, fetchContext);
-          const hasStale = p.__staleWhileFetching !== void 0;
-          const staleVal = hasStale && allowStale;
-          if (status) {
-            status.fetch = hasStale && isStale ? "stale" : "refresh";
-            if (staleVal && isStale)
-              status.returnedStale = true;
-          }
-          return staleVal ? p.__staleWhileFetching : p.__returned = p;
-        }
-      }
-      get(k, {
-        allowStale = this.allowStale,
-        updateAgeOnGet = this.updateAgeOnGet,
-        noDeleteOnStaleGet = this.noDeleteOnStaleGet,
-        status
-      } = {}) {
-        const index = this.keyMap.get(k);
-        if (index !== void 0) {
-          const value = this.valList[index];
-          const fetching = this.isBackgroundFetch(value);
-          this.statusTTL(status, index);
-          if (this.isStale(index)) {
-            if (status)
-              status.get = "stale";
-            if (!fetching) {
-              if (!noDeleteOnStaleGet) {
-                this.delete(k);
-              }
-              if (status)
-                status.returnedStale = allowStale;
-              return allowStale ? value : void 0;
-            } else {
-              if (status) {
-                status.returnedStale = allowStale && value.__staleWhileFetching !== void 0;
-              }
-              return allowStale ? value.__staleWhileFetching : void 0;
-            }
-          } else {
-            if (status)
-              status.get = "hit";
-            if (fetching) {
-              return value.__staleWhileFetching;
-            }
-            this.moveToTail(index);
-            if (updateAgeOnGet) {
-              this.updateItemAge(index);
-            }
-            return value;
-          }
-        } else if (status) {
-          status.get = "miss";
-        }
-      }
-      connect(p, n) {
-        this.prev[n] = p;
-        this.next[p] = n;
-      }
-      moveToTail(index) {
-        if (index !== this.tail) {
-          if (index === this.head) {
-            this.head = this.next[index];
-          } else {
-            this.connect(this.prev[index], this.next[index]);
-          }
-          this.connect(this.tail, index);
-          this.tail = index;
-        }
-      }
-      get del() {
-        deprecatedMethod("del", "delete");
-        return this.delete;
-      }
-      delete(k) {
-        let deleted = false;
-        if (this.size !== 0) {
-          const index = this.keyMap.get(k);
-          if (index !== void 0) {
-            deleted = true;
-            if (this.size === 1) {
-              this.clear();
-            } else {
-              this.removeItemSize(index);
-              const v = this.valList[index];
-              if (this.isBackgroundFetch(v)) {
-                v.__abortController.abort(new Error("deleted"));
-              } else {
-                this.dispose(v, k, "delete");
-                if (this.disposeAfter) {
-                  this.disposed.push([v, k, "delete"]);
-                }
-              }
-              this.keyMap.delete(k);
-              this.keyList[index] = null;
-              this.valList[index] = null;
-              if (index === this.tail) {
-                this.tail = this.prev[index];
-              } else if (index === this.head) {
-                this.head = this.next[index];
-              } else {
-                this.next[this.prev[index]] = this.next[index];
-                this.prev[this.next[index]] = this.prev[index];
-              }
-              this.size--;
-              this.free.push(index);
-            }
-          }
-        }
-        if (this.disposed) {
-          while (this.disposed.length) {
-            this.disposeAfter(...this.disposed.shift());
-          }
-        }
-        return deleted;
-      }
-      clear() {
-        for (const index of this.rindexes({ allowStale: true })) {
-          const v = this.valList[index];
-          if (this.isBackgroundFetch(v)) {
-            v.__abortController.abort(new Error("deleted"));
-          } else {
-            const k = this.keyList[index];
-            this.dispose(v, k, "delete");
-            if (this.disposeAfter) {
-              this.disposed.push([v, k, "delete"]);
-            }
-          }
-        }
-        this.keyMap.clear();
-        this.valList.fill(null);
-        this.keyList.fill(null);
-        if (this.ttls) {
-          this.ttls.fill(0);
-          this.starts.fill(0);
-        }
-        if (this.sizes) {
-          this.sizes.fill(0);
-        }
-        this.head = 0;
-        this.tail = 0;
-        this.initialFill = 1;
-        this.free.length = 0;
-        this.calculatedSize = 0;
-        this.size = 0;
-        if (this.disposed) {
-          while (this.disposed.length) {
-            this.disposeAfter(...this.disposed.shift());
-          }
-        }
-      }
-      get reset() {
-        deprecatedMethod("reset", "clear");
-        return this.clear;
-      }
-      get length() {
-        deprecatedProperty("length", "size");
-        return this.size;
-      }
-      static get AbortController() {
-        return AC;
-      }
-      static get AbortSignal() {
-        return AS;
-      }
-    };
-    __name(_LRUCache, "LRUCache");
-    var LRUCache = _LRUCache;
-    module2.exports = LRUCache;
+      };
+    }, "createLRU");
+    exports2.createLRU = createLRU;
   }
 });
 
-// node_modules/.pnpm/named-placeholders@1.1.3/node_modules/named-placeholders/index.js
+// node_modules/named-placeholders/index.js
 var require_named_placeholders = __commonJS({
-  "node_modules/.pnpm/named-placeholders@1.1.3/node_modules/named-placeholders/index.js"(exports2, module2) {
+  "node_modules/named-placeholders/index.js"(exports2, module2) {
     "use strict";
     var RE_PARAM = /(?:\?)|(?:(?<!["'])[:@](\d+|(?:[a-zA-Z][a-zA-Z0-9_]*)))/g;
     var DQUOTE = 34;
@@ -1117,9 +344,8 @@ var require_named_placeholders = __commonJS({
       if (ppos) {
         do {
           for (i2 = curpos, end = ppos.index; i2 < end; ++i2) {
-            let chr = query.charCodeAt(i2);
-            if (chr === BSLASH)
-              escape = !escape;
+            const chr = query.charCodeAt(i2);
+            if (chr === BSLASH) escape = !escape;
             else {
               if (escape) {
                 escape = false;
@@ -1131,7 +357,7 @@ var require_named_placeholders = __commonJS({
                   continue;
                 }
                 inQuote = false;
-              } else if (chr === DQUOTE || chr === SQUOTE) {
+              } else if (!inQuote && (chr === DQUOTE || chr === SQUOTE)) {
                 inQuote = true;
                 qchr = chr;
               }
@@ -1156,8 +382,7 @@ var require_named_placeholders = __commonJS({
     }
     __name(parse, "parse");
     function createCompiler(config) {
-      if (!config)
-        config = {};
+      if (!config) config = {};
       if (!config.placeholder) {
         config.placeholder = "?";
       }
@@ -1170,15 +395,17 @@ var require_named_placeholders = __commonJS({
         cache = config.cache;
       }
       if (config.cache !== false && !cache) {
-        cache = new (require_lru_cache())({ max: ncache });
+        cache = require_lib().createLRU({ max: ncache });
       }
       function toArrayParams(tree, params) {
         const arr = [];
-        if (tree.length == 1) {
+        if (tree.length === 1) {
           return [tree[0], []];
         }
-        if (typeof params == "undefined")
-          throw new Error("Named query contains placeholders, but parameters object is undefined");
+        if (typeof params === "undefined")
+          throw new Error(
+            "Named query contains placeholders, but parameters object is undefined"
+          );
         for (const key in params) {
           const char = key[0];
           if (char == "@" || char == ":") {
@@ -1202,7 +429,7 @@ var require_named_placeholders = __commonJS({
       }
       __name(noTailingSemicolon, "noTailingSemicolon");
       function join(tree) {
-        if (tree.length == 1) {
+        if (tree.length === 1) {
           return tree;
         }
         let unnamed = noTailingSemicolon(tree[0][0]);
@@ -1215,7 +442,7 @@ var require_named_placeholders = __commonJS({
           unnamed += noTailingSemicolon(tree[0][i2]);
         }
         const last = tree[0][tree[0].length - 1];
-        if (tree[0].length == tree[1].length) {
+        if (tree[0].length === tree[1].length) {
           const char = last.slice(-1);
           if (char == ":" || char == "@") {
             unnamed += config.placeholder;
@@ -1244,7 +471,7 @@ var require_named_placeholders = __commonJS({
     function toNumbered(q, params) {
       const tree = parse(q);
       const paramsArr = [];
-      if (tree.length == 1) {
+      if (tree.length === 1) {
         return [tree[0], paramsArr];
       }
       const pIndexes = {};
@@ -1260,7 +487,7 @@ var require_named_placeholders = __commonJS({
         }
         if (tree[1][i2]) {
           varNames[varIndex - 1] = tree[1][i2];
-          qs += tree[0][i2] + "$" + varIndex;
+          qs += `${tree[0][i2]}$${varIndex}`;
         } else {
           qs += tree[0][i2];
         }
@@ -1273,13 +500,19 @@ var require_named_placeholders = __commonJS({
   }
 });
 
-// node_modules/.pnpm/sqlstring@2.3.3/node_modules/sqlstring/lib/SqlString.js
-var require_SqlString = __commonJS({
-  "node_modules/.pnpm/sqlstring@2.3.3/node_modules/sqlstring/lib/SqlString.js"(exports2) {
-    var SqlString = exports2;
-    var ID_GLOBAL_REGEXP = /`/g;
-    var QUAL_GLOBAL_REGEXP = /\./g;
-    var CHARS_GLOBAL_REGEXP = /[\0\b\t\n\r\x1a\"\'\\]/g;
+// node_modules/sql-escaper/lib/index.js
+var require_lib2 = __commonJS({
+  "node_modules/sql-escaper/lib/index.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.raw = exports2.format = exports2.escape = exports2.arrayToList = exports2.bufferToString = exports2.objectToValues = exports2.escapeId = exports2.dateToString = void 0;
+    var node_buffer_1 = require("node:buffer");
+    var regex = {
+      backtick: /`/g,
+      dot: /\./g,
+      timezone: /([+\-\s])(\d\d):?(\d\d)?/,
+      escapeChars: /[\0\b\t\n\r\x1a"'\\]/g
+    };
     var CHARS_ESCAPE_MAP = {
       "\0": "\\0",
       "\b": "\\b",
@@ -1291,197 +524,390 @@ var require_SqlString = __commonJS({
       "'": "\\'",
       "\\": "\\\\"
     };
-    SqlString.escapeId = /* @__PURE__ */ __name(function escapeId(val, forbidQualified) {
-      if (Array.isArray(val)) {
-        var sql = "";
-        for (var i2 = 0; i2 < val.length; i2++) {
-          sql += (i2 === 0 ? "" : ", ") + SqlString.escapeId(val[i2], forbidQualified);
+    var charCode = {
+      singleQuote: 39,
+      backtick: 96,
+      backslash: 92,
+      dash: 45,
+      slash: 47,
+      asterisk: 42,
+      questionMark: 63,
+      newline: 10,
+      space: 32,
+      tab: 9,
+      carriageReturn: 13
+    };
+    var isRecord = /* @__PURE__ */ __name((value) => typeof value === "object" && value !== null && !Array.isArray(value), "isRecord");
+    var isWordChar = /* @__PURE__ */ __name((code) => code >= 65 && code <= 90 || code >= 97 && code <= 122 || code >= 48 && code <= 57 || code === 95, "isWordChar");
+    var isWhitespace = /* @__PURE__ */ __name((code) => code === charCode.space || code === charCode.tab || code === charCode.newline || code === charCode.carriageReturn, "isWhitespace");
+    var hasOnlyWhitespaceBetween = /* @__PURE__ */ __name((sql, start, end) => {
+      if (start >= end)
+        return true;
+      for (let i2 = start; i2 < end; i2++) {
+        const code = sql.charCodeAt(i2);
+        if (code !== charCode.space && code !== charCode.tab && code !== charCode.newline && code !== charCode.carriageReturn)
+          return false;
+      }
+      return true;
+    }, "hasOnlyWhitespaceBetween");
+    var toLower = /* @__PURE__ */ __name((code) => code | 32, "toLower");
+    var matchesWord = /* @__PURE__ */ __name((sql, position, word, length) => {
+      for (let offset = 0; offset < word.length; offset++)
+        if (toLower(sql.charCodeAt(position + offset)) !== word.charCodeAt(offset))
+          return false;
+      return (position === 0 || !isWordChar(sql.charCodeAt(position - 1))) && (position + word.length >= length || !isWordChar(sql.charCodeAt(position + word.length)));
+    }, "matchesWord");
+    var skipSqlContext = /* @__PURE__ */ __name((sql, position) => {
+      const currentChar = sql.charCodeAt(position);
+      const nextChar = sql.charCodeAt(position + 1);
+      if (currentChar === charCode.singleQuote) {
+        for (let cursor = position + 1; cursor < sql.length; cursor++) {
+          if (sql.charCodeAt(cursor) === charCode.backslash)
+            cursor++;
+          else if (sql.charCodeAt(cursor) === charCode.singleQuote)
+            return cursor + 1;
         }
-        return sql;
-      } else if (forbidQualified) {
-        return "`" + String(val).replace(ID_GLOBAL_REGEXP, "``") + "`";
-      } else {
-        return "`" + String(val).replace(ID_GLOBAL_REGEXP, "``").replace(QUAL_GLOBAL_REGEXP, "`.`") + "`";
+        return sql.length;
       }
-    }, "escapeId");
-    SqlString.escape = /* @__PURE__ */ __name(function escape(val, stringifyObjects, timeZone) {
-      if (val === void 0 || val === null) {
-        return "NULL";
-      }
-      switch (typeof val) {
-        case "boolean":
-          return val ? "true" : "false";
-        case "number":
-          return val + "";
-        case "object":
-          if (Object.prototype.toString.call(val) === "[object Date]") {
-            return SqlString.dateToString(val, timeZone || "local");
-          } else if (Array.isArray(val)) {
-            return SqlString.arrayToList(val, timeZone);
-          } else if (Buffer.isBuffer(val)) {
-            return SqlString.bufferToString(val);
-          } else if (typeof val.toSqlString === "function") {
-            return String(val.toSqlString());
-          } else if (stringifyObjects) {
-            return escapeString(val.toString());
-          } else {
-            return SqlString.objectToValues(val, timeZone);
+      if (currentChar === charCode.backtick) {
+        const length = sql.length;
+        for (let cursor = position + 1; cursor < length; cursor++) {
+          if (sql.charCodeAt(cursor) !== charCode.backtick)
+            continue;
+          if (sql.charCodeAt(cursor + 1) === charCode.backtick) {
+            cursor++;
+            continue;
           }
-        default:
-          return escapeString(val);
+          return cursor + 1;
+        }
+        return length;
       }
-    }, "escape");
-    SqlString.arrayToList = /* @__PURE__ */ __name(function arrayToList(array, timeZone) {
-      var sql = "";
-      for (var i2 = 0; i2 < array.length; i2++) {
-        var val = array[i2];
-        if (Array.isArray(val)) {
-          sql += (i2 === 0 ? "" : ", ") + "(" + SqlString.arrayToList(val, timeZone) + ")";
-        } else {
-          sql += (i2 === 0 ? "" : ", ") + SqlString.escape(val, true, timeZone);
+      if (currentChar === charCode.dash && nextChar === charCode.dash) {
+        const lineBreak = sql.indexOf("\n", position + 2);
+        return lineBreak === -1 ? sql.length : lineBreak + 1;
+      }
+      if (currentChar === charCode.slash && nextChar === charCode.asterisk) {
+        const commentEnd = sql.indexOf("*/", position + 2);
+        return commentEnd === -1 ? sql.length : commentEnd + 2;
+      }
+      return -1;
+    }, "skipSqlContext");
+    var findNextPlaceholder = /* @__PURE__ */ __name((sql, start) => {
+      const sqlLength = sql.length;
+      for (let position = start; position < sqlLength; position++) {
+        const code = sql.charCodeAt(position);
+        if (code === charCode.questionMark)
+          return position;
+        if (code === charCode.singleQuote || code === charCode.backtick || code === charCode.dash || code === charCode.slash) {
+          const contextEnd = skipSqlContext(sql, position);
+          if (contextEnd !== -1)
+            position = contextEnd - 1;
         }
       }
-      return sql;
-    }, "arrayToList");
-    SqlString.format = /* @__PURE__ */ __name(function format(sql, values, stringifyObjects, timeZone) {
-      if (values == null) {
-        return sql;
-      }
-      if (!Array.isArray(values)) {
-        values = [values];
-      }
-      var chunkIndex = 0;
-      var placeholdersRegex = /\?+/g;
-      var result = "";
-      var valuesIndex = 0;
-      var match;
-      while (valuesIndex < values.length && (match = placeholdersRegex.exec(sql))) {
-        var len = match[0].length;
-        if (len > 2) {
-          continue;
+      return -1;
+    }, "findNextPlaceholder");
+    var findSetKeyword = /* @__PURE__ */ __name((sql, startFrom = 0) => {
+      const length = sql.length;
+      for (let position = startFrom; position < length; position++) {
+        const code = sql.charCodeAt(position);
+        const lower2 = code | 32;
+        if (code === charCode.singleQuote || code === charCode.backtick || code === charCode.dash || code === charCode.slash) {
+          const contextEnd = skipSqlContext(sql, position);
+          if (contextEnd !== -1) {
+            position = contextEnd - 1;
+            continue;
+          }
         }
-        var value = len === 2 ? SqlString.escapeId(values[valuesIndex]) : SqlString.escape(values[valuesIndex], stringifyObjects, timeZone);
-        result += sql.slice(chunkIndex, match.index) + value;
-        chunkIndex = placeholdersRegex.lastIndex;
-        valuesIndex++;
+        if (lower2 === 115 && matchesWord(sql, position, "set", length))
+          return position + 3;
+        if (lower2 === 107 && matchesWord(sql, position, "key", length)) {
+          let cursor = position + 3;
+          while (cursor < length && isWhitespace(sql.charCodeAt(cursor)))
+            cursor++;
+          if (matchesWord(sql, cursor, "update", length))
+            return cursor + 6;
+        }
       }
-      if (chunkIndex === 0) {
-        return sql;
+      return -1;
+    }, "findSetKeyword");
+    var isDate = /* @__PURE__ */ __name((value) => Object.prototype.toString.call(value) === "[object Date]", "isDate");
+    var hasSqlString = /* @__PURE__ */ __name((value) => typeof value === "object" && value !== null && "toSqlString" in value && typeof value.toSqlString === "function", "hasSqlString");
+    var escapeString = /* @__PURE__ */ __name((value) => {
+      regex.escapeChars.lastIndex = 0;
+      let chunkIndex = 0;
+      let escapedValue = "";
+      let match;
+      for (match = regex.escapeChars.exec(value); match !== null; match = regex.escapeChars.exec(value)) {
+        escapedValue += value.slice(chunkIndex, match.index);
+        escapedValue += CHARS_ESCAPE_MAP[match[0]];
+        chunkIndex = regex.escapeChars.lastIndex;
       }
-      if (chunkIndex < sql.length) {
-        return result + sql.slice(chunkIndex);
-      }
-      return result;
-    }, "format");
-    SqlString.dateToString = /* @__PURE__ */ __name(function dateToString(date, timeZone) {
-      var dt = new Date(date);
-      if (isNaN(dt.getTime())) {
+      if (chunkIndex === 0)
+        return `'${value}'`;
+      if (chunkIndex < value.length)
+        return `'${escapedValue}${value.slice(chunkIndex)}'`;
+      return `'${escapedValue}'`;
+    }, "escapeString");
+    var pad2 = /* @__PURE__ */ __name((value) => value < 10 ? "0" + value : "" + value, "pad2");
+    var pad3 = /* @__PURE__ */ __name((value) => value < 10 ? "00" + value : value < 100 ? "0" + value : "" + value, "pad3");
+    var pad4 = /* @__PURE__ */ __name((value) => value < 10 ? "000" + value : value < 100 ? "00" + value : value < 1e3 ? "0" + value : "" + value, "pad4");
+    var convertTimezone = /* @__PURE__ */ __name((tz) => {
+      if (tz === "Z")
+        return 0;
+      const timezoneMatch = tz.match(regex.timezone);
+      if (timezoneMatch)
+        return (timezoneMatch[1] === "-" ? -1 : 1) * (Number.parseInt(timezoneMatch[2], 10) + (timezoneMatch[3] ? Number.parseInt(timezoneMatch[3], 10) : 0) / 60) * 60;
+      return false;
+    }, "convertTimezone");
+    var dateToString = /* @__PURE__ */ __name((date, timezone) => {
+      if (Number.isNaN(date.getTime()))
         return "NULL";
-      }
-      var year;
-      var month;
-      var day;
-      var hour;
-      var minute;
-      var second;
-      var millisecond;
-      if (timeZone === "local") {
-        year = dt.getFullYear();
-        month = dt.getMonth() + 1;
-        day = dt.getDate();
-        hour = dt.getHours();
-        minute = dt.getMinutes();
-        second = dt.getSeconds();
-        millisecond = dt.getMilliseconds();
+      let year;
+      let month;
+      let day;
+      let hour;
+      let minute;
+      let second;
+      let millisecond;
+      if (timezone === "local") {
+        year = date.getFullYear();
+        month = date.getMonth() + 1;
+        day = date.getDate();
+        hour = date.getHours();
+        minute = date.getMinutes();
+        second = date.getSeconds();
+        millisecond = date.getMilliseconds();
       } else {
-        var tz = convertTimezone(timeZone);
-        if (tz !== false && tz !== 0) {
-          dt.setTime(dt.getTime() + tz * 6e4);
-        }
-        year = dt.getUTCFullYear();
-        month = dt.getUTCMonth() + 1;
-        day = dt.getUTCDate();
-        hour = dt.getUTCHours();
-        minute = dt.getUTCMinutes();
-        second = dt.getUTCSeconds();
-        millisecond = dt.getUTCMilliseconds();
+        const timezoneOffsetMinutes = convertTimezone(timezone);
+        let time = date.getTime();
+        if (timezoneOffsetMinutes !== false && timezoneOffsetMinutes !== 0)
+          time += timezoneOffsetMinutes * 6e4;
+        const adjustedDate = new Date(time);
+        year = adjustedDate.getUTCFullYear();
+        month = adjustedDate.getUTCMonth() + 1;
+        day = adjustedDate.getUTCDate();
+        hour = adjustedDate.getUTCHours();
+        minute = adjustedDate.getUTCMinutes();
+        second = adjustedDate.getUTCSeconds();
+        millisecond = adjustedDate.getUTCMilliseconds();
       }
-      var str = zeroPad(year, 4) + "-" + zeroPad(month, 2) + "-" + zeroPad(day, 2) + " " + zeroPad(hour, 2) + ":" + zeroPad(minute, 2) + ":" + zeroPad(second, 2) + "." + zeroPad(millisecond, 3);
-      return escapeString(str);
+      return escapeString(pad4(year) + "-" + pad2(month) + "-" + pad2(day) + " " + pad2(hour) + ":" + pad2(minute) + ":" + pad2(second) + "." + pad3(millisecond));
     }, "dateToString");
-    SqlString.bufferToString = /* @__PURE__ */ __name(function bufferToString(buffer) {
-      return "X" + escapeString(buffer.toString("hex"));
-    }, "bufferToString");
-    SqlString.objectToValues = /* @__PURE__ */ __name(function objectToValues(object, timeZone) {
-      var sql = "";
-      for (var key in object) {
-        var val = object[key];
-        if (typeof val === "function") {
+    exports2.dateToString = dateToString;
+    var escapeId = /* @__PURE__ */ __name((value, forbidQualified) => {
+      if (Array.isArray(value)) {
+        const length = value.length;
+        const parts = new Array(length);
+        for (let i2 = 0; i2 < length; i2++)
+          parts[i2] = (0, exports2.escapeId)(value[i2], forbidQualified);
+        return parts.join(", ");
+      }
+      const identifier = String(value);
+      const hasJsonOperator = identifier.indexOf("->") !== -1;
+      if (forbidQualified || hasJsonOperator) {
+        if (identifier.indexOf("`") === -1)
+          return `\`${identifier}\``;
+        return `\`${identifier.replace(regex.backtick, "``")}\``;
+      }
+      if (identifier.indexOf("`") === -1 && identifier.indexOf(".") === -1)
+        return `\`${identifier}\``;
+      return `\`${identifier.replace(regex.backtick, "``").replace(regex.dot, "`.`")}\``;
+    }, "escapeId");
+    exports2.escapeId = escapeId;
+    var objectToValues = /* @__PURE__ */ __name((object, timezone) => {
+      const keys = Object.keys(object);
+      const keysLength = keys.length;
+      if (keysLength === 0)
+        return "";
+      let sql = "";
+      for (let i2 = 0; i2 < keysLength; i2++) {
+        const key = keys[i2];
+        const value = object[key];
+        if (typeof value === "function")
           continue;
-        }
-        sql += (sql.length === 0 ? "" : ", ") + SqlString.escapeId(key) + " = " + SqlString.escape(val, true, timeZone);
+        if (sql.length > 0)
+          sql += ", ";
+        sql += (0, exports2.escapeId)(key);
+        sql += " = ";
+        sql += (0, exports2.escape)(value, true, timezone);
       }
       return sql;
     }, "objectToValues");
-    SqlString.raw = /* @__PURE__ */ __name(function raw(sql) {
-      if (typeof sql !== "string") {
-        throw new TypeError("argument sql must be a string");
+    exports2.objectToValues = objectToValues;
+    var bufferToString = /* @__PURE__ */ __name((buffer) => `X${escapeString(buffer.toString("hex"))}`, "bufferToString");
+    exports2.bufferToString = bufferToString;
+    var arrayToList = /* @__PURE__ */ __name((array, timezone) => {
+      const length = array.length;
+      const parts = new Array(length);
+      for (let i2 = 0; i2 < length; i2++) {
+        const value = array[i2];
+        if (Array.isArray(value))
+          parts[i2] = `(${(0, exports2.arrayToList)(value, timezone)})`;
+        else
+          parts[i2] = (0, exports2.escape)(value, true, timezone);
       }
+      return parts.join(", ");
+    }, "arrayToList");
+    exports2.arrayToList = arrayToList;
+    var escape = /* @__PURE__ */ __name((value, stringifyObjects, timezone) => {
+      if (value === void 0 || value === null)
+        return "NULL";
+      switch (typeof value) {
+        case "boolean":
+          return value ? "true" : "false";
+        case "number":
+        case "bigint":
+          return value + "";
+        case "object": {
+          if (isDate(value))
+            return (0, exports2.dateToString)(value, timezone || "local");
+          if (Array.isArray(value))
+            return (0, exports2.arrayToList)(value, timezone);
+          if (node_buffer_1.Buffer.isBuffer(value))
+            return (0, exports2.bufferToString)(value);
+          if (value instanceof Uint8Array)
+            return (0, exports2.bufferToString)(node_buffer_1.Buffer.from(value));
+          if (hasSqlString(value))
+            return String(value.toSqlString());
+          if (!(stringifyObjects === void 0 || stringifyObjects === null))
+            return escapeString(String(value));
+          if (isRecord(value))
+            return (0, exports2.objectToValues)(value, timezone);
+          return escapeString(String(value));
+        }
+        case "string":
+          return escapeString(value);
+        default:
+          return escapeString(String(value));
+      }
+    }, "escape");
+    exports2.escape = escape;
+    var format = /* @__PURE__ */ __name((sql, values, stringifyObjects, timezone) => {
+      if (values === void 0 || values === null)
+        return sql;
+      const valuesArray = Array.isArray(values) ? values : [values];
+      const length = valuesArray.length;
+      let setIndex = -2;
+      let result = "";
+      let chunkIndex = 0;
+      let valuesIndex = 0;
+      let placeholderPosition = findNextPlaceholder(sql, 0);
+      while (valuesIndex < length && placeholderPosition !== -1) {
+        let placeholderEnd = placeholderPosition + 1;
+        let escapedValue;
+        while (sql.charCodeAt(placeholderEnd) === 63)
+          placeholderEnd++;
+        const placeholderLength = placeholderEnd - placeholderPosition;
+        const currentValue = valuesArray[valuesIndex];
+        if (placeholderLength > 2) {
+          placeholderPosition = findNextPlaceholder(sql, placeholderEnd);
+          continue;
+        }
+        if (placeholderLength === 2)
+          escapedValue = (0, exports2.escapeId)(currentValue);
+        else if (typeof currentValue === "number")
+          escapedValue = `${currentValue}`;
+        else if (typeof currentValue === "object" && currentValue !== null && !stringifyObjects) {
+          if (setIndex === -2)
+            setIndex = findSetKeyword(sql);
+          if (setIndex !== -1 && setIndex <= placeholderPosition && hasOnlyWhitespaceBetween(sql, setIndex, placeholderPosition) && !hasSqlString(currentValue) && !Array.isArray(currentValue) && !node_buffer_1.Buffer.isBuffer(currentValue) && !(currentValue instanceof Uint8Array) && !isDate(currentValue) && isRecord(currentValue)) {
+            escapedValue = (0, exports2.objectToValues)(currentValue, timezone);
+            setIndex = findSetKeyword(sql, placeholderEnd);
+          } else
+            escapedValue = (0, exports2.escape)(currentValue, true, timezone);
+        } else
+          escapedValue = (0, exports2.escape)(currentValue, stringifyObjects, timezone);
+        result += sql.slice(chunkIndex, placeholderPosition);
+        result += escapedValue;
+        chunkIndex = placeholderEnd;
+        valuesIndex++;
+        placeholderPosition = findNextPlaceholder(sql, placeholderEnd);
+      }
+      if (chunkIndex === 0)
+        return sql;
+      if (chunkIndex < sql.length)
+        return result + sql.slice(chunkIndex);
+      return result;
+    }, "format");
+    exports2.format = format;
+    var raw = /* @__PURE__ */ __name((sql) => {
+      if (typeof sql !== "string")
+        throw new TypeError("argument sql must be a string");
       return {
-        toSqlString: /* @__PURE__ */ __name(function toSqlString() {
-          return sql;
-        }, "toSqlString")
+        toSqlString: /* @__PURE__ */ __name(() => sql, "toSqlString")
       };
     }, "raw");
-    function escapeString(val) {
-      var chunkIndex = CHARS_GLOBAL_REGEXP.lastIndex = 0;
-      var escapedVal = "";
-      var match;
-      while (match = CHARS_GLOBAL_REGEXP.exec(val)) {
-        escapedVal += val.slice(chunkIndex, match.index) + CHARS_ESCAPE_MAP[match[0]];
-        chunkIndex = CHARS_GLOBAL_REGEXP.lastIndex;
-      }
-      if (chunkIndex === 0) {
-        return "'" + val + "'";
-      }
-      if (chunkIndex < val.length) {
-        return "'" + escapedVal + val.slice(chunkIndex) + "'";
-      }
-      return "'" + escapedVal + "'";
-    }
-    __name(escapeString, "escapeString");
-    function zeroPad(number, length) {
-      number = number.toString();
-      while (number.length < length) {
-        number = "0" + number;
-      }
-      return number;
-    }
-    __name(zeroPad, "zeroPad");
-    function convertTimezone(tz) {
-      if (tz === "Z") {
-        return 0;
-      }
-      var m2 = tz.match(/([\+\-\s])(\d\d):?(\d\d)?/);
-      if (m2) {
-        return (m2[1] === "-" ? -1 : 1) * (parseInt(m2[2], 10) + (m2[3] ? parseInt(m2[3], 10) : 0) / 60) * 60;
-      }
-      return false;
-    }
-    __name(convertTimezone, "convertTimezone");
+    exports2.raw = raw;
   }
 });
 
-// node_modules/.pnpm/sqlstring@2.3.3/node_modules/sqlstring/index.js
-var require_sqlstring = __commonJS({
-  "node_modules/.pnpm/sqlstring@2.3.3/node_modules/sqlstring/index.js"(exports2, module2) {
-    module2.exports = require_SqlString();
+// node_modules/mysql2/lib/parsers/parser_cache.js
+var require_parser_cache = __commonJS({
+  "node_modules/mysql2/lib/parsers/parser_cache.js"(exports2, module2) {
+    "use strict";
+    var { createLRU } = require_lib();
+    var parserCache = createLRU({
+      max: 15e3
+    });
+    function keyFromFields(type, fields, options, config) {
+      const res = [
+        type,
+        typeof options.nestTables,
+        options.nestTables,
+        Boolean(options.rowsAsArray),
+        Boolean(options.supportBigNumbers || config.supportBigNumbers),
+        Boolean(options.bigNumberStrings || config.bigNumberStrings),
+        typeof options.typeCast === "boolean" ? options.typeCast : typeof options.typeCast,
+        options.timezone || config.timezone,
+        Boolean(options.decimalNumbers),
+        options.dateStrings
+      ];
+      for (let i2 = 0; i2 < fields.length; ++i2) {
+        const field = fields[i2];
+        res.push([
+          field.name,
+          field.columnType,
+          field.length,
+          field.schema,
+          field.table,
+          field.flags,
+          field.characterSet
+        ]);
+      }
+      return JSON.stringify(res, null, 0);
+    }
+    __name(keyFromFields, "keyFromFields");
+    function getParser(type, fields, options, config, compiler) {
+      const key = keyFromFields(type, fields, options, config);
+      let parser = parserCache.get(key);
+      if (parser) {
+        return parser;
+      }
+      parser = compiler(fields, options, config);
+      parserCache.set(key, parser);
+      return parser;
+    }
+    __name(getParser, "getParser");
+    function setMaxCache(max) {
+      parserCache.resize(max);
+    }
+    __name(setMaxCache, "setMaxCache");
+    function clearCache() {
+      parserCache.clear();
+    }
+    __name(clearCache, "clearCache");
+    module2.exports = {
+      getParser,
+      setMaxCache,
+      clearCache,
+      _keyFromFields: keyFromFields
+    };
   }
 });
 
-// node_modules/.pnpm/denque@2.1.0/node_modules/denque/index.js
+// node_modules/denque/index.js
 var require_denque = __commonJS({
-  "node_modules/.pnpm/denque@2.1.0/node_modules/denque/index.js"(exports2, module2) {
+  "node_modules/denque/index.js"(exports2, module2) {
     "use strict";
     function Denque(array, options) {
       var options = options || {};
@@ -1502,10 +928,8 @@ var require_denque = __commonJS({
         return void 0;
       }
       var len = this.size();
-      if (i2 >= len || i2 < -len)
-        return void 0;
-      if (i2 < 0)
-        i2 += len;
+      if (i2 >= len || i2 < -len) return void 0;
+      if (i2 < 0) i2 += len;
       i2 = this._head + i2 & this._capacityMask;
       return this._list[i2];
     }, "peekAt");
@@ -1513,8 +937,7 @@ var require_denque = __commonJS({
       return this.peekAt(i2);
     }, "get");
     Denque.prototype.peek = /* @__PURE__ */ __name(function peek() {
-      if (this._head === this._tail)
-        return void 0;
+      if (this._head === this._tail) return void 0;
       return this._list[this._head];
     }, "peek");
     Denque.prototype.peekFront = /* @__PURE__ */ __name(function peekFront() {
@@ -1529,42 +952,31 @@ var require_denque = __commonJS({
       }, "length")
     });
     Denque.prototype.size = /* @__PURE__ */ __name(function size() {
-      if (this._head === this._tail)
-        return 0;
-      if (this._head < this._tail)
-        return this._tail - this._head;
-      else
-        return this._capacityMask + 1 - (this._head - this._tail);
+      if (this._head === this._tail) return 0;
+      if (this._head < this._tail) return this._tail - this._head;
+      else return this._capacityMask + 1 - (this._head - this._tail);
     }, "size");
     Denque.prototype.unshift = /* @__PURE__ */ __name(function unshift(item) {
-      if (arguments.length === 0)
-        return this.size();
+      if (arguments.length === 0) return this.size();
       var len = this._list.length;
       this._head = this._head - 1 + len & this._capacityMask;
       this._list[this._head] = item;
-      if (this._tail === this._head)
-        this._growArray();
-      if (this._capacity && this.size() > this._capacity)
-        this.pop();
-      if (this._head < this._tail)
-        return this._tail - this._head;
-      else
-        return this._capacityMask + 1 - (this._head - this._tail);
+      if (this._tail === this._head) this._growArray();
+      if (this._capacity && this.size() > this._capacity) this.pop();
+      if (this._head < this._tail) return this._tail - this._head;
+      else return this._capacityMask + 1 - (this._head - this._tail);
     }, "unshift");
     Denque.prototype.shift = /* @__PURE__ */ __name(function shift() {
       var head = this._head;
-      if (head === this._tail)
-        return void 0;
+      if (head === this._tail) return void 0;
       var item = this._list[head];
       this._list[head] = void 0;
       this._head = head + 1 & this._capacityMask;
-      if (head < 2 && this._tail > 1e4 && this._tail <= this._list.length >>> 2)
-        this._shrinkArray();
+      if (head < 2 && this._tail > 1e4 && this._tail <= this._list.length >>> 2) this._shrinkArray();
       return item;
     }, "shift");
     Denque.prototype.push = /* @__PURE__ */ __name(function push(item) {
-      if (arguments.length === 0)
-        return this.size();
+      if (arguments.length === 0) return this.size();
       var tail = this._tail;
       this._list[tail] = item;
       this._tail = tail + 1 & this._capacityMask;
@@ -1574,21 +986,17 @@ var require_denque = __commonJS({
       if (this._capacity && this.size() > this._capacity) {
         this.shift();
       }
-      if (this._head < this._tail)
-        return this._tail - this._head;
-      else
-        return this._capacityMask + 1 - (this._head - this._tail);
+      if (this._head < this._tail) return this._tail - this._head;
+      else return this._capacityMask + 1 - (this._head - this._tail);
     }, "push");
     Denque.prototype.pop = /* @__PURE__ */ __name(function pop() {
       var tail = this._tail;
-      if (tail === this._head)
-        return void 0;
+      if (tail === this._head) return void 0;
       var len = this._list.length;
       this._tail = tail - 1 + len & this._capacityMask;
       var item = this._list[this._tail];
       this._list[this._tail] = void 0;
-      if (this._head < 2 && tail > 1e4 && tail <= len >>> 2)
-        this._shrinkArray();
+      if (this._head < 2 && tail > 1e4 && tail <= len >>> 2) this._shrinkArray();
       return item;
     }, "pop");
     Denque.prototype.removeOne = /* @__PURE__ */ __name(function removeOne(index) {
@@ -1596,14 +1004,11 @@ var require_denque = __commonJS({
       if (i2 !== (i2 | 0)) {
         return void 0;
       }
-      if (this._head === this._tail)
-        return void 0;
+      if (this._head === this._tail) return void 0;
       var size = this.size();
       var len = this._list.length;
-      if (i2 >= size || i2 < -size)
-        return void 0;
-      if (i2 < 0)
-        i2 += size;
+      if (i2 >= size || i2 < -size) return void 0;
+      if (i2 < 0) i2 += size;
       i2 = this._head + i2 & this._capacityMask;
       var item = this._list[i2];
       var k;
@@ -1629,14 +1034,11 @@ var require_denque = __commonJS({
       if (i2 !== (i2 | 0)) {
         return void 0;
       }
-      if (this._head === this._tail)
-        return void 0;
+      if (this._head === this._tail) return void 0;
       var size = this.size();
       var len = this._list.length;
-      if (i2 >= size || i2 < -size || count < 1)
-        return void 0;
-      if (i2 < 0)
-        i2 += size;
+      if (i2 >= size || i2 < -size || count < 1) return void 0;
+      if (i2 < 0) i2 += size;
       if (count === 1 || !count) {
         removed = new Array(1);
         removed[0] = this.removeOne(i2);
@@ -1647,8 +1049,7 @@ var require_denque = __commonJS({
         this.clear();
         return removed;
       }
-      if (i2 + count > size)
-        count = size - i2;
+      if (i2 + count > size) count = size - i2;
       var k;
       removed = new Array(count);
       for (k = 0; k < count; k++) {
@@ -1679,8 +1080,7 @@ var require_denque = __commonJS({
           this._list[i2 = i2 - 1 + len & this._capacityMask] = void 0;
           del_count--;
         }
-        if (index < 0)
-          this._tail = i2;
+        if (index < 0) this._tail = i2;
       } else {
         this._tail = i2;
         i2 = i2 + count + len & this._capacityMask;
@@ -1693,8 +1093,7 @@ var require_denque = __commonJS({
           del_count--;
         }
       }
-      if (this._head < 2 && this._tail > 1e4 && this._tail <= len >>> 2)
-        this._shrinkArray();
+      if (this._head < 2 && this._tail > 1e4 && this._tail <= len >>> 2) this._shrinkArray();
       return removed;
     }, "remove");
     Denque.prototype.splice = /* @__PURE__ */ __name(function splice(index, count) {
@@ -1703,10 +1102,8 @@ var require_denque = __commonJS({
         return void 0;
       }
       var size = this.size();
-      if (i2 < 0)
-        i2 += size;
-      if (i2 > size)
-        return void 0;
+      if (i2 < 0) i2 += size;
+      if (i2 > size) return void 0;
       if (arguments.length > 2) {
         var k;
         var temp;
@@ -1778,8 +1175,7 @@ var require_denque = __commonJS({
       this._list = new Array(capacity);
       this._capacityMask = capacity - 1;
       this._tail = length;
-      for (var i2 = 0; i2 < length; i2++)
-        this._list[i2] = array[i2];
+      for (var i2 = 0; i2 < length; i2++) this._list[i2] = array[i2];
     }, "_fromArray");
     Denque.prototype._copyArray = /* @__PURE__ */ __name(function _copyArray(fullCopy, size) {
       var src = this._list;
@@ -1793,13 +1189,10 @@ var require_denque = __commonJS({
       var k = 0;
       var i2;
       if (fullCopy || this._head > this._tail) {
-        for (i2 = this._head; i2 < capacity; i2++)
-          dest[k++] = src[i2];
-        for (i2 = 0; i2 < this._tail; i2++)
-          dest[k++] = src[i2];
+        for (i2 = this._head; i2 < capacity; i2++) dest[k++] = src[i2];
+        for (i2 = 0; i2 < this._tail; i2++) dest[k++] = src[i2];
       } else {
-        for (i2 = this._head; i2 < this._tail; i2++)
-          dest[k++] = src[i2];
+        for (i2 = this._head; i2 < this._tail; i2++) dest[k++] = src[i2];
       }
       return dest;
     }, "_copyArray");
@@ -1828,1287 +1221,9 @@ var require_denque = __commonJS({
   }
 });
 
-// node_modules/.pnpm/lru-cache@8.0.5/node_modules/lru-cache/dist/cjs/index.js
-var require_cjs = __commonJS({
-  "node_modules/.pnpm/lru-cache@8.0.5/node_modules/lru-cache/dist/cjs/index.js"(exports2) {
-    "use strict";
-    Object.defineProperty(exports2, "__esModule", { value: true });
-    exports2.LRUCache = void 0;
-    var perf = typeof performance === "object" && performance && typeof performance.now === "function" ? performance : Date;
-    var warned = /* @__PURE__ */ new Set();
-    var emitWarning = /* @__PURE__ */ __name((msg, type, code, fn) => {
-      typeof process === "object" && process && typeof process.emitWarning === "function" ? process.emitWarning(msg, type, code, fn) : console.error(`[${code}] ${type}: ${msg}`);
-    }, "emitWarning");
-    var shouldWarn = /* @__PURE__ */ __name((code) => !warned.has(code), "shouldWarn");
-    var TYPE = Symbol("type");
-    var isPosInt = /* @__PURE__ */ __name((n) => n && n === Math.floor(n) && n > 0 && isFinite(n), "isPosInt");
-    var getUintArray = /* @__PURE__ */ __name((max) => !isPosInt(max) ? null : max <= Math.pow(2, 8) ? Uint8Array : max <= Math.pow(2, 16) ? Uint16Array : max <= Math.pow(2, 32) ? Uint32Array : max <= Number.MAX_SAFE_INTEGER ? ZeroArray : null, "getUintArray");
-    var _ZeroArray = class _ZeroArray extends Array {
-      constructor(size) {
-        super(size);
-        this.fill(0);
-      }
-    };
-    __name(_ZeroArray, "ZeroArray");
-    var ZeroArray = _ZeroArray;
-    var _constructing;
-    var _Stack = class _Stack {
-      heap;
-      length;
-      static create(max) {
-        const HeapCls = getUintArray(max);
-        if (!HeapCls)
-          return [];
-        __privateSet(_Stack, _constructing, true);
-        const s2 = new _Stack(max, HeapCls);
-        __privateSet(_Stack, _constructing, false);
-        return s2;
-      }
-      constructor(max, HeapCls) {
-        if (!__privateGet(_Stack, _constructing)) {
-          throw new TypeError("instantiate Stack using Stack.create(n)");
-        }
-        this.heap = new HeapCls(max);
-        this.length = 0;
-      }
-      push(n) {
-        this.heap[this.length++] = n;
-      }
-      pop() {
-        return this.heap[--this.length];
-      }
-    };
-    _constructing = new WeakMap();
-    __name(_Stack, "Stack");
-    // private constructor
-    __privateAdd(_Stack, _constructing, false);
-    var Stack = _Stack;
-    var _max, _maxSize, _dispose, _disposeAfter, _fetchMethod, _size2, _calculatedSize, _keyMap, _keyList, _valList, _next, _prev, _head, _tail, _free, _disposed, _sizes, _starts, _ttls, _hasDispose, _hasFetchMethod, _hasDisposeAfter, _initializeTTLTracking, initializeTTLTracking_fn, _updateItemAge, _statusTTL, _setItemTTL, _isStale, _initializeSizeTracking, initializeSizeTracking_fn, _removeItemSize, _addItemSize, _requireSize, _indexes, indexes_fn, _rindexes, rindexes_fn, _isValidIndex, isValidIndex_fn, _evict, evict_fn, _backgroundFetch, backgroundFetch_fn, _isBackgroundFetch, isBackgroundFetch_fn, _connect, connect_fn, _moveToTail, moveToTail_fn;
-    var _LRUCache = class _LRUCache {
-      constructor(options) {
-        __privateAdd(this, _initializeTTLTracking);
-        __privateAdd(this, _initializeSizeTracking);
-        __privateAdd(this, _indexes);
-        __privateAdd(this, _rindexes);
-        __privateAdd(this, _isValidIndex);
-        __privateAdd(this, _evict);
-        __privateAdd(this, _backgroundFetch);
-        __privateAdd(this, _isBackgroundFetch);
-        __privateAdd(this, _connect);
-        __privateAdd(this, _moveToTail);
-        // properties coming in from the options of these, only max and maxSize
-        // really *need* to be protected. The rest can be modified, as they just
-        // set defaults for various methods.
-        __privateAdd(this, _max, void 0);
-        __privateAdd(this, _maxSize, void 0);
-        __privateAdd(this, _dispose, void 0);
-        __privateAdd(this, _disposeAfter, void 0);
-        __privateAdd(this, _fetchMethod, void 0);
-        /**
-         * {@link LRUCache.OptionsBase.ttl}
-         */
-        __publicField(this, "ttl");
-        /**
-         * {@link LRUCache.OptionsBase.ttlResolution}
-         */
-        __publicField(this, "ttlResolution");
-        /**
-         * {@link LRUCache.OptionsBase.ttlAutopurge}
-         */
-        __publicField(this, "ttlAutopurge");
-        /**
-         * {@link LRUCache.OptionsBase.updateAgeOnGet}
-         */
-        __publicField(this, "updateAgeOnGet");
-        /**
-         * {@link LRUCache.OptionsBase.updateAgeOnHas}
-         */
-        __publicField(this, "updateAgeOnHas");
-        /**
-         * {@link LRUCache.OptionsBase.allowStale}
-         */
-        __publicField(this, "allowStale");
-        /**
-         * {@link LRUCache.OptionsBase.noDisposeOnSet}
-         */
-        __publicField(this, "noDisposeOnSet");
-        /**
-         * {@link LRUCache.OptionsBase.noUpdateTTL}
-         */
-        __publicField(this, "noUpdateTTL");
-        /**
-         * {@link LRUCache.OptionsBase.maxEntrySize}
-         */
-        __publicField(this, "maxEntrySize");
-        /**
-         * {@link LRUCache.OptionsBase.sizeCalculation}
-         */
-        __publicField(this, "sizeCalculation");
-        /**
-         * {@link LRUCache.OptionsBase.noDeleteOnFetchRejection}
-         */
-        __publicField(this, "noDeleteOnFetchRejection");
-        /**
-         * {@link LRUCache.OptionsBase.noDeleteOnStaleGet}
-         */
-        __publicField(this, "noDeleteOnStaleGet");
-        /**
-         * {@link LRUCache.OptionsBase.allowStaleOnFetchAbort}
-         */
-        __publicField(this, "allowStaleOnFetchAbort");
-        /**
-         * {@link LRUCache.OptionsBase.allowStaleOnFetchRejection}
-         */
-        __publicField(this, "allowStaleOnFetchRejection");
-        /**
-         * {@link LRUCache.OptionsBase.ignoreFetchAbort}
-         */
-        __publicField(this, "ignoreFetchAbort");
-        // computed properties
-        __privateAdd(this, _size2, void 0);
-        __privateAdd(this, _calculatedSize, void 0);
-        __privateAdd(this, _keyMap, void 0);
-        __privateAdd(this, _keyList, void 0);
-        __privateAdd(this, _valList, void 0);
-        __privateAdd(this, _next, void 0);
-        __privateAdd(this, _prev, void 0);
-        __privateAdd(this, _head, void 0);
-        __privateAdd(this, _tail, void 0);
-        __privateAdd(this, _free, void 0);
-        __privateAdd(this, _disposed, void 0);
-        __privateAdd(this, _sizes, void 0);
-        __privateAdd(this, _starts, void 0);
-        __privateAdd(this, _ttls, void 0);
-        __privateAdd(this, _hasDispose, void 0);
-        __privateAdd(this, _hasFetchMethod, void 0);
-        __privateAdd(this, _hasDisposeAfter, void 0);
-        // conditionally set private methods related to TTL
-        __privateAdd(this, _updateItemAge, /* @__PURE__ */ __name(() => {
-        }, "#updateItemAge"));
-        __privateAdd(this, _statusTTL, /* @__PURE__ */ __name(() => {
-        }, "#statusTTL"));
-        __privateAdd(this, _setItemTTL, /* @__PURE__ */ __name(() => {
-        }, "#setItemTTL"));
-        /* c8 ignore stop */
-        __privateAdd(this, _isStale, /* @__PURE__ */ __name(() => false, "#isStale"));
-        __privateAdd(this, _removeItemSize, /* @__PURE__ */ __name((_i) => {
-        }, "#removeItemSize"));
-        __privateAdd(this, _addItemSize, /* @__PURE__ */ __name((_i, _s, _st) => {
-        }, "#addItemSize"));
-        __privateAdd(this, _requireSize, /* @__PURE__ */ __name((_k, _v, size, sizeCalculation) => {
-          if (size || sizeCalculation) {
-            throw new TypeError("cannot set size without setting maxSize or maxEntrySize on cache");
-          }
-          return 0;
-        }, "#requireSize"));
-        const { max = 0, ttl, ttlResolution = 1, ttlAutopurge, updateAgeOnGet, updateAgeOnHas, allowStale, dispose, disposeAfter, noDisposeOnSet, noUpdateTTL, maxSize = 0, maxEntrySize = 0, sizeCalculation, fetchMethod, noDeleteOnFetchRejection, noDeleteOnStaleGet, allowStaleOnFetchRejection, allowStaleOnFetchAbort, ignoreFetchAbort } = options;
-        if (max !== 0 && !isPosInt(max)) {
-          throw new TypeError("max option must be a nonnegative integer");
-        }
-        const UintArray = max ? getUintArray(max) : Array;
-        if (!UintArray) {
-          throw new Error("invalid max value: " + max);
-        }
-        __privateSet(this, _max, max);
-        __privateSet(this, _maxSize, maxSize);
-        this.maxEntrySize = maxEntrySize || __privateGet(this, _maxSize);
-        this.sizeCalculation = sizeCalculation;
-        if (this.sizeCalculation) {
-          if (!__privateGet(this, _maxSize) && !this.maxEntrySize) {
-            throw new TypeError("cannot set sizeCalculation without setting maxSize or maxEntrySize");
-          }
-          if (typeof this.sizeCalculation !== "function") {
-            throw new TypeError("sizeCalculation set to non-function");
-          }
-        }
-        if (fetchMethod !== void 0 && typeof fetchMethod !== "function") {
-          throw new TypeError("fetchMethod must be a function if specified");
-        }
-        __privateSet(this, _fetchMethod, fetchMethod);
-        __privateSet(this, _hasFetchMethod, !!fetchMethod);
-        __privateSet(this, _keyMap, /* @__PURE__ */ new Map());
-        __privateSet(this, _keyList, new Array(max).fill(void 0));
-        __privateSet(this, _valList, new Array(max).fill(void 0));
-        __privateSet(this, _next, new UintArray(max));
-        __privateSet(this, _prev, new UintArray(max));
-        __privateSet(this, _head, 0);
-        __privateSet(this, _tail, 0);
-        __privateSet(this, _free, Stack.create(max));
-        __privateSet(this, _size2, 0);
-        __privateSet(this, _calculatedSize, 0);
-        if (typeof dispose === "function") {
-          __privateSet(this, _dispose, dispose);
-        }
-        if (typeof disposeAfter === "function") {
-          __privateSet(this, _disposeAfter, disposeAfter);
-          __privateSet(this, _disposed, []);
-        } else {
-          __privateSet(this, _disposeAfter, void 0);
-          __privateSet(this, _disposed, void 0);
-        }
-        __privateSet(this, _hasDispose, !!__privateGet(this, _dispose));
-        __privateSet(this, _hasDisposeAfter, !!__privateGet(this, _disposeAfter));
-        this.noDisposeOnSet = !!noDisposeOnSet;
-        this.noUpdateTTL = !!noUpdateTTL;
-        this.noDeleteOnFetchRejection = !!noDeleteOnFetchRejection;
-        this.allowStaleOnFetchRejection = !!allowStaleOnFetchRejection;
-        this.allowStaleOnFetchAbort = !!allowStaleOnFetchAbort;
-        this.ignoreFetchAbort = !!ignoreFetchAbort;
-        if (this.maxEntrySize !== 0) {
-          if (__privateGet(this, _maxSize) !== 0) {
-            if (!isPosInt(__privateGet(this, _maxSize))) {
-              throw new TypeError("maxSize must be a positive integer if specified");
-            }
-          }
-          if (!isPosInt(this.maxEntrySize)) {
-            throw new TypeError("maxEntrySize must be a positive integer if specified");
-          }
-          __privateMethod(this, _initializeSizeTracking, initializeSizeTracking_fn).call(this);
-        }
-        this.allowStale = !!allowStale;
-        this.noDeleteOnStaleGet = !!noDeleteOnStaleGet;
-        this.updateAgeOnGet = !!updateAgeOnGet;
-        this.updateAgeOnHas = !!updateAgeOnHas;
-        this.ttlResolution = isPosInt(ttlResolution) || ttlResolution === 0 ? ttlResolution : 1;
-        this.ttlAutopurge = !!ttlAutopurge;
-        this.ttl = ttl || 0;
-        if (this.ttl) {
-          if (!isPosInt(this.ttl)) {
-            throw new TypeError("ttl must be a positive integer if specified");
-          }
-          __privateMethod(this, _initializeTTLTracking, initializeTTLTracking_fn).call(this);
-        }
-        if (__privateGet(this, _max) === 0 && this.ttl === 0 && __privateGet(this, _maxSize) === 0) {
-          throw new TypeError("At least one of max, maxSize, or ttl is required");
-        }
-        if (!this.ttlAutopurge && !__privateGet(this, _max) && !__privateGet(this, _maxSize)) {
-          const code = "LRU_CACHE_UNBOUNDED";
-          if (shouldWarn(code)) {
-            warned.add(code);
-            const msg = "TTL caching without ttlAutopurge, max, or maxSize can result in unbounded memory consumption.";
-            emitWarning(msg, "UnboundedCacheWarning", code, _LRUCache);
-          }
-        }
-      }
-      /**
-       * Do not call this method unless you need to inspect the
-       * inner workings of the cache.  If anything returned by this
-       * object is modified in any way, strange breakage may occur.
-       *
-       * These fields are private for a reason!
-       *
-       * @internal
-       */
-      static unsafeExposeInternals(c) {
-        return {
-          // properties
-          starts: __privateGet(c, _starts),
-          ttls: __privateGet(c, _ttls),
-          sizes: __privateGet(c, _sizes),
-          keyMap: __privateGet(c, _keyMap),
-          keyList: __privateGet(c, _keyList),
-          valList: __privateGet(c, _valList),
-          next: __privateGet(c, _next),
-          prev: __privateGet(c, _prev),
-          get head() {
-            return __privateGet(c, _head);
-          },
-          get tail() {
-            return __privateGet(c, _tail);
-          },
-          free: __privateGet(c, _free),
-          // methods
-          isBackgroundFetch: (p) => {
-            var _a4;
-            return __privateMethod(_a4 = c, _isBackgroundFetch, isBackgroundFetch_fn).call(_a4, p);
-          },
-          backgroundFetch: (k, index, options, context) => {
-            var _a4;
-            return __privateMethod(_a4 = c, _backgroundFetch, backgroundFetch_fn).call(_a4, k, index, options, context);
-          },
-          moveToTail: (index) => {
-            var _a4;
-            return __privateMethod(_a4 = c, _moveToTail, moveToTail_fn).call(_a4, index);
-          },
-          indexes: (options) => {
-            var _a4;
-            return __privateMethod(_a4 = c, _indexes, indexes_fn).call(_a4, options);
-          },
-          rindexes: (options) => {
-            var _a4;
-            return __privateMethod(_a4 = c, _rindexes, rindexes_fn).call(_a4, options);
-          },
-          isStale: (index) => {
-            var _a4;
-            return __privateGet(_a4 = c, _isStale).call(_a4, index);
-          }
-        };
-      }
-      // Protected read-only members
-      /**
-       * {@link LRUCache.OptionsBase.max} (read-only)
-       */
-      get max() {
-        return __privateGet(this, _max);
-      }
-      /**
-       * {@link LRUCache.OptionsBase.maxSize} (read-only)
-       */
-      get maxSize() {
-        return __privateGet(this, _maxSize);
-      }
-      /**
-       * The total computed size of items in the cache (read-only)
-       */
-      get calculatedSize() {
-        return __privateGet(this, _calculatedSize);
-      }
-      /**
-       * The number of items stored in the cache (read-only)
-       */
-      get size() {
-        return __privateGet(this, _size2);
-      }
-      /**
-       * {@link LRUCache.OptionsBase.fetchMethod} (read-only)
-       */
-      get fetchMethod() {
-        return __privateGet(this, _fetchMethod);
-      }
-      /**
-       * {@link LRUCache.OptionsBase.dispose} (read-only)
-       */
-      get dispose() {
-        return __privateGet(this, _dispose);
-      }
-      /**
-       * {@link LRUCache.OptionsBase.disposeAfter} (read-only)
-       */
-      get disposeAfter() {
-        return __privateGet(this, _disposeAfter);
-      }
-      /**
-       * Return the remaining TTL time for a given entry key
-       */
-      getRemainingTTL(key) {
-        return __privateGet(this, _keyMap).has(key) ? Infinity : 0;
-      }
-      /**
-       * Return a generator yielding `[key, value]` pairs,
-       * in order from most recently used to least recently used.
-       */
-      *entries() {
-        for (const i2 of __privateMethod(this, _indexes, indexes_fn).call(this)) {
-          if (__privateGet(this, _valList)[i2] !== void 0 && __privateGet(this, _keyList)[i2] !== void 0 && !__privateMethod(this, _isBackgroundFetch, isBackgroundFetch_fn).call(this, __privateGet(this, _valList)[i2])) {
-            yield [__privateGet(this, _keyList)[i2], __privateGet(this, _valList)[i2]];
-          }
-        }
-      }
-      /**
-       * Inverse order version of {@link LRUCache.entries}
-       *
-       * Return a generator yielding `[key, value]` pairs,
-       * in order from least recently used to most recently used.
-       */
-      *rentries() {
-        for (const i2 of __privateMethod(this, _rindexes, rindexes_fn).call(this)) {
-          if (__privateGet(this, _valList)[i2] !== void 0 && __privateGet(this, _keyList)[i2] !== void 0 && !__privateMethod(this, _isBackgroundFetch, isBackgroundFetch_fn).call(this, __privateGet(this, _valList)[i2])) {
-            yield [__privateGet(this, _keyList)[i2], __privateGet(this, _valList)[i2]];
-          }
-        }
-      }
-      /**
-       * Return a generator yielding the keys in the cache,
-       * in order from most recently used to least recently used.
-       */
-      *keys() {
-        for (const i2 of __privateMethod(this, _indexes, indexes_fn).call(this)) {
-          const k = __privateGet(this, _keyList)[i2];
-          if (k !== void 0 && !__privateMethod(this, _isBackgroundFetch, isBackgroundFetch_fn).call(this, __privateGet(this, _valList)[i2])) {
-            yield k;
-          }
-        }
-      }
-      /**
-       * Inverse order version of {@link LRUCache.keys}
-       *
-       * Return a generator yielding the keys in the cache,
-       * in order from least recently used to most recently used.
-       */
-      *rkeys() {
-        for (const i2 of __privateMethod(this, _rindexes, rindexes_fn).call(this)) {
-          const k = __privateGet(this, _keyList)[i2];
-          if (k !== void 0 && !__privateMethod(this, _isBackgroundFetch, isBackgroundFetch_fn).call(this, __privateGet(this, _valList)[i2])) {
-            yield k;
-          }
-        }
-      }
-      /**
-       * Return a generator yielding the values in the cache,
-       * in order from most recently used to least recently used.
-       */
-      *values() {
-        for (const i2 of __privateMethod(this, _indexes, indexes_fn).call(this)) {
-          const v = __privateGet(this, _valList)[i2];
-          if (v !== void 0 && !__privateMethod(this, _isBackgroundFetch, isBackgroundFetch_fn).call(this, __privateGet(this, _valList)[i2])) {
-            yield __privateGet(this, _valList)[i2];
-          }
-        }
-      }
-      /**
-       * Inverse order version of {@link LRUCache.values}
-       *
-       * Return a generator yielding the values in the cache,
-       * in order from least recently used to most recently used.
-       */
-      *rvalues() {
-        for (const i2 of __privateMethod(this, _rindexes, rindexes_fn).call(this)) {
-          const v = __privateGet(this, _valList)[i2];
-          if (v !== void 0 && !__privateMethod(this, _isBackgroundFetch, isBackgroundFetch_fn).call(this, __privateGet(this, _valList)[i2])) {
-            yield __privateGet(this, _valList)[i2];
-          }
-        }
-      }
-      /**
-       * Iterating over the cache itself yields the same results as
-       * {@link LRUCache.entries}
-       */
-      [Symbol.iterator]() {
-        return this.entries();
-      }
-      /**
-       * Find a value for which the supplied fn method returns a truthy value,
-       * similar to Array.find().  fn is called as fn(value, key, cache).
-       */
-      find(fn, getOptions = {}) {
-        for (const i2 of __privateMethod(this, _indexes, indexes_fn).call(this)) {
-          const v = __privateGet(this, _valList)[i2];
-          const value = __privateMethod(this, _isBackgroundFetch, isBackgroundFetch_fn).call(this, v) ? v.__staleWhileFetching : v;
-          if (value === void 0)
-            continue;
-          if (fn(value, __privateGet(this, _keyList)[i2], this)) {
-            return this.get(__privateGet(this, _keyList)[i2], getOptions);
-          }
-        }
-      }
-      /**
-       * Call the supplied function on each item in the cache, in order from
-       * most recently used to least recently used.  fn is called as
-       * fn(value, key, cache).  Does not update age or recenty of use.
-       * Does not iterate over stale values.
-       */
-      forEach(fn, thisp = this) {
-        for (const i2 of __privateMethod(this, _indexes, indexes_fn).call(this)) {
-          const v = __privateGet(this, _valList)[i2];
-          const value = __privateMethod(this, _isBackgroundFetch, isBackgroundFetch_fn).call(this, v) ? v.__staleWhileFetching : v;
-          if (value === void 0)
-            continue;
-          fn.call(thisp, value, __privateGet(this, _keyList)[i2], this);
-        }
-      }
-      /**
-       * The same as {@link LRUCache.forEach} but items are iterated over in
-       * reverse order.  (ie, less recently used items are iterated over first.)
-       */
-      rforEach(fn, thisp = this) {
-        for (const i2 of __privateMethod(this, _rindexes, rindexes_fn).call(this)) {
-          const v = __privateGet(this, _valList)[i2];
-          const value = __privateMethod(this, _isBackgroundFetch, isBackgroundFetch_fn).call(this, v) ? v.__staleWhileFetching : v;
-          if (value === void 0)
-            continue;
-          fn.call(thisp, value, __privateGet(this, _keyList)[i2], this);
-        }
-      }
-      /**
-       * Delete any stale entries. Returns true if anything was removed,
-       * false otherwise.
-       */
-      purgeStale() {
-        let deleted = false;
-        for (const i2 of __privateMethod(this, _rindexes, rindexes_fn).call(this, { allowStale: true })) {
-          if (__privateGet(this, _isStale).call(this, i2)) {
-            this.delete(__privateGet(this, _keyList)[i2]);
-            deleted = true;
-          }
-        }
-        return deleted;
-      }
-      /**
-       * Return an array of [key, {@link LRUCache.Entry}] tuples which can be
-       * passed to cache.load()
-       */
-      dump() {
-        const arr = [];
-        for (const i2 of __privateMethod(this, _indexes, indexes_fn).call(this, { allowStale: true })) {
-          const key = __privateGet(this, _keyList)[i2];
-          const v = __privateGet(this, _valList)[i2];
-          const value = __privateMethod(this, _isBackgroundFetch, isBackgroundFetch_fn).call(this, v) ? v.__staleWhileFetching : v;
-          if (value === void 0 || key === void 0)
-            continue;
-          const entry = { value };
-          if (__privateGet(this, _ttls) && __privateGet(this, _starts)) {
-            entry.ttl = __privateGet(this, _ttls)[i2];
-            const age = perf.now() - __privateGet(this, _starts)[i2];
-            entry.start = Math.floor(Date.now() - age);
-          }
-          if (__privateGet(this, _sizes)) {
-            entry.size = __privateGet(this, _sizes)[i2];
-          }
-          arr.unshift([key, entry]);
-        }
-        return arr;
-      }
-      /**
-       * Reset the cache and load in the items in entries in the order listed.
-       * Note that the shape of the resulting cache may be different if the
-       * same options are not used in both caches.
-       */
-      load(arr) {
-        this.clear();
-        for (const [key, entry] of arr) {
-          if (entry.start) {
-            const age = Date.now() - entry.start;
-            entry.start = perf.now() - age;
-          }
-          this.set(key, entry.value, entry);
-        }
-      }
-      /**
-       * Add a value to the cache.
-       */
-      set(k, v, setOptions = {}) {
-        var _a4, _b, _c;
-        const { ttl = this.ttl, start, noDisposeOnSet = this.noDisposeOnSet, sizeCalculation = this.sizeCalculation, status } = setOptions;
-        let { noUpdateTTL = this.noUpdateTTL } = setOptions;
-        const size = __privateGet(this, _requireSize).call(this, k, v, setOptions.size || 0, sizeCalculation);
-        if (this.maxEntrySize && size > this.maxEntrySize) {
-          if (status) {
-            status.set = "miss";
-            status.maxEntrySizeExceeded = true;
-          }
-          this.delete(k);
-          return this;
-        }
-        let index = __privateGet(this, _size2) === 0 ? void 0 : __privateGet(this, _keyMap).get(k);
-        if (index === void 0) {
-          index = __privateGet(this, _size2) === 0 ? __privateGet(this, _tail) : __privateGet(this, _free).length !== 0 ? __privateGet(this, _free).pop() : __privateGet(this, _size2) === __privateGet(this, _max) ? __privateMethod(this, _evict, evict_fn).call(this, false) : __privateGet(this, _size2);
-          __privateGet(this, _keyList)[index] = k;
-          __privateGet(this, _valList)[index] = v;
-          __privateGet(this, _keyMap).set(k, index);
-          __privateGet(this, _next)[__privateGet(this, _tail)] = index;
-          __privateGet(this, _prev)[index] = __privateGet(this, _tail);
-          __privateSet(this, _tail, index);
-          __privateWrapper(this, _size2)._++;
-          __privateGet(this, _addItemSize).call(this, index, size, status);
-          if (status)
-            status.set = "add";
-          noUpdateTTL = false;
-        } else {
-          __privateMethod(this, _moveToTail, moveToTail_fn).call(this, index);
-          const oldVal = __privateGet(this, _valList)[index];
-          if (v !== oldVal) {
-            if (__privateGet(this, _hasFetchMethod) && __privateMethod(this, _isBackgroundFetch, isBackgroundFetch_fn).call(this, oldVal)) {
-              oldVal.__abortController.abort(new Error("replaced"));
-            } else if (!noDisposeOnSet) {
-              if (__privateGet(this, _hasDispose)) {
-                (_a4 = __privateGet(this, _dispose)) == null ? void 0 : _a4.call(this, oldVal, k, "set");
-              }
-              if (__privateGet(this, _hasDisposeAfter)) {
-                (_b = __privateGet(this, _disposed)) == null ? void 0 : _b.push([oldVal, k, "set"]);
-              }
-            }
-            __privateGet(this, _removeItemSize).call(this, index);
-            __privateGet(this, _addItemSize).call(this, index, size, status);
-            __privateGet(this, _valList)[index] = v;
-            if (status) {
-              status.set = "replace";
-              const oldValue = oldVal && __privateMethod(this, _isBackgroundFetch, isBackgroundFetch_fn).call(this, oldVal) ? oldVal.__staleWhileFetching : oldVal;
-              if (oldValue !== void 0)
-                status.oldValue = oldValue;
-            }
-          } else if (status) {
-            status.set = "update";
-          }
-        }
-        if (ttl !== 0 && !__privateGet(this, _ttls)) {
-          __privateMethod(this, _initializeTTLTracking, initializeTTLTracking_fn).call(this);
-        }
-        if (__privateGet(this, _ttls)) {
-          if (!noUpdateTTL) {
-            __privateGet(this, _setItemTTL).call(this, index, ttl, start);
-          }
-          if (status)
-            __privateGet(this, _statusTTL).call(this, status, index);
-        }
-        if (!noDisposeOnSet && __privateGet(this, _hasDisposeAfter) && __privateGet(this, _disposed)) {
-          const dt = __privateGet(this, _disposed);
-          let task;
-          while (task = dt == null ? void 0 : dt.shift()) {
-            (_c = __privateGet(this, _disposeAfter)) == null ? void 0 : _c.call(this, ...task);
-          }
-        }
-        return this;
-      }
-      /**
-       * Evict the least recently used item, returning its value or
-       * `undefined` if cache is empty.
-       */
-      pop() {
-        var _a4;
-        try {
-          while (__privateGet(this, _size2)) {
-            const val = __privateGet(this, _valList)[__privateGet(this, _head)];
-            __privateMethod(this, _evict, evict_fn).call(this, true);
-            if (__privateMethod(this, _isBackgroundFetch, isBackgroundFetch_fn).call(this, val)) {
-              if (val.__staleWhileFetching) {
-                return val.__staleWhileFetching;
-              }
-            } else if (val !== void 0) {
-              return val;
-            }
-          }
-        } finally {
-          if (__privateGet(this, _hasDisposeAfter) && __privateGet(this, _disposed)) {
-            const dt = __privateGet(this, _disposed);
-            let task;
-            while (task = dt == null ? void 0 : dt.shift()) {
-              (_a4 = __privateGet(this, _disposeAfter)) == null ? void 0 : _a4.call(this, ...task);
-            }
-          }
-        }
-      }
-      /**
-       * Check if a key is in the cache, without updating the recency of use.
-       * Will return false if the item is stale, even though it is technically
-       * in the cache.
-       *
-       * Will not update item age unless
-       * {@link LRUCache.OptionsBase.updateAgeOnHas} is set.
-       */
-      has(k, hasOptions = {}) {
-        const { updateAgeOnHas = this.updateAgeOnHas, status } = hasOptions;
-        const index = __privateGet(this, _keyMap).get(k);
-        if (index !== void 0) {
-          const v = __privateGet(this, _valList)[index];
-          if (__privateMethod(this, _isBackgroundFetch, isBackgroundFetch_fn).call(this, v) && v.__staleWhileFetching === void 0) {
-            return false;
-          }
-          if (!__privateGet(this, _isStale).call(this, index)) {
-            if (updateAgeOnHas) {
-              __privateGet(this, _updateItemAge).call(this, index);
-            }
-            if (status) {
-              status.has = "hit";
-              __privateGet(this, _statusTTL).call(this, status, index);
-            }
-            return true;
-          } else if (status) {
-            status.has = "stale";
-            __privateGet(this, _statusTTL).call(this, status, index);
-          }
-        } else if (status) {
-          status.has = "miss";
-        }
-        return false;
-      }
-      /**
-       * Like {@link LRUCache#get} but doesn't update recency or delete stale
-       * items.
-       *
-       * Returns `undefined` if the item is stale, unless
-       * {@link LRUCache.OptionsBase.allowStale} is set.
-       */
-      peek(k, peekOptions = {}) {
-        const { allowStale = this.allowStale } = peekOptions;
-        const index = __privateGet(this, _keyMap).get(k);
-        if (index !== void 0 && (allowStale || !__privateGet(this, _isStale).call(this, index))) {
-          const v = __privateGet(this, _valList)[index];
-          return __privateMethod(this, _isBackgroundFetch, isBackgroundFetch_fn).call(this, v) ? v.__staleWhileFetching : v;
-        }
-      }
-      async fetch(k, fetchOptions = {}) {
-        const {
-          // get options
-          allowStale = this.allowStale,
-          updateAgeOnGet = this.updateAgeOnGet,
-          noDeleteOnStaleGet = this.noDeleteOnStaleGet,
-          // set options
-          ttl = this.ttl,
-          noDisposeOnSet = this.noDisposeOnSet,
-          size = 0,
-          sizeCalculation = this.sizeCalculation,
-          noUpdateTTL = this.noUpdateTTL,
-          // fetch exclusive options
-          noDeleteOnFetchRejection = this.noDeleteOnFetchRejection,
-          allowStaleOnFetchRejection = this.allowStaleOnFetchRejection,
-          ignoreFetchAbort = this.ignoreFetchAbort,
-          allowStaleOnFetchAbort = this.allowStaleOnFetchAbort,
-          context,
-          forceRefresh = false,
-          status,
-          signal
-        } = fetchOptions;
-        if (!__privateGet(this, _hasFetchMethod)) {
-          if (status)
-            status.fetch = "get";
-          return this.get(k, {
-            allowStale,
-            updateAgeOnGet,
-            noDeleteOnStaleGet,
-            status
-          });
-        }
-        const options = {
-          allowStale,
-          updateAgeOnGet,
-          noDeleteOnStaleGet,
-          ttl,
-          noDisposeOnSet,
-          size,
-          sizeCalculation,
-          noUpdateTTL,
-          noDeleteOnFetchRejection,
-          allowStaleOnFetchRejection,
-          allowStaleOnFetchAbort,
-          ignoreFetchAbort,
-          status,
-          signal
-        };
-        let index = __privateGet(this, _keyMap).get(k);
-        if (index === void 0) {
-          if (status)
-            status.fetch = "miss";
-          const p = __privateMethod(this, _backgroundFetch, backgroundFetch_fn).call(this, k, index, options, context);
-          return p.__returned = p;
-        } else {
-          const v = __privateGet(this, _valList)[index];
-          if (__privateMethod(this, _isBackgroundFetch, isBackgroundFetch_fn).call(this, v)) {
-            const stale = allowStale && v.__staleWhileFetching !== void 0;
-            if (status) {
-              status.fetch = "inflight";
-              if (stale)
-                status.returnedStale = true;
-            }
-            return stale ? v.__staleWhileFetching : v.__returned = v;
-          }
-          const isStale = __privateGet(this, _isStale).call(this, index);
-          if (!forceRefresh && !isStale) {
-            if (status)
-              status.fetch = "hit";
-            __privateMethod(this, _moveToTail, moveToTail_fn).call(this, index);
-            if (updateAgeOnGet) {
-              __privateGet(this, _updateItemAge).call(this, index);
-            }
-            if (status)
-              __privateGet(this, _statusTTL).call(this, status, index);
-            return v;
-          }
-          const p = __privateMethod(this, _backgroundFetch, backgroundFetch_fn).call(this, k, index, options, context);
-          const hasStale = p.__staleWhileFetching !== void 0;
-          const staleVal = hasStale && allowStale;
-          if (status) {
-            status.fetch = isStale ? "stale" : "refresh";
-            if (staleVal && isStale)
-              status.returnedStale = true;
-          }
-          return staleVal ? p.__staleWhileFetching : p.__returned = p;
-        }
-      }
-      /**
-       * Return a value from the cache. Will update the recency of the cache
-       * entry found.
-       *
-       * If the key is not found, get() will return `undefined`.
-       */
-      get(k, getOptions = {}) {
-        const { allowStale = this.allowStale, updateAgeOnGet = this.updateAgeOnGet, noDeleteOnStaleGet = this.noDeleteOnStaleGet, status } = getOptions;
-        const index = __privateGet(this, _keyMap).get(k);
-        if (index !== void 0) {
-          const value = __privateGet(this, _valList)[index];
-          const fetching = __privateMethod(this, _isBackgroundFetch, isBackgroundFetch_fn).call(this, value);
-          if (status)
-            __privateGet(this, _statusTTL).call(this, status, index);
-          if (__privateGet(this, _isStale).call(this, index)) {
-            if (status)
-              status.get = "stale";
-            if (!fetching) {
-              if (!noDeleteOnStaleGet) {
-                this.delete(k);
-              }
-              if (status && allowStale)
-                status.returnedStale = true;
-              return allowStale ? value : void 0;
-            } else {
-              if (status && allowStale && value.__staleWhileFetching !== void 0) {
-                status.returnedStale = true;
-              }
-              return allowStale ? value.__staleWhileFetching : void 0;
-            }
-          } else {
-            if (status)
-              status.get = "hit";
-            if (fetching) {
-              return value.__staleWhileFetching;
-            }
-            __privateMethod(this, _moveToTail, moveToTail_fn).call(this, index);
-            if (updateAgeOnGet) {
-              __privateGet(this, _updateItemAge).call(this, index);
-            }
-            return value;
-          }
-        } else if (status) {
-          status.get = "miss";
-        }
-      }
-      /**
-       * Deletes a key out of the cache.
-       * Returns true if the key was deleted, false otherwise.
-       */
-      delete(k) {
-        var _a4, _b, _c, _d2;
-        let deleted = false;
-        if (__privateGet(this, _size2) !== 0) {
-          const index = __privateGet(this, _keyMap).get(k);
-          if (index !== void 0) {
-            deleted = true;
-            if (__privateGet(this, _size2) === 1) {
-              this.clear();
-            } else {
-              __privateGet(this, _removeItemSize).call(this, index);
-              const v = __privateGet(this, _valList)[index];
-              if (__privateMethod(this, _isBackgroundFetch, isBackgroundFetch_fn).call(this, v)) {
-                v.__abortController.abort(new Error("deleted"));
-              } else if (__privateGet(this, _hasDispose) || __privateGet(this, _hasDisposeAfter)) {
-                if (__privateGet(this, _hasDispose)) {
-                  (_a4 = __privateGet(this, _dispose)) == null ? void 0 : _a4.call(this, v, k, "delete");
-                }
-                if (__privateGet(this, _hasDisposeAfter)) {
-                  (_b = __privateGet(this, _disposed)) == null ? void 0 : _b.push([v, k, "delete"]);
-                }
-              }
-              __privateGet(this, _keyMap).delete(k);
-              __privateGet(this, _keyList)[index] = void 0;
-              __privateGet(this, _valList)[index] = void 0;
-              if (index === __privateGet(this, _tail)) {
-                __privateSet(this, _tail, __privateGet(this, _prev)[index]);
-              } else if (index === __privateGet(this, _head)) {
-                __privateSet(this, _head, __privateGet(this, _next)[index]);
-              } else {
-                __privateGet(this, _next)[__privateGet(this, _prev)[index]] = __privateGet(this, _next)[index];
-                __privateGet(this, _prev)[__privateGet(this, _next)[index]] = __privateGet(this, _prev)[index];
-              }
-              __privateWrapper(this, _size2)._--;
-              __privateGet(this, _free).push(index);
-            }
-          }
-        }
-        if (__privateGet(this, _hasDisposeAfter) && ((_c = __privateGet(this, _disposed)) == null ? void 0 : _c.length)) {
-          const dt = __privateGet(this, _disposed);
-          let task;
-          while (task = dt == null ? void 0 : dt.shift()) {
-            (_d2 = __privateGet(this, _disposeAfter)) == null ? void 0 : _d2.call(this, ...task);
-          }
-        }
-        return deleted;
-      }
-      /**
-       * Clear the cache entirely, throwing away all values.
-       */
-      clear() {
-        var _a4, _b, _c;
-        for (const index of __privateMethod(this, _rindexes, rindexes_fn).call(this, { allowStale: true })) {
-          const v = __privateGet(this, _valList)[index];
-          if (__privateMethod(this, _isBackgroundFetch, isBackgroundFetch_fn).call(this, v)) {
-            v.__abortController.abort(new Error("deleted"));
-          } else {
-            const k = __privateGet(this, _keyList)[index];
-            if (__privateGet(this, _hasDispose)) {
-              (_a4 = __privateGet(this, _dispose)) == null ? void 0 : _a4.call(this, v, k, "delete");
-            }
-            if (__privateGet(this, _hasDisposeAfter)) {
-              (_b = __privateGet(this, _disposed)) == null ? void 0 : _b.push([v, k, "delete"]);
-            }
-          }
-        }
-        __privateGet(this, _keyMap).clear();
-        __privateGet(this, _valList).fill(void 0);
-        __privateGet(this, _keyList).fill(void 0);
-        if (__privateGet(this, _ttls) && __privateGet(this, _starts)) {
-          __privateGet(this, _ttls).fill(0);
-          __privateGet(this, _starts).fill(0);
-        }
-        if (__privateGet(this, _sizes)) {
-          __privateGet(this, _sizes).fill(0);
-        }
-        __privateSet(this, _head, 0);
-        __privateSet(this, _tail, 0);
-        __privateGet(this, _free).length = 0;
-        __privateSet(this, _calculatedSize, 0);
-        __privateSet(this, _size2, 0);
-        if (__privateGet(this, _hasDisposeAfter) && __privateGet(this, _disposed)) {
-          const dt = __privateGet(this, _disposed);
-          let task;
-          while (task = dt == null ? void 0 : dt.shift()) {
-            (_c = __privateGet(this, _disposeAfter)) == null ? void 0 : _c.call(this, ...task);
-          }
-        }
-      }
-    };
-    _max = new WeakMap();
-    _maxSize = new WeakMap();
-    _dispose = new WeakMap();
-    _disposeAfter = new WeakMap();
-    _fetchMethod = new WeakMap();
-    _size2 = new WeakMap();
-    _calculatedSize = new WeakMap();
-    _keyMap = new WeakMap();
-    _keyList = new WeakMap();
-    _valList = new WeakMap();
-    _next = new WeakMap();
-    _prev = new WeakMap();
-    _head = new WeakMap();
-    _tail = new WeakMap();
-    _free = new WeakMap();
-    _disposed = new WeakMap();
-    _sizes = new WeakMap();
-    _starts = new WeakMap();
-    _ttls = new WeakMap();
-    _hasDispose = new WeakMap();
-    _hasFetchMethod = new WeakMap();
-    _hasDisposeAfter = new WeakMap();
-    _initializeTTLTracking = new WeakSet();
-    initializeTTLTracking_fn = /* @__PURE__ */ __name(function() {
-      const ttls = new ZeroArray(__privateGet(this, _max));
-      const starts = new ZeroArray(__privateGet(this, _max));
-      __privateSet(this, _ttls, ttls);
-      __privateSet(this, _starts, starts);
-      __privateSet(this, _setItemTTL, (index, ttl, start = perf.now()) => {
-        starts[index] = ttl !== 0 ? start : 0;
-        ttls[index] = ttl;
-        if (ttl !== 0 && this.ttlAutopurge) {
-          const t2 = setTimeout(() => {
-            if (__privateGet(this, _isStale).call(this, index)) {
-              this.delete(__privateGet(this, _keyList)[index]);
-            }
-          }, ttl + 1);
-          if (t2.unref) {
-            t2.unref();
-          }
-        }
-      });
-      __privateSet(this, _updateItemAge, (index) => {
-        starts[index] = ttls[index] !== 0 ? perf.now() : 0;
-      });
-      __privateSet(this, _statusTTL, (status, index) => {
-        if (ttls[index]) {
-          const ttl = ttls[index];
-          const start = starts[index];
-          status.ttl = ttl;
-          status.start = start;
-          status.now = cachedNow || getNow();
-          status.remainingTTL = status.now + ttl - start;
-        }
-      });
-      let cachedNow = 0;
-      const getNow = /* @__PURE__ */ __name(() => {
-        const n = perf.now();
-        if (this.ttlResolution > 0) {
-          cachedNow = n;
-          const t2 = setTimeout(() => cachedNow = 0, this.ttlResolution);
-          if (t2.unref) {
-            t2.unref();
-          }
-        }
-        return n;
-      }, "getNow");
-      this.getRemainingTTL = (key) => {
-        const index = __privateGet(this, _keyMap).get(key);
-        if (index === void 0) {
-          return 0;
-        }
-        return ttls[index] === 0 || starts[index] === 0 ? Infinity : starts[index] + ttls[index] - (cachedNow || getNow());
-      };
-      __privateSet(this, _isStale, (index) => {
-        return ttls[index] !== 0 && starts[index] !== 0 && (cachedNow || getNow()) - starts[index] > ttls[index];
-      });
-    }, "#initializeTTLTracking");
-    _updateItemAge = new WeakMap();
-    _statusTTL = new WeakMap();
-    _setItemTTL = new WeakMap();
-    _isStale = new WeakMap();
-    _initializeSizeTracking = new WeakSet();
-    initializeSizeTracking_fn = /* @__PURE__ */ __name(function() {
-      const sizes = new ZeroArray(__privateGet(this, _max));
-      __privateSet(this, _calculatedSize, 0);
-      __privateSet(this, _sizes, sizes);
-      __privateSet(this, _removeItemSize, (index) => {
-        __privateSet(this, _calculatedSize, __privateGet(this, _calculatedSize) - sizes[index]);
-        sizes[index] = 0;
-      });
-      __privateSet(this, _requireSize, (k, v, size, sizeCalculation) => {
-        if (__privateMethod(this, _isBackgroundFetch, isBackgroundFetch_fn).call(this, v)) {
-          return 0;
-        }
-        if (!isPosInt(size)) {
-          if (sizeCalculation) {
-            if (typeof sizeCalculation !== "function") {
-              throw new TypeError("sizeCalculation must be a function");
-            }
-            size = sizeCalculation(v, k);
-            if (!isPosInt(size)) {
-              throw new TypeError("sizeCalculation return invalid (expect positive integer)");
-            }
-          } else {
-            throw new TypeError("invalid size value (must be positive integer). When maxSize or maxEntrySize is used, sizeCalculation or size must be set.");
-          }
-        }
-        return size;
-      });
-      __privateSet(this, _addItemSize, (index, size, status) => {
-        sizes[index] = size;
-        if (__privateGet(this, _maxSize)) {
-          const maxSize = __privateGet(this, _maxSize) - sizes[index];
-          while (__privateGet(this, _calculatedSize) > maxSize) {
-            __privateMethod(this, _evict, evict_fn).call(this, true);
-          }
-        }
-        __privateSet(this, _calculatedSize, __privateGet(this, _calculatedSize) + sizes[index]);
-        if (status) {
-          status.entrySize = size;
-          status.totalCalculatedSize = __privateGet(this, _calculatedSize);
-        }
-      });
-    }, "#initializeSizeTracking");
-    _removeItemSize = new WeakMap();
-    _addItemSize = new WeakMap();
-    _requireSize = new WeakMap();
-    _indexes = new WeakSet();
-    indexes_fn = /* @__PURE__ */ __name(function* ({ allowStale = this.allowStale } = {}) {
-      if (__privateGet(this, _size2)) {
-        for (let i2 = __privateGet(this, _tail); true; ) {
-          if (!__privateMethod(this, _isValidIndex, isValidIndex_fn).call(this, i2)) {
-            break;
-          }
-          if (allowStale || !__privateGet(this, _isStale).call(this, i2)) {
-            yield i2;
-          }
-          if (i2 === __privateGet(this, _head)) {
-            break;
-          } else {
-            i2 = __privateGet(this, _prev)[i2];
-          }
-        }
-      }
-    }, "#indexes");
-    _rindexes = new WeakSet();
-    rindexes_fn = /* @__PURE__ */ __name(function* ({ allowStale = this.allowStale } = {}) {
-      if (__privateGet(this, _size2)) {
-        for (let i2 = __privateGet(this, _head); true; ) {
-          if (!__privateMethod(this, _isValidIndex, isValidIndex_fn).call(this, i2)) {
-            break;
-          }
-          if (allowStale || !__privateGet(this, _isStale).call(this, i2)) {
-            yield i2;
-          }
-          if (i2 === __privateGet(this, _tail)) {
-            break;
-          } else {
-            i2 = __privateGet(this, _next)[i2];
-          }
-        }
-      }
-    }, "#rindexes");
-    _isValidIndex = new WeakSet();
-    isValidIndex_fn = /* @__PURE__ */ __name(function(index) {
-      return index !== void 0 && __privateGet(this, _keyMap).get(__privateGet(this, _keyList)[index]) === index;
-    }, "#isValidIndex");
-    _evict = new WeakSet();
-    evict_fn = /* @__PURE__ */ __name(function(free) {
-      var _a4, _b;
-      const head = __privateGet(this, _head);
-      const k = __privateGet(this, _keyList)[head];
-      const v = __privateGet(this, _valList)[head];
-      if (__privateGet(this, _hasFetchMethod) && __privateMethod(this, _isBackgroundFetch, isBackgroundFetch_fn).call(this, v)) {
-        v.__abortController.abort(new Error("evicted"));
-      } else if (__privateGet(this, _hasDispose) || __privateGet(this, _hasDisposeAfter)) {
-        if (__privateGet(this, _hasDispose)) {
-          (_a4 = __privateGet(this, _dispose)) == null ? void 0 : _a4.call(this, v, k, "evict");
-        }
-        if (__privateGet(this, _hasDisposeAfter)) {
-          (_b = __privateGet(this, _disposed)) == null ? void 0 : _b.push([v, k, "evict"]);
-        }
-      }
-      __privateGet(this, _removeItemSize).call(this, head);
-      if (free) {
-        __privateGet(this, _keyList)[head] = void 0;
-        __privateGet(this, _valList)[head] = void 0;
-        __privateGet(this, _free).push(head);
-      }
-      if (__privateGet(this, _size2) === 1) {
-        __privateSet(this, _head, __privateSet(this, _tail, 0));
-        __privateGet(this, _free).length = 0;
-      } else {
-        __privateSet(this, _head, __privateGet(this, _next)[head]);
-      }
-      __privateGet(this, _keyMap).delete(k);
-      __privateWrapper(this, _size2)._--;
-      return head;
-    }, "#evict");
-    _backgroundFetch = new WeakSet();
-    backgroundFetch_fn = /* @__PURE__ */ __name(function(k, index, options, context) {
-      const v = index === void 0 ? void 0 : __privateGet(this, _valList)[index];
-      if (__privateMethod(this, _isBackgroundFetch, isBackgroundFetch_fn).call(this, v)) {
-        return v;
-      }
-      const ac = new AbortController();
-      const { signal } = options;
-      signal == null ? void 0 : signal.addEventListener("abort", () => ac.abort(signal.reason), {
-        signal: ac.signal
-      });
-      const fetchOpts = {
-        signal: ac.signal,
-        options,
-        context
-      };
-      const cb = /* @__PURE__ */ __name((v2, updateCache = false) => {
-        const { aborted } = ac.signal;
-        const ignoreAbort = options.ignoreFetchAbort && v2 !== void 0;
-        if (options.status) {
-          if (aborted && !updateCache) {
-            options.status.fetchAborted = true;
-            options.status.fetchError = ac.signal.reason;
-            if (ignoreAbort)
-              options.status.fetchAbortIgnored = true;
-          } else {
-            options.status.fetchResolved = true;
-          }
-        }
-        if (aborted && !ignoreAbort && !updateCache) {
-          return fetchFail(ac.signal.reason);
-        }
-        const bf2 = p;
-        if (__privateGet(this, _valList)[index] === p) {
-          if (v2 === void 0) {
-            if (bf2.__staleWhileFetching) {
-              __privateGet(this, _valList)[index] = bf2.__staleWhileFetching;
-            } else {
-              this.delete(k);
-            }
-          } else {
-            if (options.status)
-              options.status.fetchUpdated = true;
-            this.set(k, v2, fetchOpts.options);
-          }
-        }
-        return v2;
-      }, "cb");
-      const eb = /* @__PURE__ */ __name((er) => {
-        if (options.status) {
-          options.status.fetchRejected = true;
-          options.status.fetchError = er;
-        }
-        return fetchFail(er);
-      }, "eb");
-      const fetchFail = /* @__PURE__ */ __name((er) => {
-        const { aborted } = ac.signal;
-        const allowStaleAborted = aborted && options.allowStaleOnFetchAbort;
-        const allowStale = allowStaleAborted || options.allowStaleOnFetchRejection;
-        const noDelete = allowStale || options.noDeleteOnFetchRejection;
-        const bf2 = p;
-        if (__privateGet(this, _valList)[index] === p) {
-          const del = !noDelete || bf2.__staleWhileFetching === void 0;
-          if (del) {
-            this.delete(k);
-          } else if (!allowStaleAborted) {
-            __privateGet(this, _valList)[index] = bf2.__staleWhileFetching;
-          }
-        }
-        if (allowStale) {
-          if (options.status && bf2.__staleWhileFetching !== void 0) {
-            options.status.returnedStale = true;
-          }
-          return bf2.__staleWhileFetching;
-        } else if (bf2.__returned === bf2) {
-          throw er;
-        }
-      }, "fetchFail");
-      const pcall = /* @__PURE__ */ __name((res, rej) => {
-        var _a4;
-        const fmp = (_a4 = __privateGet(this, _fetchMethod)) == null ? void 0 : _a4.call(this, k, v, fetchOpts);
-        if (fmp && fmp instanceof Promise) {
-          fmp.then((v2) => res(v2), rej);
-        }
-        ac.signal.addEventListener("abort", () => {
-          if (!options.ignoreFetchAbort || options.allowStaleOnFetchAbort) {
-            res();
-            if (options.allowStaleOnFetchAbort) {
-              res = /* @__PURE__ */ __name((v2) => cb(v2, true), "res");
-            }
-          }
-        });
-      }, "pcall");
-      if (options.status)
-        options.status.fetchDispatched = true;
-      const p = new Promise(pcall).then(cb, eb);
-      const bf = Object.assign(p, {
-        __abortController: ac,
-        __staleWhileFetching: v,
-        __returned: void 0
-      });
-      if (index === void 0) {
-        this.set(k, bf, { ...fetchOpts.options, status: void 0 });
-        index = __privateGet(this, _keyMap).get(k);
-      } else {
-        __privateGet(this, _valList)[index] = bf;
-      }
-      return bf;
-    }, "#backgroundFetch");
-    _isBackgroundFetch = new WeakSet();
-    isBackgroundFetch_fn = /* @__PURE__ */ __name(function(p) {
-      if (!__privateGet(this, _hasFetchMethod))
-        return false;
-      const b = p;
-      return !!b && b instanceof Promise && b.hasOwnProperty("__staleWhileFetching") && b.__abortController instanceof AbortController;
-    }, "#isBackgroundFetch");
-    _connect = new WeakSet();
-    connect_fn = /* @__PURE__ */ __name(function(p, n) {
-      __privateGet(this, _prev)[n] = p;
-      __privateGet(this, _next)[p] = n;
-    }, "#connect");
-    _moveToTail = new WeakSet();
-    moveToTail_fn = /* @__PURE__ */ __name(function(index) {
-      if (index !== __privateGet(this, _tail)) {
-        if (index === __privateGet(this, _head)) {
-          __privateSet(this, _head, __privateGet(this, _next)[index]);
-        } else {
-          __privateMethod(this, _connect, connect_fn).call(this, __privateGet(this, _prev)[index], __privateGet(this, _next)[index]);
-        }
-        __privateMethod(this, _connect, connect_fn).call(this, __privateGet(this, _tail), index);
-        __privateSet(this, _tail, index);
-      }
-    }, "#moveToTail");
-    __name(_LRUCache, "LRUCache");
-    var LRUCache = _LRUCache;
-    exports2.LRUCache = LRUCache;
-    exports2.default = LRUCache;
-  }
-});
-
-// node_modules/.pnpm/lru-cache@8.0.5/node_modules/lru-cache/dist/cjs/index-cjs.js
-var require_index_cjs = __commonJS({
-  "node_modules/.pnpm/lru-cache@8.0.5/node_modules/lru-cache/dist/cjs/index-cjs.js"(exports2, module2) {
-    "use strict";
-    var __importDefault = exports2 && exports2.__importDefault || function(mod) {
-      return mod && mod.__esModule ? mod : { "default": mod };
-    };
-    var index_js_1 = __importDefault(require_cjs());
-    module2.exports = Object.assign(index_js_1.default, { default: index_js_1.default, LRUCache: index_js_1.default });
-  }
-});
-
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/constants/errors.js
+// node_modules/mysql2/lib/constants/errors.js
 var require_errors = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/constants/errors.js"(exports2) {
+  "node_modules/mysql2/lib/constants/errors.js"(exports2) {
     "use strict";
     exports2.EE_CANTCREATEFILE = 1;
     exports2.EE_READ = 2;
@@ -7055,647 +5170,1029 @@ var require_errors = __commonJS({
   }
 });
 
-// node_modules/.pnpm/long@5.2.3/node_modules/long/umd/index.js
+// node_modules/long/umd/index.js
 var require_umd = __commonJS({
-  "node_modules/.pnpm/long@5.2.3/node_modules/long/umd/index.js"(exports2, module2) {
-    var Long = function(exports3) {
-      "use strict";
-      Object.defineProperty(exports3, "__esModule", {
-        value: true
-      });
-      exports3.default = void 0;
-      /**
-       * @license
-       * Copyright 2009 The Closure Library Authors
-       * Copyright 2020 Daniel Wirtz / The long.js Authors.
-       *
-       * Licensed under the Apache License, Version 2.0 (the "License");
-       * you may not use this file except in compliance with the License.
-       * You may obtain a copy of the License at
-       *
-       *     http://www.apache.org/licenses/LICENSE-2.0
-       *
-       * Unless required by applicable law or agreed to in writing, software
-       * distributed under the License is distributed on an "AS IS" BASIS,
-       * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-       * See the License for the specific language governing permissions and
-       * limitations under the License.
-       *
-       * SPDX-License-Identifier: Apache-2.0
-       */
-      var wasm = null;
-      try {
-        wasm = new WebAssembly.Instance(new WebAssembly.Module(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 1, 13, 2, 96, 0, 1, 127, 96, 4, 127, 127, 127, 127, 1, 127, 3, 7, 6, 0, 1, 1, 1, 1, 1, 6, 6, 1, 127, 1, 65, 0, 11, 7, 50, 6, 3, 109, 117, 108, 0, 1, 5, 100, 105, 118, 95, 115, 0, 2, 5, 100, 105, 118, 95, 117, 0, 3, 5, 114, 101, 109, 95, 115, 0, 4, 5, 114, 101, 109, 95, 117, 0, 5, 8, 103, 101, 116, 95, 104, 105, 103, 104, 0, 0, 10, 191, 1, 6, 4, 0, 35, 0, 11, 36, 1, 1, 126, 32, 0, 173, 32, 1, 173, 66, 32, 134, 132, 32, 2, 173, 32, 3, 173, 66, 32, 134, 132, 126, 34, 4, 66, 32, 135, 167, 36, 0, 32, 4, 167, 11, 36, 1, 1, 126, 32, 0, 173, 32, 1, 173, 66, 32, 134, 132, 32, 2, 173, 32, 3, 173, 66, 32, 134, 132, 127, 34, 4, 66, 32, 135, 167, 36, 0, 32, 4, 167, 11, 36, 1, 1, 126, 32, 0, 173, 32, 1, 173, 66, 32, 134, 132, 32, 2, 173, 32, 3, 173, 66, 32, 134, 132, 128, 34, 4, 66, 32, 135, 167, 36, 0, 32, 4, 167, 11, 36, 1, 1, 126, 32, 0, 173, 32, 1, 173, 66, 32, 134, 132, 32, 2, 173, 32, 3, 173, 66, 32, 134, 132, 129, 34, 4, 66, 32, 135, 167, 36, 0, 32, 4, 167, 11, 36, 1, 1, 126, 32, 0, 173, 32, 1, 173, 66, 32, 134, 132, 32, 2, 173, 32, 3, 173, 66, 32, 134, 132, 130, 34, 4, 66, 32, 135, 167, 36, 0, 32, 4, 167, 11])), {}).exports;
-      } catch (e2) {
+  "node_modules/long/umd/index.js"(exports2, module2) {
+    (function(global2, factory) {
+      function preferDefault(exports3) {
+        return exports3.default || exports3;
       }
-      function Long2(low, high, unsigned) {
-        this.low = low | 0;
-        this.high = high | 0;
-        this.unsigned = !!unsigned;
+      __name(preferDefault, "preferDefault");
+      if (typeof define === "function" && define.amd) {
+        define([], function() {
+          var exports3 = {};
+          factory(exports3);
+          return preferDefault(exports3);
+        });
+      } else if (typeof exports2 === "object") {
+        factory(exports2);
+        if (typeof module2 === "object") module2.exports = preferDefault(exports2);
+      } else {
+        (function() {
+          var exports3 = {};
+          factory(exports3);
+          global2.Long = preferDefault(exports3);
+        })();
       }
-      __name(Long2, "Long");
-      Long2.prototype.__isLong__;
-      Object.defineProperty(Long2.prototype, "__isLong__", {
-        value: true
-      });
-      function isLong(obj) {
-        return (obj && obj["__isLong__"]) === true;
-      }
-      __name(isLong, "isLong");
-      function ctz32(value) {
-        var c = Math.clz32(value & -value);
-        return value ? 31 - c : c;
-      }
-      __name(ctz32, "ctz32");
-      Long2.isLong = isLong;
-      var INT_CACHE = {};
-      var UINT_CACHE = {};
-      function fromInt(value, unsigned) {
-        var obj, cachedObj, cache;
-        if (unsigned) {
-          value >>>= 0;
-          if (cache = 0 <= value && value < 256) {
-            cachedObj = UINT_CACHE[value];
-            if (cachedObj)
-              return cachedObj;
-          }
-          obj = fromBits(value, 0, true);
-          if (cache)
-            UINT_CACHE[value] = obj;
-          return obj;
-        } else {
-          value |= 0;
-          if (cache = -128 <= value && value < 128) {
-            cachedObj = INT_CACHE[value];
-            if (cachedObj)
-              return cachedObj;
-          }
-          obj = fromBits(value, value < 0 ? -1 : 0, false);
-          if (cache)
-            INT_CACHE[value] = obj;
-          return obj;
+    })(
+      typeof globalThis !== "undefined" ? globalThis : typeof self !== "undefined" ? self : exports2,
+      function(_exports) {
+        "use strict";
+        Object.defineProperty(_exports, "__esModule", {
+          value: true
+        });
+        _exports.default = void 0;
+        /**
+         * @license
+         * Copyright 2009 The Closure Library Authors
+         * Copyright 2020 Daniel Wirtz / The long.js Authors.
+         *
+         * Licensed under the Apache License, Version 2.0 (the "License");
+         * you may not use this file except in compliance with the License.
+         * You may obtain a copy of the License at
+         *
+         *     http://www.apache.org/licenses/LICENSE-2.0
+         *
+         * Unless required by applicable law or agreed to in writing, software
+         * distributed under the License is distributed on an "AS IS" BASIS,
+         * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+         * See the License for the specific language governing permissions and
+         * limitations under the License.
+         *
+         * SPDX-License-Identifier: Apache-2.0
+         */
+        var wasm = null;
+        try {
+          wasm = new WebAssembly.Instance(
+            new WebAssembly.Module(
+              new Uint8Array([
+                // \0asm
+                0,
+                97,
+                115,
+                109,
+                // version 1
+                1,
+                0,
+                0,
+                0,
+                // section "type"
+                1,
+                13,
+                2,
+                // 0, () => i32
+                96,
+                0,
+                1,
+                127,
+                // 1, (i32, i32, i32, i32) => i32
+                96,
+                4,
+                127,
+                127,
+                127,
+                127,
+                1,
+                127,
+                // section "function"
+                3,
+                7,
+                6,
+                // 0, type 0
+                0,
+                // 1, type 1
+                1,
+                // 2, type 1
+                1,
+                // 3, type 1
+                1,
+                // 4, type 1
+                1,
+                // 5, type 1
+                1,
+                // section "global"
+                6,
+                6,
+                1,
+                // 0, "high", mutable i32
+                127,
+                1,
+                65,
+                0,
+                11,
+                // section "export"
+                7,
+                50,
+                6,
+                // 0, "mul"
+                3,
+                109,
+                117,
+                108,
+                0,
+                1,
+                // 1, "div_s"
+                5,
+                100,
+                105,
+                118,
+                95,
+                115,
+                0,
+                2,
+                // 2, "div_u"
+                5,
+                100,
+                105,
+                118,
+                95,
+                117,
+                0,
+                3,
+                // 3, "rem_s"
+                5,
+                114,
+                101,
+                109,
+                95,
+                115,
+                0,
+                4,
+                // 4, "rem_u"
+                5,
+                114,
+                101,
+                109,
+                95,
+                117,
+                0,
+                5,
+                // 5, "get_high"
+                8,
+                103,
+                101,
+                116,
+                95,
+                104,
+                105,
+                103,
+                104,
+                0,
+                0,
+                // section "code"
+                10,
+                191,
+                1,
+                6,
+                // 0, "get_high"
+                4,
+                0,
+                35,
+                0,
+                11,
+                // 1, "mul"
+                36,
+                1,
+                1,
+                126,
+                32,
+                0,
+                173,
+                32,
+                1,
+                173,
+                66,
+                32,
+                134,
+                132,
+                32,
+                2,
+                173,
+                32,
+                3,
+                173,
+                66,
+                32,
+                134,
+                132,
+                126,
+                34,
+                4,
+                66,
+                32,
+                135,
+                167,
+                36,
+                0,
+                32,
+                4,
+                167,
+                11,
+                // 2, "div_s"
+                36,
+                1,
+                1,
+                126,
+                32,
+                0,
+                173,
+                32,
+                1,
+                173,
+                66,
+                32,
+                134,
+                132,
+                32,
+                2,
+                173,
+                32,
+                3,
+                173,
+                66,
+                32,
+                134,
+                132,
+                127,
+                34,
+                4,
+                66,
+                32,
+                135,
+                167,
+                36,
+                0,
+                32,
+                4,
+                167,
+                11,
+                // 3, "div_u"
+                36,
+                1,
+                1,
+                126,
+                32,
+                0,
+                173,
+                32,
+                1,
+                173,
+                66,
+                32,
+                134,
+                132,
+                32,
+                2,
+                173,
+                32,
+                3,
+                173,
+                66,
+                32,
+                134,
+                132,
+                128,
+                34,
+                4,
+                66,
+                32,
+                135,
+                167,
+                36,
+                0,
+                32,
+                4,
+                167,
+                11,
+                // 4, "rem_s"
+                36,
+                1,
+                1,
+                126,
+                32,
+                0,
+                173,
+                32,
+                1,
+                173,
+                66,
+                32,
+                134,
+                132,
+                32,
+                2,
+                173,
+                32,
+                3,
+                173,
+                66,
+                32,
+                134,
+                132,
+                129,
+                34,
+                4,
+                66,
+                32,
+                135,
+                167,
+                36,
+                0,
+                32,
+                4,
+                167,
+                11,
+                // 5, "rem_u"
+                36,
+                1,
+                1,
+                126,
+                32,
+                0,
+                173,
+                32,
+                1,
+                173,
+                66,
+                32,
+                134,
+                132,
+                32,
+                2,
+                173,
+                32,
+                3,
+                173,
+                66,
+                32,
+                134,
+                132,
+                130,
+                34,
+                4,
+                66,
+                32,
+                135,
+                167,
+                36,
+                0,
+                32,
+                4,
+                167,
+                11
+              ])
+            ),
+            {}
+          ).exports;
+        } catch {
         }
-      }
-      __name(fromInt, "fromInt");
-      Long2.fromInt = fromInt;
-      function fromNumber(value, unsigned) {
-        if (isNaN(value))
-          return unsigned ? UZERO : ZERO;
-        if (unsigned) {
-          if (value < 0)
-            return UZERO;
-          if (value >= TWO_PWR_64_DBL)
-            return MAX_UNSIGNED_VALUE;
-        } else {
-          if (value <= -TWO_PWR_63_DBL)
-            return MIN_VALUE;
-          if (value + 1 >= TWO_PWR_63_DBL)
-            return MAX_VALUE;
+        function Long(low, high, unsigned) {
+          this.low = low | 0;
+          this.high = high | 0;
+          this.unsigned = !!unsigned;
         }
-        if (value < 0)
-          return fromNumber(-value, unsigned).neg();
-        return fromBits(value % TWO_PWR_32_DBL | 0, value / TWO_PWR_32_DBL | 0, unsigned);
-      }
-      __name(fromNumber, "fromNumber");
-      Long2.fromNumber = fromNumber;
-      function fromBits(lowBits, highBits, unsigned) {
-        return new Long2(lowBits, highBits, unsigned);
-      }
-      __name(fromBits, "fromBits");
-      Long2.fromBits = fromBits;
-      var pow_dbl = Math.pow;
-      function fromString(str, unsigned, radix) {
-        if (str.length === 0)
-          throw Error("empty string");
-        if (typeof unsigned === "number") {
-          radix = unsigned;
-          unsigned = false;
-        } else {
-          unsigned = !!unsigned;
+        __name(Long, "Long");
+        Long.prototype.__isLong__;
+        Object.defineProperty(Long.prototype, "__isLong__", {
+          value: true
+        });
+        function isLong(obj) {
+          return (obj && obj["__isLong__"]) === true;
         }
-        if (str === "NaN" || str === "Infinity" || str === "+Infinity" || str === "-Infinity")
-          return unsigned ? UZERO : ZERO;
-        radix = radix || 10;
-        if (radix < 2 || 36 < radix)
-          throw RangeError("radix");
-        var p;
-        if ((p = str.indexOf("-")) > 0)
-          throw Error("interior hyphen");
-        else if (p === 0) {
-          return fromString(str.substring(1), unsigned, radix).neg();
+        __name(isLong, "isLong");
+        function ctz32(value) {
+          var c = Math.clz32(value & -value);
+          return value ? 31 - c : c;
         }
-        var radixToPower = fromNumber(pow_dbl(radix, 8));
-        var result = ZERO;
-        for (var i2 = 0; i2 < str.length; i2 += 8) {
-          var size = Math.min(8, str.length - i2), value = parseInt(str.substring(i2, i2 + size), radix);
-          if (size < 8) {
-            var power = fromNumber(pow_dbl(radix, size));
-            result = result.mul(power).add(fromNumber(value));
-          } else {
-            result = result.mul(radixToPower);
-            result = result.add(fromNumber(value));
-          }
-        }
-        result.unsigned = unsigned;
-        return result;
-      }
-      __name(fromString, "fromString");
-      Long2.fromString = fromString;
-      function fromValue(val, unsigned) {
-        if (typeof val === "number")
-          return fromNumber(val, unsigned);
-        if (typeof val === "string")
-          return fromString(val, unsigned);
-        return fromBits(val.low, val.high, typeof unsigned === "boolean" ? unsigned : val.unsigned);
-      }
-      __name(fromValue, "fromValue");
-      Long2.fromValue = fromValue;
-      var TWO_PWR_16_DBL = 1 << 16;
-      var TWO_PWR_24_DBL = 1 << 24;
-      var TWO_PWR_32_DBL = TWO_PWR_16_DBL * TWO_PWR_16_DBL;
-      var TWO_PWR_64_DBL = TWO_PWR_32_DBL * TWO_PWR_32_DBL;
-      var TWO_PWR_63_DBL = TWO_PWR_64_DBL / 2;
-      var TWO_PWR_24 = fromInt(TWO_PWR_24_DBL);
-      var ZERO = fromInt(0);
-      Long2.ZERO = ZERO;
-      var UZERO = fromInt(0, true);
-      Long2.UZERO = UZERO;
-      var ONE = fromInt(1);
-      Long2.ONE = ONE;
-      var UONE = fromInt(1, true);
-      Long2.UONE = UONE;
-      var NEG_ONE = fromInt(-1);
-      Long2.NEG_ONE = NEG_ONE;
-      var MAX_VALUE = fromBits(4294967295 | 0, 2147483647 | 0, false);
-      Long2.MAX_VALUE = MAX_VALUE;
-      var MAX_UNSIGNED_VALUE = fromBits(4294967295 | 0, 4294967295 | 0, true);
-      Long2.MAX_UNSIGNED_VALUE = MAX_UNSIGNED_VALUE;
-      var MIN_VALUE = fromBits(0, 2147483648 | 0, false);
-      Long2.MIN_VALUE = MIN_VALUE;
-      var LongPrototype = Long2.prototype;
-      LongPrototype.toInt = /* @__PURE__ */ __name(function toInt() {
-        return this.unsigned ? this.low >>> 0 : this.low;
-      }, "toInt");
-      LongPrototype.toNumber = /* @__PURE__ */ __name(function toNumber() {
-        if (this.unsigned)
-          return (this.high >>> 0) * TWO_PWR_32_DBL + (this.low >>> 0);
-        return this.high * TWO_PWR_32_DBL + (this.low >>> 0);
-      }, "toNumber");
-      LongPrototype.toString = /* @__PURE__ */ __name(function toString(radix) {
-        radix = radix || 10;
-        if (radix < 2 || 36 < radix)
-          throw RangeError("radix");
-        if (this.isZero())
-          return "0";
-        if (this.isNegative()) {
-          if (this.eq(MIN_VALUE)) {
-            var radixLong = fromNumber(radix), div = this.div(radixLong), rem1 = div.mul(radixLong).sub(this);
-            return div.toString(radix) + rem1.toInt().toString(radix);
-          } else
-            return "-" + this.neg().toString(radix);
-        }
-        var radixToPower = fromNumber(pow_dbl(radix, 6), this.unsigned), rem = this;
-        var result = "";
-        while (true) {
-          var remDiv = rem.div(radixToPower), intval = rem.sub(remDiv.mul(radixToPower)).toInt() >>> 0, digits = intval.toString(radix);
-          rem = remDiv;
-          if (rem.isZero())
-            return digits + result;
-          else {
-            while (digits.length < 6)
-              digits = "0" + digits;
-            result = "" + digits + result;
-          }
-        }
-      }, "toString");
-      LongPrototype.getHighBits = /* @__PURE__ */ __name(function getHighBits() {
-        return this.high;
-      }, "getHighBits");
-      LongPrototype.getHighBitsUnsigned = /* @__PURE__ */ __name(function getHighBitsUnsigned() {
-        return this.high >>> 0;
-      }, "getHighBitsUnsigned");
-      LongPrototype.getLowBits = /* @__PURE__ */ __name(function getLowBits() {
-        return this.low;
-      }, "getLowBits");
-      LongPrototype.getLowBitsUnsigned = /* @__PURE__ */ __name(function getLowBitsUnsigned() {
-        return this.low >>> 0;
-      }, "getLowBitsUnsigned");
-      LongPrototype.getNumBitsAbs = /* @__PURE__ */ __name(function getNumBitsAbs() {
-        if (this.isNegative())
-          return this.eq(MIN_VALUE) ? 64 : this.neg().getNumBitsAbs();
-        var val = this.high != 0 ? this.high : this.low;
-        for (var bit = 31; bit > 0; bit--)
-          if ((val & 1 << bit) != 0)
-            break;
-        return this.high != 0 ? bit + 33 : bit + 1;
-      }, "getNumBitsAbs");
-      LongPrototype.isZero = /* @__PURE__ */ __name(function isZero() {
-        return this.high === 0 && this.low === 0;
-      }, "isZero");
-      LongPrototype.eqz = LongPrototype.isZero;
-      LongPrototype.isNegative = /* @__PURE__ */ __name(function isNegative() {
-        return !this.unsigned && this.high < 0;
-      }, "isNegative");
-      LongPrototype.isPositive = /* @__PURE__ */ __name(function isPositive() {
-        return this.unsigned || this.high >= 0;
-      }, "isPositive");
-      LongPrototype.isOdd = /* @__PURE__ */ __name(function isOdd() {
-        return (this.low & 1) === 1;
-      }, "isOdd");
-      LongPrototype.isEven = /* @__PURE__ */ __name(function isEven() {
-        return (this.low & 1) === 0;
-      }, "isEven");
-      LongPrototype.equals = /* @__PURE__ */ __name(function equals(other) {
-        if (!isLong(other))
-          other = fromValue(other);
-        if (this.unsigned !== other.unsigned && this.high >>> 31 === 1 && other.high >>> 31 === 1)
-          return false;
-        return this.high === other.high && this.low === other.low;
-      }, "equals");
-      LongPrototype.eq = LongPrototype.equals;
-      LongPrototype.notEquals = /* @__PURE__ */ __name(function notEquals(other) {
-        return !this.eq(
-          /* validates */
-          other
-        );
-      }, "notEquals");
-      LongPrototype.neq = LongPrototype.notEquals;
-      LongPrototype.ne = LongPrototype.notEquals;
-      LongPrototype.lessThan = /* @__PURE__ */ __name(function lessThan(other) {
-        return this.comp(
-          /* validates */
-          other
-        ) < 0;
-      }, "lessThan");
-      LongPrototype.lt = LongPrototype.lessThan;
-      LongPrototype.lessThanOrEqual = /* @__PURE__ */ __name(function lessThanOrEqual(other) {
-        return this.comp(
-          /* validates */
-          other
-        ) <= 0;
-      }, "lessThanOrEqual");
-      LongPrototype.lte = LongPrototype.lessThanOrEqual;
-      LongPrototype.le = LongPrototype.lessThanOrEqual;
-      LongPrototype.greaterThan = /* @__PURE__ */ __name(function greaterThan(other) {
-        return this.comp(
-          /* validates */
-          other
-        ) > 0;
-      }, "greaterThan");
-      LongPrototype.gt = LongPrototype.greaterThan;
-      LongPrototype.greaterThanOrEqual = /* @__PURE__ */ __name(function greaterThanOrEqual(other) {
-        return this.comp(
-          /* validates */
-          other
-        ) >= 0;
-      }, "greaterThanOrEqual");
-      LongPrototype.gte = LongPrototype.greaterThanOrEqual;
-      LongPrototype.ge = LongPrototype.greaterThanOrEqual;
-      LongPrototype.compare = /* @__PURE__ */ __name(function compare(other) {
-        if (!isLong(other))
-          other = fromValue(other);
-        if (this.eq(other))
-          return 0;
-        var thisNeg = this.isNegative(), otherNeg = other.isNegative();
-        if (thisNeg && !otherNeg)
-          return -1;
-        if (!thisNeg && otherNeg)
-          return 1;
-        if (!this.unsigned)
-          return this.sub(other).isNegative() ? -1 : 1;
-        return other.high >>> 0 > this.high >>> 0 || other.high === this.high && other.low >>> 0 > this.low >>> 0 ? -1 : 1;
-      }, "compare");
-      LongPrototype.comp = LongPrototype.compare;
-      LongPrototype.negate = /* @__PURE__ */ __name(function negate() {
-        if (!this.unsigned && this.eq(MIN_VALUE))
-          return MIN_VALUE;
-        return this.not().add(ONE);
-      }, "negate");
-      LongPrototype.neg = LongPrototype.negate;
-      LongPrototype.add = /* @__PURE__ */ __name(function add(addend) {
-        if (!isLong(addend))
-          addend = fromValue(addend);
-        var a48 = this.high >>> 16;
-        var a32 = this.high & 65535;
-        var a16 = this.low >>> 16;
-        var a00 = this.low & 65535;
-        var b48 = addend.high >>> 16;
-        var b32 = addend.high & 65535;
-        var b16 = addend.low >>> 16;
-        var b00 = addend.low & 65535;
-        var c48 = 0, c32 = 0, c16 = 0, c00 = 0;
-        c00 += a00 + b00;
-        c16 += c00 >>> 16;
-        c00 &= 65535;
-        c16 += a16 + b16;
-        c32 += c16 >>> 16;
-        c16 &= 65535;
-        c32 += a32 + b32;
-        c48 += c32 >>> 16;
-        c32 &= 65535;
-        c48 += a48 + b48;
-        c48 &= 65535;
-        return fromBits(c16 << 16 | c00, c48 << 16 | c32, this.unsigned);
-      }, "add");
-      LongPrototype.subtract = /* @__PURE__ */ __name(function subtract(subtrahend) {
-        if (!isLong(subtrahend))
-          subtrahend = fromValue(subtrahend);
-        return this.add(subtrahend.neg());
-      }, "subtract");
-      LongPrototype.sub = LongPrototype.subtract;
-      LongPrototype.multiply = /* @__PURE__ */ __name(function multiply(multiplier) {
-        if (this.isZero())
-          return this;
-        if (!isLong(multiplier))
-          multiplier = fromValue(multiplier);
-        if (wasm) {
-          var low = wasm["mul"](this.low, this.high, multiplier.low, multiplier.high);
-          return fromBits(low, wasm["get_high"](), this.unsigned);
-        }
-        if (multiplier.isZero())
-          return this.unsigned ? UZERO : ZERO;
-        if (this.eq(MIN_VALUE))
-          return multiplier.isOdd() ? MIN_VALUE : ZERO;
-        if (multiplier.eq(MIN_VALUE))
-          return this.isOdd() ? MIN_VALUE : ZERO;
-        if (this.isNegative()) {
-          if (multiplier.isNegative())
-            return this.neg().mul(multiplier.neg());
-          else
-            return this.neg().mul(multiplier).neg();
-        } else if (multiplier.isNegative())
-          return this.mul(multiplier.neg()).neg();
-        if (this.lt(TWO_PWR_24) && multiplier.lt(TWO_PWR_24))
-          return fromNumber(this.toNumber() * multiplier.toNumber(), this.unsigned);
-        var a48 = this.high >>> 16;
-        var a32 = this.high & 65535;
-        var a16 = this.low >>> 16;
-        var a00 = this.low & 65535;
-        var b48 = multiplier.high >>> 16;
-        var b32 = multiplier.high & 65535;
-        var b16 = multiplier.low >>> 16;
-        var b00 = multiplier.low & 65535;
-        var c48 = 0, c32 = 0, c16 = 0, c00 = 0;
-        c00 += a00 * b00;
-        c16 += c00 >>> 16;
-        c00 &= 65535;
-        c16 += a16 * b00;
-        c32 += c16 >>> 16;
-        c16 &= 65535;
-        c16 += a00 * b16;
-        c32 += c16 >>> 16;
-        c16 &= 65535;
-        c32 += a32 * b00;
-        c48 += c32 >>> 16;
-        c32 &= 65535;
-        c32 += a16 * b16;
-        c48 += c32 >>> 16;
-        c32 &= 65535;
-        c32 += a00 * b32;
-        c48 += c32 >>> 16;
-        c32 &= 65535;
-        c48 += a48 * b00 + a32 * b16 + a16 * b32 + a00 * b48;
-        c48 &= 65535;
-        return fromBits(c16 << 16 | c00, c48 << 16 | c32, this.unsigned);
-      }, "multiply");
-      LongPrototype.mul = LongPrototype.multiply;
-      LongPrototype.divide = /* @__PURE__ */ __name(function divide(divisor) {
-        if (!isLong(divisor))
-          divisor = fromValue(divisor);
-        if (divisor.isZero())
-          throw Error("division by zero");
-        if (wasm) {
-          if (!this.unsigned && this.high === -2147483648 && divisor.low === -1 && divisor.high === -1) {
-            return this;
-          }
-          var low = (this.unsigned ? wasm["div_u"] : wasm["div_s"])(this.low, this.high, divisor.low, divisor.high);
-          return fromBits(low, wasm["get_high"](), this.unsigned);
-        }
-        if (this.isZero())
-          return this.unsigned ? UZERO : ZERO;
-        var approx, rem, res;
-        if (!this.unsigned) {
-          if (this.eq(MIN_VALUE)) {
-            if (divisor.eq(ONE) || divisor.eq(NEG_ONE))
-              return MIN_VALUE;
-            else if (divisor.eq(MIN_VALUE))
-              return ONE;
-            else {
-              var halfThis = this.shr(1);
-              approx = halfThis.div(divisor).shl(1);
-              if (approx.eq(ZERO)) {
-                return divisor.isNegative() ? ONE : NEG_ONE;
-              } else {
-                rem = this.sub(divisor.mul(approx));
-                res = approx.add(rem.div(divisor));
-                return res;
-              }
+        __name(ctz32, "ctz32");
+        Long.isLong = isLong;
+        var INT_CACHE = {};
+        var UINT_CACHE = {};
+        function fromInt(value, unsigned) {
+          var obj, cachedObj, cache;
+          if (unsigned) {
+            value >>>= 0;
+            if (cache = 0 <= value && value < 256) {
+              cachedObj = UINT_CACHE[value];
+              if (cachedObj) return cachedObj;
             }
-          } else if (divisor.eq(MIN_VALUE))
-            return this.unsigned ? UZERO : ZERO;
-          if (this.isNegative()) {
-            if (divisor.isNegative())
-              return this.neg().div(divisor.neg());
-            return this.neg().div(divisor).neg();
-          } else if (divisor.isNegative())
-            return this.div(divisor.neg()).neg();
-          res = ZERO;
-        } else {
-          if (!divisor.unsigned)
-            divisor = divisor.toUnsigned();
-          if (divisor.gt(this))
-            return UZERO;
-          if (divisor.gt(this.shru(1)))
-            return UONE;
-          res = UZERO;
-        }
-        rem = this;
-        while (rem.gte(divisor)) {
-          approx = Math.max(1, Math.floor(rem.toNumber() / divisor.toNumber()));
-          var log2 = Math.ceil(Math.log(approx) / Math.LN2), delta = log2 <= 48 ? 1 : pow_dbl(2, log2 - 48), approxRes = fromNumber(approx), approxRem = approxRes.mul(divisor);
-          while (approxRem.isNegative() || approxRem.gt(rem)) {
-            approx -= delta;
-            approxRes = fromNumber(approx, this.unsigned);
-            approxRem = approxRes.mul(divisor);
+            obj = fromBits(value, 0, true);
+            if (cache) UINT_CACHE[value] = obj;
+            return obj;
+          } else {
+            value |= 0;
+            if (cache = -128 <= value && value < 128) {
+              cachedObj = INT_CACHE[value];
+              if (cachedObj) return cachedObj;
+            }
+            obj = fromBits(value, value < 0 ? -1 : 0, false);
+            if (cache) INT_CACHE[value] = obj;
+            return obj;
           }
-          if (approxRes.isZero())
-            approxRes = ONE;
-          res = res.add(approxRes);
-          rem = rem.sub(approxRem);
         }
-        return res;
-      }, "divide");
-      LongPrototype.div = LongPrototype.divide;
-      LongPrototype.modulo = /* @__PURE__ */ __name(function modulo(divisor) {
-        if (!isLong(divisor))
-          divisor = fromValue(divisor);
-        if (wasm) {
-          var low = (this.unsigned ? wasm["rem_u"] : wasm["rem_s"])(this.low, this.high, divisor.low, divisor.high);
-          return fromBits(low, wasm["get_high"](), this.unsigned);
+        __name(fromInt, "fromInt");
+        Long.fromInt = fromInt;
+        function fromNumber(value, unsigned) {
+          if (isNaN(value)) return unsigned ? UZERO : ZERO;
+          if (unsigned) {
+            if (value < 0) return UZERO;
+            if (value >= TWO_PWR_64_DBL) return MAX_UNSIGNED_VALUE;
+          } else {
+            if (value <= -TWO_PWR_63_DBL) return MIN_VALUE;
+            if (value + 1 >= TWO_PWR_63_DBL) return MAX_VALUE;
+          }
+          if (value < 0) return fromNumber(-value, unsigned).neg();
+          return fromBits(
+            value % TWO_PWR_32_DBL | 0,
+            value / TWO_PWR_32_DBL | 0,
+            unsigned
+          );
         }
-        return this.sub(this.div(divisor).mul(divisor));
-      }, "modulo");
-      LongPrototype.mod = LongPrototype.modulo;
-      LongPrototype.rem = LongPrototype.modulo;
-      LongPrototype.not = /* @__PURE__ */ __name(function not() {
-        return fromBits(~this.low, ~this.high, this.unsigned);
-      }, "not");
-      LongPrototype.countLeadingZeros = /* @__PURE__ */ __name(function countLeadingZeros() {
-        return this.high ? Math.clz32(this.high) : Math.clz32(this.low) + 32;
-      }, "countLeadingZeros");
-      LongPrototype.clz = LongPrototype.countLeadingZeros;
-      LongPrototype.countTrailingZeros = /* @__PURE__ */ __name(function countTrailingZeros() {
-        return this.low ? ctz32(this.low) : ctz32(this.high) + 32;
-      }, "countTrailingZeros");
-      LongPrototype.ctz = LongPrototype.countTrailingZeros;
-      LongPrototype.and = /* @__PURE__ */ __name(function and(other) {
-        if (!isLong(other))
-          other = fromValue(other);
-        return fromBits(this.low & other.low, this.high & other.high, this.unsigned);
-      }, "and");
-      LongPrototype.or = /* @__PURE__ */ __name(function or(other) {
-        if (!isLong(other))
-          other = fromValue(other);
-        return fromBits(this.low | other.low, this.high | other.high, this.unsigned);
-      }, "or");
-      LongPrototype.xor = /* @__PURE__ */ __name(function xor(other) {
-        if (!isLong(other))
-          other = fromValue(other);
-        return fromBits(this.low ^ other.low, this.high ^ other.high, this.unsigned);
-      }, "xor");
-      LongPrototype.shiftLeft = /* @__PURE__ */ __name(function shiftLeft(numBits) {
-        if (isLong(numBits))
-          numBits = numBits.toInt();
-        if ((numBits &= 63) === 0)
-          return this;
-        else if (numBits < 32)
-          return fromBits(this.low << numBits, this.high << numBits | this.low >>> 32 - numBits, this.unsigned);
-        else
-          return fromBits(0, this.low << numBits - 32, this.unsigned);
-      }, "shiftLeft");
-      LongPrototype.shl = LongPrototype.shiftLeft;
-      LongPrototype.shiftRight = /* @__PURE__ */ __name(function shiftRight(numBits) {
-        if (isLong(numBits))
-          numBits = numBits.toInt();
-        if ((numBits &= 63) === 0)
-          return this;
-        else if (numBits < 32)
-          return fromBits(this.low >>> numBits | this.high << 32 - numBits, this.high >> numBits, this.unsigned);
-        else
-          return fromBits(this.high >> numBits - 32, this.high >= 0 ? 0 : -1, this.unsigned);
-      }, "shiftRight");
-      LongPrototype.shr = LongPrototype.shiftRight;
-      LongPrototype.shiftRightUnsigned = /* @__PURE__ */ __name(function shiftRightUnsigned(numBits) {
-        if (isLong(numBits))
-          numBits = numBits.toInt();
-        if ((numBits &= 63) === 0)
-          return this;
-        if (numBits < 32)
-          return fromBits(this.low >>> numBits | this.high << 32 - numBits, this.high >>> numBits, this.unsigned);
-        if (numBits === 32)
-          return fromBits(this.high, 0, this.unsigned);
-        return fromBits(this.high >>> numBits - 32, 0, this.unsigned);
-      }, "shiftRightUnsigned");
-      LongPrototype.shru = LongPrototype.shiftRightUnsigned;
-      LongPrototype.shr_u = LongPrototype.shiftRightUnsigned;
-      LongPrototype.rotateLeft = /* @__PURE__ */ __name(function rotateLeft(numBits) {
-        var b;
-        if (isLong(numBits))
-          numBits = numBits.toInt();
-        if ((numBits &= 63) === 0)
-          return this;
-        if (numBits === 32)
-          return fromBits(this.high, this.low, this.unsigned);
-        if (numBits < 32) {
+        __name(fromNumber, "fromNumber");
+        Long.fromNumber = fromNumber;
+        function fromBits(lowBits, highBits, unsigned) {
+          return new Long(lowBits, highBits, unsigned);
+        }
+        __name(fromBits, "fromBits");
+        Long.fromBits = fromBits;
+        var pow_dbl = Math.pow;
+        function fromString(str, unsigned, radix) {
+          if (str.length === 0) throw Error("empty string");
+          if (typeof unsigned === "number") {
+            radix = unsigned;
+            unsigned = false;
+          } else {
+            unsigned = !!unsigned;
+          }
+          if (str === "NaN" || str === "Infinity" || str === "+Infinity" || str === "-Infinity")
+            return unsigned ? UZERO : ZERO;
+          radix = radix || 10;
+          if (radix < 2 || 36 < radix) throw RangeError("radix");
+          var p;
+          if ((p = str.indexOf("-")) > 0) throw Error("interior hyphen");
+          else if (p === 0) {
+            return fromString(str.substring(1), unsigned, radix).neg();
+          }
+          var radixToPower = fromNumber(pow_dbl(radix, 8));
+          var result = ZERO;
+          for (var i2 = 0; i2 < str.length; i2 += 8) {
+            var size = Math.min(8, str.length - i2), value = parseInt(str.substring(i2, i2 + size), radix);
+            if (size < 8) {
+              var power = fromNumber(pow_dbl(radix, size));
+              result = result.mul(power).add(fromNumber(value));
+            } else {
+              result = result.mul(radixToPower);
+              result = result.add(fromNumber(value));
+            }
+          }
+          result.unsigned = unsigned;
+          return result;
+        }
+        __name(fromString, "fromString");
+        Long.fromString = fromString;
+        function fromValue(val, unsigned) {
+          if (typeof val === "number") return fromNumber(val, unsigned);
+          if (typeof val === "string") return fromString(val, unsigned);
+          return fromBits(
+            val.low,
+            val.high,
+            typeof unsigned === "boolean" ? unsigned : val.unsigned
+          );
+        }
+        __name(fromValue, "fromValue");
+        Long.fromValue = fromValue;
+        var TWO_PWR_16_DBL = 1 << 16;
+        var TWO_PWR_24_DBL = 1 << 24;
+        var TWO_PWR_32_DBL = TWO_PWR_16_DBL * TWO_PWR_16_DBL;
+        var TWO_PWR_64_DBL = TWO_PWR_32_DBL * TWO_PWR_32_DBL;
+        var TWO_PWR_63_DBL = TWO_PWR_64_DBL / 2;
+        var TWO_PWR_24 = fromInt(TWO_PWR_24_DBL);
+        var ZERO = fromInt(0);
+        Long.ZERO = ZERO;
+        var UZERO = fromInt(0, true);
+        Long.UZERO = UZERO;
+        var ONE = fromInt(1);
+        Long.ONE = ONE;
+        var UONE = fromInt(1, true);
+        Long.UONE = UONE;
+        var NEG_ONE = fromInt(-1);
+        Long.NEG_ONE = NEG_ONE;
+        var MAX_VALUE = fromBits(4294967295 | 0, 2147483647 | 0, false);
+        Long.MAX_VALUE = MAX_VALUE;
+        var MAX_UNSIGNED_VALUE = fromBits(4294967295 | 0, 4294967295 | 0, true);
+        Long.MAX_UNSIGNED_VALUE = MAX_UNSIGNED_VALUE;
+        var MIN_VALUE = fromBits(0, 2147483648 | 0, false);
+        Long.MIN_VALUE = MIN_VALUE;
+        var LongPrototype = Long.prototype;
+        LongPrototype.toInt = /* @__PURE__ */ __name(function toInt() {
+          return this.unsigned ? this.low >>> 0 : this.low;
+        }, "toInt");
+        LongPrototype.toNumber = /* @__PURE__ */ __name(function toNumber() {
+          if (this.unsigned)
+            return (this.high >>> 0) * TWO_PWR_32_DBL + (this.low >>> 0);
+          return this.high * TWO_PWR_32_DBL + (this.low >>> 0);
+        }, "toNumber");
+        LongPrototype.toString = /* @__PURE__ */ __name(function toString(radix) {
+          radix = radix || 10;
+          if (radix < 2 || 36 < radix) throw RangeError("radix");
+          if (this.isZero()) return "0";
+          if (this.isNegative()) {
+            if (this.eq(MIN_VALUE)) {
+              var radixLong = fromNumber(radix), div = this.div(radixLong), rem1 = div.mul(radixLong).sub(this);
+              return div.toString(radix) + rem1.toInt().toString(radix);
+            } else return "-" + this.neg().toString(radix);
+          }
+          var radixToPower = fromNumber(pow_dbl(radix, 6), this.unsigned), rem = this;
+          var result = "";
+          while (true) {
+            var remDiv = rem.div(radixToPower), intval = rem.sub(remDiv.mul(radixToPower)).toInt() >>> 0, digits = intval.toString(radix);
+            rem = remDiv;
+            if (rem.isZero()) return digits + result;
+            else {
+              while (digits.length < 6) digits = "0" + digits;
+              result = "" + digits + result;
+            }
+          }
+        }, "toString");
+        LongPrototype.getHighBits = /* @__PURE__ */ __name(function getHighBits() {
+          return this.high;
+        }, "getHighBits");
+        LongPrototype.getHighBitsUnsigned = /* @__PURE__ */ __name(function getHighBitsUnsigned() {
+          return this.high >>> 0;
+        }, "getHighBitsUnsigned");
+        LongPrototype.getLowBits = /* @__PURE__ */ __name(function getLowBits() {
+          return this.low;
+        }, "getLowBits");
+        LongPrototype.getLowBitsUnsigned = /* @__PURE__ */ __name(function getLowBitsUnsigned() {
+          return this.low >>> 0;
+        }, "getLowBitsUnsigned");
+        LongPrototype.getNumBitsAbs = /* @__PURE__ */ __name(function getNumBitsAbs() {
+          if (this.isNegative())
+            return this.eq(MIN_VALUE) ? 64 : this.neg().getNumBitsAbs();
+          var val = this.high != 0 ? this.high : this.low;
+          for (var bit = 31; bit > 0; bit--) if ((val & 1 << bit) != 0) break;
+          return this.high != 0 ? bit + 33 : bit + 1;
+        }, "getNumBitsAbs");
+        LongPrototype.isSafeInteger = /* @__PURE__ */ __name(function isSafeInteger() {
+          var top11Bits = this.high >> 21;
+          if (!top11Bits) return true;
+          if (this.unsigned) return false;
+          return top11Bits === -1 && !(this.low === 0 && this.high === -2097152);
+        }, "isSafeInteger");
+        LongPrototype.isZero = /* @__PURE__ */ __name(function isZero() {
+          return this.high === 0 && this.low === 0;
+        }, "isZero");
+        LongPrototype.eqz = LongPrototype.isZero;
+        LongPrototype.isNegative = /* @__PURE__ */ __name(function isNegative() {
+          return !this.unsigned && this.high < 0;
+        }, "isNegative");
+        LongPrototype.isPositive = /* @__PURE__ */ __name(function isPositive() {
+          return this.unsigned || this.high >= 0;
+        }, "isPositive");
+        LongPrototype.isOdd = /* @__PURE__ */ __name(function isOdd() {
+          return (this.low & 1) === 1;
+        }, "isOdd");
+        LongPrototype.isEven = /* @__PURE__ */ __name(function isEven() {
+          return (this.low & 1) === 0;
+        }, "isEven");
+        LongPrototype.equals = /* @__PURE__ */ __name(function equals(other) {
+          if (!isLong(other)) other = fromValue(other);
+          if (this.unsigned !== other.unsigned && this.high >>> 31 === 1 && other.high >>> 31 === 1)
+            return false;
+          return this.high === other.high && this.low === other.low;
+        }, "equals");
+        LongPrototype.eq = LongPrototype.equals;
+        LongPrototype.notEquals = /* @__PURE__ */ __name(function notEquals(other) {
+          return !this.eq(
+            /* validates */
+            other
+          );
+        }, "notEquals");
+        LongPrototype.neq = LongPrototype.notEquals;
+        LongPrototype.ne = LongPrototype.notEquals;
+        LongPrototype.lessThan = /* @__PURE__ */ __name(function lessThan(other) {
+          return this.comp(
+            /* validates */
+            other
+          ) < 0;
+        }, "lessThan");
+        LongPrototype.lt = LongPrototype.lessThan;
+        LongPrototype.lessThanOrEqual = /* @__PURE__ */ __name(function lessThanOrEqual(other) {
+          return this.comp(
+            /* validates */
+            other
+          ) <= 0;
+        }, "lessThanOrEqual");
+        LongPrototype.lte = LongPrototype.lessThanOrEqual;
+        LongPrototype.le = LongPrototype.lessThanOrEqual;
+        LongPrototype.greaterThan = /* @__PURE__ */ __name(function greaterThan(other) {
+          return this.comp(
+            /* validates */
+            other
+          ) > 0;
+        }, "greaterThan");
+        LongPrototype.gt = LongPrototype.greaterThan;
+        LongPrototype.greaterThanOrEqual = /* @__PURE__ */ __name(function greaterThanOrEqual(other) {
+          return this.comp(
+            /* validates */
+            other
+          ) >= 0;
+        }, "greaterThanOrEqual");
+        LongPrototype.gte = LongPrototype.greaterThanOrEqual;
+        LongPrototype.ge = LongPrototype.greaterThanOrEqual;
+        LongPrototype.compare = /* @__PURE__ */ __name(function compare(other) {
+          if (!isLong(other)) other = fromValue(other);
+          if (this.eq(other)) return 0;
+          var thisNeg = this.isNegative(), otherNeg = other.isNegative();
+          if (thisNeg && !otherNeg) return -1;
+          if (!thisNeg && otherNeg) return 1;
+          if (!this.unsigned) return this.sub(other).isNegative() ? -1 : 1;
+          return other.high >>> 0 > this.high >>> 0 || other.high === this.high && other.low >>> 0 > this.low >>> 0 ? -1 : 1;
+        }, "compare");
+        LongPrototype.comp = LongPrototype.compare;
+        LongPrototype.negate = /* @__PURE__ */ __name(function negate() {
+          if (!this.unsigned && this.eq(MIN_VALUE)) return MIN_VALUE;
+          return this.not().add(ONE);
+        }, "negate");
+        LongPrototype.neg = LongPrototype.negate;
+        LongPrototype.add = /* @__PURE__ */ __name(function add(addend) {
+          if (!isLong(addend)) addend = fromValue(addend);
+          var a48 = this.high >>> 16;
+          var a32 = this.high & 65535;
+          var a16 = this.low >>> 16;
+          var a00 = this.low & 65535;
+          var b48 = addend.high >>> 16;
+          var b32 = addend.high & 65535;
+          var b16 = addend.low >>> 16;
+          var b00 = addend.low & 65535;
+          var c48 = 0, c32 = 0, c16 = 0, c00 = 0;
+          c00 += a00 + b00;
+          c16 += c00 >>> 16;
+          c00 &= 65535;
+          c16 += a16 + b16;
+          c32 += c16 >>> 16;
+          c16 &= 65535;
+          c32 += a32 + b32;
+          c48 += c32 >>> 16;
+          c32 &= 65535;
+          c48 += a48 + b48;
+          c48 &= 65535;
+          return fromBits(c16 << 16 | c00, c48 << 16 | c32, this.unsigned);
+        }, "add");
+        LongPrototype.subtract = /* @__PURE__ */ __name(function subtract(subtrahend) {
+          if (!isLong(subtrahend)) subtrahend = fromValue(subtrahend);
+          return this.add(subtrahend.neg());
+        }, "subtract");
+        LongPrototype.sub = LongPrototype.subtract;
+        LongPrototype.multiply = /* @__PURE__ */ __name(function multiply(multiplier) {
+          if (this.isZero()) return this;
+          if (!isLong(multiplier)) multiplier = fromValue(multiplier);
+          if (wasm) {
+            var low = wasm["mul"](
+              this.low,
+              this.high,
+              multiplier.low,
+              multiplier.high
+            );
+            return fromBits(low, wasm["get_high"](), this.unsigned);
+          }
+          if (multiplier.isZero()) return this.unsigned ? UZERO : ZERO;
+          if (this.eq(MIN_VALUE)) return multiplier.isOdd() ? MIN_VALUE : ZERO;
+          if (multiplier.eq(MIN_VALUE)) return this.isOdd() ? MIN_VALUE : ZERO;
+          if (this.isNegative()) {
+            if (multiplier.isNegative()) return this.neg().mul(multiplier.neg());
+            else return this.neg().mul(multiplier).neg();
+          } else if (multiplier.isNegative())
+            return this.mul(multiplier.neg()).neg();
+          if (this.lt(TWO_PWR_24) && multiplier.lt(TWO_PWR_24))
+            return fromNumber(
+              this.toNumber() * multiplier.toNumber(),
+              this.unsigned
+            );
+          var a48 = this.high >>> 16;
+          var a32 = this.high & 65535;
+          var a16 = this.low >>> 16;
+          var a00 = this.low & 65535;
+          var b48 = multiplier.high >>> 16;
+          var b32 = multiplier.high & 65535;
+          var b16 = multiplier.low >>> 16;
+          var b00 = multiplier.low & 65535;
+          var c48 = 0, c32 = 0, c16 = 0, c00 = 0;
+          c00 += a00 * b00;
+          c16 += c00 >>> 16;
+          c00 &= 65535;
+          c16 += a16 * b00;
+          c32 += c16 >>> 16;
+          c16 &= 65535;
+          c16 += a00 * b16;
+          c32 += c16 >>> 16;
+          c16 &= 65535;
+          c32 += a32 * b00;
+          c48 += c32 >>> 16;
+          c32 &= 65535;
+          c32 += a16 * b16;
+          c48 += c32 >>> 16;
+          c32 &= 65535;
+          c32 += a00 * b32;
+          c48 += c32 >>> 16;
+          c32 &= 65535;
+          c48 += a48 * b00 + a32 * b16 + a16 * b32 + a00 * b48;
+          c48 &= 65535;
+          return fromBits(c16 << 16 | c00, c48 << 16 | c32, this.unsigned);
+        }, "multiply");
+        LongPrototype.mul = LongPrototype.multiply;
+        LongPrototype.divide = /* @__PURE__ */ __name(function divide(divisor) {
+          if (!isLong(divisor)) divisor = fromValue(divisor);
+          if (divisor.isZero()) throw Error("division by zero");
+          if (wasm) {
+            if (!this.unsigned && this.high === -2147483648 && divisor.low === -1 && divisor.high === -1) {
+              return this;
+            }
+            var low = (this.unsigned ? wasm["div_u"] : wasm["div_s"])(
+              this.low,
+              this.high,
+              divisor.low,
+              divisor.high
+            );
+            return fromBits(low, wasm["get_high"](), this.unsigned);
+          }
+          if (this.isZero()) return this.unsigned ? UZERO : ZERO;
+          var approx, rem, res;
+          if (!this.unsigned) {
+            if (this.eq(MIN_VALUE)) {
+              if (divisor.eq(ONE) || divisor.eq(NEG_ONE))
+                return MIN_VALUE;
+              else if (divisor.eq(MIN_VALUE)) return ONE;
+              else {
+                var halfThis = this.shr(1);
+                approx = halfThis.div(divisor).shl(1);
+                if (approx.eq(ZERO)) {
+                  return divisor.isNegative() ? ONE : NEG_ONE;
+                } else {
+                  rem = this.sub(divisor.mul(approx));
+                  res = approx.add(rem.div(divisor));
+                  return res;
+                }
+              }
+            } else if (divisor.eq(MIN_VALUE)) return this.unsigned ? UZERO : ZERO;
+            if (this.isNegative()) {
+              if (divisor.isNegative()) return this.neg().div(divisor.neg());
+              return this.neg().div(divisor).neg();
+            } else if (divisor.isNegative()) return this.div(divisor.neg()).neg();
+            res = ZERO;
+          } else {
+            if (!divisor.unsigned) divisor = divisor.toUnsigned();
+            if (divisor.gt(this)) return UZERO;
+            if (divisor.gt(this.shru(1)))
+              return UONE;
+            res = UZERO;
+          }
+          rem = this;
+          while (rem.gte(divisor)) {
+            approx = Math.max(1, Math.floor(rem.toNumber() / divisor.toNumber()));
+            var log2 = Math.ceil(Math.log(approx) / Math.LN2), delta = log2 <= 48 ? 1 : pow_dbl(2, log2 - 48), approxRes = fromNumber(approx), approxRem = approxRes.mul(divisor);
+            while (approxRem.isNegative() || approxRem.gt(rem)) {
+              approx -= delta;
+              approxRes = fromNumber(approx, this.unsigned);
+              approxRem = approxRes.mul(divisor);
+            }
+            if (approxRes.isZero()) approxRes = ONE;
+            res = res.add(approxRes);
+            rem = rem.sub(approxRem);
+          }
+          return res;
+        }, "divide");
+        LongPrototype.div = LongPrototype.divide;
+        LongPrototype.modulo = /* @__PURE__ */ __name(function modulo(divisor) {
+          if (!isLong(divisor)) divisor = fromValue(divisor);
+          if (wasm) {
+            var low = (this.unsigned ? wasm["rem_u"] : wasm["rem_s"])(
+              this.low,
+              this.high,
+              divisor.low,
+              divisor.high
+            );
+            return fromBits(low, wasm["get_high"](), this.unsigned);
+          }
+          return this.sub(this.div(divisor).mul(divisor));
+        }, "modulo");
+        LongPrototype.mod = LongPrototype.modulo;
+        LongPrototype.rem = LongPrototype.modulo;
+        LongPrototype.not = /* @__PURE__ */ __name(function not() {
+          return fromBits(~this.low, ~this.high, this.unsigned);
+        }, "not");
+        LongPrototype.countLeadingZeros = /* @__PURE__ */ __name(function countLeadingZeros() {
+          return this.high ? Math.clz32(this.high) : Math.clz32(this.low) + 32;
+        }, "countLeadingZeros");
+        LongPrototype.clz = LongPrototype.countLeadingZeros;
+        LongPrototype.countTrailingZeros = /* @__PURE__ */ __name(function countTrailingZeros() {
+          return this.low ? ctz32(this.low) : ctz32(this.high) + 32;
+        }, "countTrailingZeros");
+        LongPrototype.ctz = LongPrototype.countTrailingZeros;
+        LongPrototype.and = /* @__PURE__ */ __name(function and(other) {
+          if (!isLong(other)) other = fromValue(other);
+          return fromBits(
+            this.low & other.low,
+            this.high & other.high,
+            this.unsigned
+          );
+        }, "and");
+        LongPrototype.or = /* @__PURE__ */ __name(function or(other) {
+          if (!isLong(other)) other = fromValue(other);
+          return fromBits(
+            this.low | other.low,
+            this.high | other.high,
+            this.unsigned
+          );
+        }, "or");
+        LongPrototype.xor = /* @__PURE__ */ __name(function xor(other) {
+          if (!isLong(other)) other = fromValue(other);
+          return fromBits(
+            this.low ^ other.low,
+            this.high ^ other.high,
+            this.unsigned
+          );
+        }, "xor");
+        LongPrototype.shiftLeft = /* @__PURE__ */ __name(function shiftLeft(numBits) {
+          if (isLong(numBits)) numBits = numBits.toInt();
+          if ((numBits &= 63) === 0) return this;
+          else if (numBits < 32)
+            return fromBits(
+              this.low << numBits,
+              this.high << numBits | this.low >>> 32 - numBits,
+              this.unsigned
+            );
+          else return fromBits(0, this.low << numBits - 32, this.unsigned);
+        }, "shiftLeft");
+        LongPrototype.shl = LongPrototype.shiftLeft;
+        LongPrototype.shiftRight = /* @__PURE__ */ __name(function shiftRight(numBits) {
+          if (isLong(numBits)) numBits = numBits.toInt();
+          if ((numBits &= 63) === 0) return this;
+          else if (numBits < 32)
+            return fromBits(
+              this.low >>> numBits | this.high << 32 - numBits,
+              this.high >> numBits,
+              this.unsigned
+            );
+          else
+            return fromBits(
+              this.high >> numBits - 32,
+              this.high >= 0 ? 0 : -1,
+              this.unsigned
+            );
+        }, "shiftRight");
+        LongPrototype.shr = LongPrototype.shiftRight;
+        LongPrototype.shiftRightUnsigned = /* @__PURE__ */ __name(function shiftRightUnsigned(numBits) {
+          if (isLong(numBits)) numBits = numBits.toInt();
+          if ((numBits &= 63) === 0) return this;
+          if (numBits < 32)
+            return fromBits(
+              this.low >>> numBits | this.high << 32 - numBits,
+              this.high >>> numBits,
+              this.unsigned
+            );
+          if (numBits === 32) return fromBits(this.high, 0, this.unsigned);
+          return fromBits(this.high >>> numBits - 32, 0, this.unsigned);
+        }, "shiftRightUnsigned");
+        LongPrototype.shru = LongPrototype.shiftRightUnsigned;
+        LongPrototype.shr_u = LongPrototype.shiftRightUnsigned;
+        LongPrototype.rotateLeft = /* @__PURE__ */ __name(function rotateLeft(numBits) {
+          var b;
+          if (isLong(numBits)) numBits = numBits.toInt();
+          if ((numBits &= 63) === 0) return this;
+          if (numBits === 32) return fromBits(this.high, this.low, this.unsigned);
+          if (numBits < 32) {
+            b = 32 - numBits;
+            return fromBits(
+              this.low << numBits | this.high >>> b,
+              this.high << numBits | this.low >>> b,
+              this.unsigned
+            );
+          }
+          numBits -= 32;
           b = 32 - numBits;
-          return fromBits(this.low << numBits | this.high >>> b, this.high << numBits | this.low >>> b, this.unsigned);
-        }
-        numBits -= 32;
-        b = 32 - numBits;
-        return fromBits(this.high << numBits | this.low >>> b, this.low << numBits | this.high >>> b, this.unsigned);
-      }, "rotateLeft");
-      LongPrototype.rotl = LongPrototype.rotateLeft;
-      LongPrototype.rotateRight = /* @__PURE__ */ __name(function rotateRight(numBits) {
-        var b;
-        if (isLong(numBits))
-          numBits = numBits.toInt();
-        if ((numBits &= 63) === 0)
-          return this;
-        if (numBits === 32)
-          return fromBits(this.high, this.low, this.unsigned);
-        if (numBits < 32) {
+          return fromBits(
+            this.high << numBits | this.low >>> b,
+            this.low << numBits | this.high >>> b,
+            this.unsigned
+          );
+        }, "rotateLeft");
+        LongPrototype.rotl = LongPrototype.rotateLeft;
+        LongPrototype.rotateRight = /* @__PURE__ */ __name(function rotateRight(numBits) {
+          var b;
+          if (isLong(numBits)) numBits = numBits.toInt();
+          if ((numBits &= 63) === 0) return this;
+          if (numBits === 32) return fromBits(this.high, this.low, this.unsigned);
+          if (numBits < 32) {
+            b = 32 - numBits;
+            return fromBits(
+              this.high << b | this.low >>> numBits,
+              this.low << b | this.high >>> numBits,
+              this.unsigned
+            );
+          }
+          numBits -= 32;
           b = 32 - numBits;
-          return fromBits(this.high << b | this.low >>> numBits, this.low << b | this.high >>> numBits, this.unsigned);
+          return fromBits(
+            this.low << b | this.high >>> numBits,
+            this.high << b | this.low >>> numBits,
+            this.unsigned
+          );
+        }, "rotateRight");
+        LongPrototype.rotr = LongPrototype.rotateRight;
+        LongPrototype.toSigned = /* @__PURE__ */ __name(function toSigned() {
+          if (!this.unsigned) return this;
+          return fromBits(this.low, this.high, false);
+        }, "toSigned");
+        LongPrototype.toUnsigned = /* @__PURE__ */ __name(function toUnsigned() {
+          if (this.unsigned) return this;
+          return fromBits(this.low, this.high, true);
+        }, "toUnsigned");
+        LongPrototype.toBytes = /* @__PURE__ */ __name(function toBytes(le) {
+          return le ? this.toBytesLE() : this.toBytesBE();
+        }, "toBytes");
+        LongPrototype.toBytesLE = /* @__PURE__ */ __name(function toBytesLE() {
+          var hi = this.high, lo = this.low;
+          return [
+            lo & 255,
+            lo >>> 8 & 255,
+            lo >>> 16 & 255,
+            lo >>> 24,
+            hi & 255,
+            hi >>> 8 & 255,
+            hi >>> 16 & 255,
+            hi >>> 24
+          ];
+        }, "toBytesLE");
+        LongPrototype.toBytesBE = /* @__PURE__ */ __name(function toBytesBE() {
+          var hi = this.high, lo = this.low;
+          return [
+            hi >>> 24,
+            hi >>> 16 & 255,
+            hi >>> 8 & 255,
+            hi & 255,
+            lo >>> 24,
+            lo >>> 16 & 255,
+            lo >>> 8 & 255,
+            lo & 255
+          ];
+        }, "toBytesBE");
+        Long.fromBytes = /* @__PURE__ */ __name(function fromBytes(bytes, unsigned, le) {
+          return le ? Long.fromBytesLE(bytes, unsigned) : Long.fromBytesBE(bytes, unsigned);
+        }, "fromBytes");
+        Long.fromBytesLE = /* @__PURE__ */ __name(function fromBytesLE(bytes, unsigned) {
+          return new Long(
+            bytes[0] | bytes[1] << 8 | bytes[2] << 16 | bytes[3] << 24,
+            bytes[4] | bytes[5] << 8 | bytes[6] << 16 | bytes[7] << 24,
+            unsigned
+          );
+        }, "fromBytesLE");
+        Long.fromBytesBE = /* @__PURE__ */ __name(function fromBytesBE(bytes, unsigned) {
+          return new Long(
+            bytes[4] << 24 | bytes[5] << 16 | bytes[6] << 8 | bytes[7],
+            bytes[0] << 24 | bytes[1] << 16 | bytes[2] << 8 | bytes[3],
+            unsigned
+          );
+        }, "fromBytesBE");
+        if (typeof BigInt === "function") {
+          Long.fromBigInt = /* @__PURE__ */ __name(function fromBigInt(value, unsigned) {
+            var lowBits = Number(BigInt.asIntN(32, value));
+            var highBits = Number(BigInt.asIntN(32, value >> BigInt(32)));
+            return fromBits(lowBits, highBits, unsigned);
+          }, "fromBigInt");
+          Long.fromValue = /* @__PURE__ */ __name(function fromValueWithBigInt(value, unsigned) {
+            if (typeof value === "bigint") return Long.fromBigInt(value, unsigned);
+            return fromValue(value, unsigned);
+          }, "fromValueWithBigInt");
+          LongPrototype.toBigInt = /* @__PURE__ */ __name(function toBigInt() {
+            var lowBigInt = BigInt(this.low >>> 0);
+            var highBigInt = BigInt(this.unsigned ? this.high >>> 0 : this.high);
+            return highBigInt << BigInt(32) | lowBigInt;
+          }, "toBigInt");
         }
-        numBits -= 32;
-        b = 32 - numBits;
-        return fromBits(this.low << b | this.high >>> numBits, this.high << b | this.low >>> numBits, this.unsigned);
-      }, "rotateRight");
-      LongPrototype.rotr = LongPrototype.rotateRight;
-      LongPrototype.toSigned = /* @__PURE__ */ __name(function toSigned() {
-        if (!this.unsigned)
-          return this;
-        return fromBits(this.low, this.high, false);
-      }, "toSigned");
-      LongPrototype.toUnsigned = /* @__PURE__ */ __name(function toUnsigned() {
-        if (this.unsigned)
-          return this;
-        return fromBits(this.low, this.high, true);
-      }, "toUnsigned");
-      LongPrototype.toBytes = /* @__PURE__ */ __name(function toBytes(le) {
-        return le ? this.toBytesLE() : this.toBytesBE();
-      }, "toBytes");
-      LongPrototype.toBytesLE = /* @__PURE__ */ __name(function toBytesLE() {
-        var hi = this.high, lo = this.low;
-        return [lo & 255, lo >>> 8 & 255, lo >>> 16 & 255, lo >>> 24, hi & 255, hi >>> 8 & 255, hi >>> 16 & 255, hi >>> 24];
-      }, "toBytesLE");
-      LongPrototype.toBytesBE = /* @__PURE__ */ __name(function toBytesBE() {
-        var hi = this.high, lo = this.low;
-        return [hi >>> 24, hi >>> 16 & 255, hi >>> 8 & 255, hi & 255, lo >>> 24, lo >>> 16 & 255, lo >>> 8 & 255, lo & 255];
-      }, "toBytesBE");
-      Long2.fromBytes = /* @__PURE__ */ __name(function fromBytes(bytes, unsigned, le) {
-        return le ? Long2.fromBytesLE(bytes, unsigned) : Long2.fromBytesBE(bytes, unsigned);
-      }, "fromBytes");
-      Long2.fromBytesLE = /* @__PURE__ */ __name(function fromBytesLE(bytes, unsigned) {
-        return new Long2(bytes[0] | bytes[1] << 8 | bytes[2] << 16 | bytes[3] << 24, bytes[4] | bytes[5] << 8 | bytes[6] << 16 | bytes[7] << 24, unsigned);
-      }, "fromBytesLE");
-      Long2.fromBytesBE = /* @__PURE__ */ __name(function fromBytesBE(bytes, unsigned) {
-        return new Long2(bytes[4] << 24 | bytes[5] << 16 | bytes[6] << 8 | bytes[7], bytes[0] << 24 | bytes[1] << 16 | bytes[2] << 8 | bytes[3], unsigned);
-      }, "fromBytesBE");
-      var _default = Long2;
-      exports3.default = _default;
-      return "default" in exports3 ? exports3.default : exports3;
-    }({});
-    if (typeof define === "function" && define.amd)
-      define([], function() {
-        return Long;
-      });
-    else if (typeof module2 === "object" && typeof exports2 === "object")
-      module2.exports = Long;
+        var _default = _exports.default = Long;
+      }
+    );
   }
 });
 
-// node_modules/.pnpm/safer-buffer@2.1.2/node_modules/safer-buffer/safer.js
+// node_modules/safer-buffer/safer.js
 var require_safer = __commonJS({
-  "node_modules/.pnpm/safer-buffer@2.1.2/node_modules/safer-buffer/safer.js"(exports2, module2) {
+  "node_modules/safer-buffer/safer.js"(exports2, module2) {
     "use strict";
     var buffer = require("buffer");
     var Buffer4 = buffer.Buffer;
     var safer = {};
     var key;
     for (key in buffer) {
-      if (!buffer.hasOwnProperty(key))
-        continue;
-      if (key === "SlowBuffer" || key === "Buffer")
-        continue;
+      if (!buffer.hasOwnProperty(key)) continue;
+      if (key === "SlowBuffer" || key === "Buffer") continue;
       safer[key] = buffer[key];
     }
     var Safer = safer.Buffer = {};
     for (key in Buffer4) {
-      if (!Buffer4.hasOwnProperty(key))
-        continue;
-      if (key === "allocUnsafe" || key === "allocUnsafeSlow")
-        continue;
+      if (!Buffer4.hasOwnProperty(key)) continue;
+      if (key === "allocUnsafe" || key === "allocUnsafeSlow") continue;
       Safer[key] = Buffer4[key];
     }
     safer.Buffer.prototype = Buffer4.prototype;
@@ -7747,9 +6244,9 @@ var require_safer = __commonJS({
   }
 });
 
-// node_modules/.pnpm/iconv-lite@0.6.3/node_modules/iconv-lite/lib/bom-handling.js
+// node_modules/iconv-lite/lib/bom-handling.js
 var require_bom_handling = __commonJS({
-  "node_modules/.pnpm/iconv-lite@0.6.3/node_modules/iconv-lite/lib/bom-handling.js"(exports2) {
+  "node_modules/iconv-lite/lib/bom-handling.js"(exports2) {
     "use strict";
     var BOMChar = "\uFEFF";
     exports2.PrependBOM = PrependBOMWrapper;
@@ -7777,12 +6274,14 @@ var require_bom_handling = __commonJS({
     __name(StripBOMWrapper, "StripBOMWrapper");
     StripBOMWrapper.prototype.write = function(buf) {
       var res = this.decoder.write(buf);
-      if (this.pass || !res)
+      if (this.pass || !res) {
         return res;
+      }
       if (res[0] === BOMChar) {
         res = res.slice(1);
-        if (typeof this.options.stripBOM === "function")
+        if (typeof this.options.stripBOM === "function") {
           this.options.stripBOM();
+        }
       }
       this.pass = true;
       return res;
@@ -7793,9 +6292,26 @@ var require_bom_handling = __commonJS({
   }
 });
 
-// node_modules/.pnpm/iconv-lite@0.6.3/node_modules/iconv-lite/encodings/internal.js
+// node_modules/iconv-lite/lib/helpers/merge-exports.js
+var require_merge_exports = __commonJS({
+  "node_modules/iconv-lite/lib/helpers/merge-exports.js"(exports2, module2) {
+    "use strict";
+    var hasOwn = typeof Object.hasOwn === "undefined" ? Function.call.bind(Object.prototype.hasOwnProperty) : Object.hasOwn;
+    function mergeModules(target, module3) {
+      for (var key in module3) {
+        if (hasOwn(module3, key)) {
+          target[key] = module3[key];
+        }
+      }
+    }
+    __name(mergeModules, "mergeModules");
+    module2.exports = mergeModules;
+  }
+});
+
+// node_modules/iconv-lite/encodings/internal.js
 var require_internal = __commonJS({
-  "node_modules/.pnpm/iconv-lite@0.6.3/node_modules/iconv-lite/encodings/internal.js"(exports2, module2) {
+  "node_modules/iconv-lite/encodings/internal.js"(exports2, module2) {
     "use strict";
     var Buffer4 = require_safer().Buffer;
     module2.exports = {
@@ -7814,9 +6330,11 @@ var require_internal = __commonJS({
     function InternalCodec(codecOptions, iconv) {
       this.enc = codecOptions.encodingName;
       this.bomAware = codecOptions.bomAware;
-      if (this.enc === "base64")
+      if (this.enc === "base64") {
         this.encoder = InternalEncoderBase64;
-      else if (this.enc === "cesu8") {
+      } else if (this.enc === "utf8") {
+        this.encoder = InternalEncoderUtf8;
+      } else if (this.enc === "cesu8") {
         this.enc = "utf8";
         this.encoder = InternalEncoderCesu8;
         if (Buffer4.from("eda0bdedb2a9", "hex").toString() !== "\u{1F4A9}") {
@@ -7829,9 +6347,6 @@ var require_internal = __commonJS({
     InternalCodec.prototype.encoder = InternalEncoder;
     InternalCodec.prototype.decoder = InternalDecoder;
     var StringDecoder = require("string_decoder").StringDecoder;
-    if (!StringDecoder.prototype.end)
-      StringDecoder.prototype.end = function() {
-      };
     function InternalDecoder(options, codec) {
       this.decoder = new StringDecoder(codec.enc);
     }
@@ -7872,12 +6387,13 @@ var require_internal = __commonJS({
     }
     __name(InternalEncoderCesu8, "InternalEncoderCesu8");
     InternalEncoderCesu8.prototype.write = function(str) {
-      var buf = Buffer4.alloc(str.length * 3), bufIdx = 0;
+      var buf = Buffer4.alloc(str.length * 3);
+      var bufIdx = 0;
       for (var i2 = 0; i2 < str.length; i2++) {
         var charCode = str.charCodeAt(i2);
-        if (charCode < 128)
+        if (charCode < 128) {
           buf[bufIdx++] = charCode;
-        else if (charCode < 2048) {
+        } else if (charCode < 2048) {
           buf[bufIdx++] = 192 + (charCode >>> 6);
           buf[bufIdx++] = 128 + (charCode & 63);
         } else {
@@ -7898,7 +6414,10 @@ var require_internal = __commonJS({
     }
     __name(InternalDecoderCesu8, "InternalDecoderCesu8");
     InternalDecoderCesu8.prototype.write = function(buf) {
-      var acc = this.acc, contBytes = this.contBytes, accBytes = this.accBytes, res = "";
+      var acc = this.acc;
+      var contBytes = this.contBytes;
+      var accBytes = this.accBytes;
+      var res = "";
       for (var i2 = 0; i2 < buf.length; i2++) {
         var curByte = buf[i2];
         if ((curByte & 192) !== 128) {
@@ -7925,12 +6444,13 @@ var require_internal = __commonJS({
             contBytes--;
             accBytes++;
             if (contBytes === 0) {
-              if (accBytes === 2 && acc < 128 && acc > 0)
+              if (accBytes === 2 && acc < 128 && acc > 0) {
                 res += this.defaultCharUnicode;
-              else if (accBytes === 3 && acc < 2048)
+              } else if (accBytes === 3 && acc < 2048) {
                 res += this.defaultCharUnicode;
-              else
+              } else {
                 res += String.fromCharCode(acc);
+              }
             }
           } else {
             res += this.defaultCharUnicode;
@@ -7944,16 +6464,42 @@ var require_internal = __commonJS({
     };
     InternalDecoderCesu8.prototype.end = function() {
       var res = 0;
-      if (this.contBytes > 0)
+      if (this.contBytes > 0) {
         res += this.defaultCharUnicode;
+      }
       return res;
+    };
+    function InternalEncoderUtf8(options, codec) {
+      this.highSurrogate = "";
+    }
+    __name(InternalEncoderUtf8, "InternalEncoderUtf8");
+    InternalEncoderUtf8.prototype.write = function(str) {
+      if (this.highSurrogate) {
+        str = this.highSurrogate + str;
+        this.highSurrogate = "";
+      }
+      if (str.length > 0) {
+        var charCode = str.charCodeAt(str.length - 1);
+        if (charCode >= 55296 && charCode < 56320) {
+          this.highSurrogate = str[str.length - 1];
+          str = str.slice(0, str.length - 1);
+        }
+      }
+      return Buffer4.from(str, this.enc);
+    };
+    InternalEncoderUtf8.prototype.end = function() {
+      if (this.highSurrogate) {
+        var str = this.highSurrogate;
+        this.highSurrogate = "";
+        return Buffer4.from(str, this.enc);
+      }
     };
   }
 });
 
-// node_modules/.pnpm/iconv-lite@0.6.3/node_modules/iconv-lite/encodings/utf32.js
+// node_modules/iconv-lite/encodings/utf32.js
 var require_utf32 = __commonJS({
-  "node_modules/.pnpm/iconv-lite@0.6.3/node_modules/iconv-lite/encodings/utf32.js"(exports2) {
+  "node_modules/iconv-lite/encodings/utf32.js"(exports2) {
     "use strict";
     var Buffer4 = require_safer().Buffer;
     exports2._utf32 = Utf32Codec;
@@ -7981,8 +6527,8 @@ var require_utf32 = __commonJS({
       var offset = 0;
       for (var i2 = 0; i2 < src.length; i2 += 2) {
         var code = src.readUInt16LE(i2);
-        var isHighSurrogate = 55296 <= code && code < 56320;
-        var isLowSurrogate = 56320 <= code && code < 57344;
+        var isHighSurrogate = code >= 55296 && code < 56320;
+        var isLowSurrogate = code >= 56320 && code < 57344;
         if (this.highSurrogate) {
           if (isHighSurrogate || !isLowSurrogate) {
             write32.call(dst, this.highSurrogate, offset);
@@ -7995,26 +6541,29 @@ var require_utf32 = __commonJS({
             continue;
           }
         }
-        if (isHighSurrogate)
+        if (isHighSurrogate) {
           this.highSurrogate = code;
-        else {
+        } else {
           write32.call(dst, code, offset);
           offset += 4;
           this.highSurrogate = 0;
         }
       }
-      if (offset < dst.length)
+      if (offset < dst.length) {
         dst = dst.slice(0, offset);
+      }
       return dst;
     };
     Utf32Encoder.prototype.end = function() {
-      if (!this.highSurrogate)
+      if (!this.highSurrogate) {
         return;
+      }
       var buf = Buffer4.alloc(4);
-      if (this.isLE)
+      if (this.isLE) {
         buf.writeUInt32LE(this.highSurrogate, 0);
-      else
+      } else {
         buf.writeUInt32BE(this.highSurrogate, 0);
+      }
       this.highSurrogate = 0;
       return buf;
     };
@@ -8025,8 +6574,9 @@ var require_utf32 = __commonJS({
     }
     __name(Utf32Decoder, "Utf32Decoder");
     Utf32Decoder.prototype.write = function(src) {
-      if (src.length === 0)
+      if (src.length === 0) {
         return "";
+      }
       var i2 = 0;
       var codepoint = 0;
       var dst = Buffer4.alloc(src.length + 4);
@@ -8035,8 +6585,9 @@ var require_utf32 = __commonJS({
       var overflow = this.overflow;
       var badChar = this.badChar;
       if (overflow.length > 0) {
-        for (; i2 < src.length && overflow.length < 4; i2++)
+        for (; i2 < src.length && overflow.length < 4; i2++) {
           overflow.push(src[i2]);
+        }
         if (overflow.length === 4) {
           if (isLE) {
             codepoint = overflow[i2] | overflow[i2 + 1] << 8 | overflow[i2 + 2] << 16 | overflow[i2 + 3] << 24;
@@ -8089,8 +6640,9 @@ var require_utf32 = __commonJS({
     Utf32AutoCodec.prototype.decoder = Utf32AutoDecoder;
     function Utf32AutoEncoder(options, codec) {
       options = options || {};
-      if (options.addBOM === void 0)
+      if (options.addBOM === void 0) {
         options.addBOM = true;
+      }
       this.encoder = codec.iconv.getEncoder(options.defaultEncoding || "utf-32le", options);
     }
     __name(Utf32AutoEncoder, "Utf32AutoEncoder");
@@ -8112,13 +6664,15 @@ var require_utf32 = __commonJS({
       if (!this.decoder) {
         this.initialBufs.push(buf);
         this.initialBufsLen += buf.length;
-        if (this.initialBufsLen < 32)
+        if (this.initialBufsLen < 32) {
           return "";
+        }
         var encoding = detectEncoding(this.initialBufs, this.options.defaultEncoding);
         this.decoder = this.iconv.getDecoder(encoding, this.options);
         var resStr = "";
-        for (var i2 = 0; i2 < this.initialBufs.length; i2++)
+        for (var i2 = 0; i2 < this.initialBufs.length; i2++) {
           resStr += this.decoder.write(this.initialBufs[i2]);
+        }
         this.initialBufs.length = this.initialBufsLen = 0;
         return resStr;
       }
@@ -8129,11 +6683,13 @@ var require_utf32 = __commonJS({
         var encoding = detectEncoding(this.initialBufs, this.options.defaultEncoding);
         this.decoder = this.iconv.getDecoder(encoding, this.options);
         var resStr = "";
-        for (var i2 = 0; i2 < this.initialBufs.length; i2++)
+        for (var i2 = 0; i2 < this.initialBufs.length; i2++) {
           resStr += this.decoder.write(this.initialBufs[i2]);
+        }
         var trail = this.decoder.end();
-        if (trail)
+        if (trail) {
           resStr += trail;
+        }
         this.initialBufs.length = this.initialBufsLen = 0;
         return resStr;
       }
@@ -8142,9 +6698,11 @@ var require_utf32 = __commonJS({
     function detectEncoding(bufs, defaultEncoding) {
       var b = [];
       var charsProcessed = 0;
-      var invalidLE = 0, invalidBE = 0;
-      var bmpCharsLE = 0, bmpCharsBE = 0;
-      outer_loop:
+      var invalidLE = 0;
+      var invalidBE = 0;
+      var bmpCharsLE = 0;
+      var bmpCharsBE = 0;
+      outerLoop:
         for (var i2 = 0; i2 < bufs.length; i2++) {
           var buf = bufs[i2];
           for (var j = 0; j < buf.length; j++) {
@@ -8158,35 +6716,29 @@ var require_utf32 = __commonJS({
                   return "utf-32be";
                 }
               }
-              if (b[0] !== 0 || b[1] > 16)
-                invalidBE++;
-              if (b[3] !== 0 || b[2] > 16)
-                invalidLE++;
-              if (b[0] === 0 && b[1] === 0 && (b[2] !== 0 || b[3] !== 0))
-                bmpCharsBE++;
-              if ((b[0] !== 0 || b[1] !== 0) && b[2] === 0 && b[3] === 0)
-                bmpCharsLE++;
+              if (b[0] !== 0 || b[1] > 16) invalidBE++;
+              if (b[3] !== 0 || b[2] > 16) invalidLE++;
+              if (b[0] === 0 && b[1] === 0 && (b[2] !== 0 || b[3] !== 0)) bmpCharsBE++;
+              if ((b[0] !== 0 || b[1] !== 0) && b[2] === 0 && b[3] === 0) bmpCharsLE++;
               b.length = 0;
               charsProcessed++;
               if (charsProcessed >= 100) {
-                break outer_loop;
+                break outerLoop;
               }
             }
           }
         }
-      if (bmpCharsBE - invalidBE > bmpCharsLE - invalidLE)
-        return "utf-32be";
-      if (bmpCharsBE - invalidBE < bmpCharsLE - invalidLE)
-        return "utf-32le";
+      if (bmpCharsBE - invalidBE > bmpCharsLE - invalidLE) return "utf-32be";
+      if (bmpCharsBE - invalidBE < bmpCharsLE - invalidLE) return "utf-32le";
       return defaultEncoding || "utf-32le";
     }
     __name(detectEncoding, "detectEncoding");
   }
 });
 
-// node_modules/.pnpm/iconv-lite@0.6.3/node_modules/iconv-lite/encodings/utf16.js
+// node_modules/iconv-lite/encodings/utf16.js
 var require_utf16 = __commonJS({
-  "node_modules/.pnpm/iconv-lite@0.6.3/node_modules/iconv-lite/encodings/utf16.js"(exports2) {
+  "node_modules/iconv-lite/encodings/utf16.js"(exports2) {
     "use strict";
     var Buffer4 = require_safer().Buffer;
     exports2.utf16be = Utf16BECodec;
@@ -8215,9 +6767,12 @@ var require_utf16 = __commonJS({
     }
     __name(Utf16BEDecoder, "Utf16BEDecoder");
     Utf16BEDecoder.prototype.write = function(buf) {
-      if (buf.length == 0)
+      if (buf.length == 0) {
         return "";
-      var buf2 = Buffer4.alloc(buf.length + 1), i2 = 0, j = 0;
+      }
+      var buf2 = Buffer4.alloc(buf.length + 1);
+      var i2 = 0;
+      var j = 0;
       if (this.overflowByte !== -1) {
         buf2[0] = buf[0];
         buf2[1] = this.overflowByte;
@@ -8243,8 +6798,9 @@ var require_utf16 = __commonJS({
     Utf16Codec.prototype.decoder = Utf16Decoder;
     function Utf16Encoder(options, codec) {
       options = options || {};
-      if (options.addBOM === void 0)
+      if (options.addBOM === void 0) {
         options.addBOM = true;
+      }
       this.encoder = codec.iconv.getEncoder("utf-16le", options);
     }
     __name(Utf16Encoder, "Utf16Encoder");
@@ -8266,13 +6822,15 @@ var require_utf16 = __commonJS({
       if (!this.decoder) {
         this.initialBufs.push(buf);
         this.initialBufsLen += buf.length;
-        if (this.initialBufsLen < 16)
+        if (this.initialBufsLen < 16) {
           return "";
+        }
         var encoding = detectEncoding(this.initialBufs, this.options.defaultEncoding);
         this.decoder = this.iconv.getDecoder(encoding, this.options);
         var resStr = "";
-        for (var i2 = 0; i2 < this.initialBufs.length; i2++)
+        for (var i2 = 0; i2 < this.initialBufs.length; i2++) {
           resStr += this.decoder.write(this.initialBufs[i2]);
+        }
         this.initialBufs.length = this.initialBufsLen = 0;
         return resStr;
       }
@@ -8283,11 +6841,13 @@ var require_utf16 = __commonJS({
         var encoding = detectEncoding(this.initialBufs, this.options.defaultEncoding);
         this.decoder = this.iconv.getDecoder(encoding, this.options);
         var resStr = "";
-        for (var i2 = 0; i2 < this.initialBufs.length; i2++)
+        for (var i2 = 0; i2 < this.initialBufs.length; i2++) {
           resStr += this.decoder.write(this.initialBufs[i2]);
+        }
         var trail = this.decoder.end();
-        if (trail)
+        if (trail) {
           resStr += trail;
+        }
         this.initialBufs.length = this.initialBufsLen = 0;
         return resStr;
       }
@@ -8296,44 +6856,39 @@ var require_utf16 = __commonJS({
     function detectEncoding(bufs, defaultEncoding) {
       var b = [];
       var charsProcessed = 0;
-      var asciiCharsLE = 0, asciiCharsBE = 0;
-      outer_loop:
+      var asciiCharsLE = 0;
+      var asciiCharsBE = 0;
+      outerLoop:
         for (var i2 = 0; i2 < bufs.length; i2++) {
           var buf = bufs[i2];
           for (var j = 0; j < buf.length; j++) {
             b.push(buf[j]);
             if (b.length === 2) {
               if (charsProcessed === 0) {
-                if (b[0] === 255 && b[1] === 254)
-                  return "utf-16le";
-                if (b[0] === 254 && b[1] === 255)
-                  return "utf-16be";
+                if (b[0] === 255 && b[1] === 254) return "utf-16le";
+                if (b[0] === 254 && b[1] === 255) return "utf-16be";
               }
-              if (b[0] === 0 && b[1] !== 0)
-                asciiCharsBE++;
-              if (b[0] !== 0 && b[1] === 0)
-                asciiCharsLE++;
+              if (b[0] === 0 && b[1] !== 0) asciiCharsBE++;
+              if (b[0] !== 0 && b[1] === 0) asciiCharsLE++;
               b.length = 0;
               charsProcessed++;
               if (charsProcessed >= 100) {
-                break outer_loop;
+                break outerLoop;
               }
             }
           }
         }
-      if (asciiCharsBE > asciiCharsLE)
-        return "utf-16be";
-      if (asciiCharsBE < asciiCharsLE)
-        return "utf-16le";
+      if (asciiCharsBE > asciiCharsLE) return "utf-16be";
+      if (asciiCharsBE < asciiCharsLE) return "utf-16le";
       return defaultEncoding || "utf-16le";
     }
     __name(detectEncoding, "detectEncoding");
   }
 });
 
-// node_modules/.pnpm/iconv-lite@0.6.3/node_modules/iconv-lite/encodings/utf7.js
+// node_modules/iconv-lite/encodings/utf7.js
 var require_utf7 = __commonJS({
-  "node_modules/.pnpm/iconv-lite@0.6.3/node_modules/iconv-lite/encodings/utf7.js"(exports2) {
+  "node_modules/iconv-lite/encodings/utf7.js"(exports2) {
     "use strict";
     var Buffer4 = require_safer().Buffer;
     exports2.utf7 = Utf7Codec;
@@ -8365,14 +6920,18 @@ var require_utf7 = __commonJS({
     __name(Utf7Decoder, "Utf7Decoder");
     var base64Regex = /[A-Za-z0-9\/+]/;
     var base64Chars = [];
-    for (i2 = 0; i2 < 256; i2++)
+    for (i2 = 0; i2 < 256; i2++) {
       base64Chars[i2] = base64Regex.test(String.fromCharCode(i2));
+    }
     var i2;
     var plusChar = "+".charCodeAt(0);
     var minusChar = "-".charCodeAt(0);
     var andChar = "&".charCodeAt(0);
     Utf7Decoder.prototype.write = function(buf) {
-      var res = "", lastI = 0, inBase64 = this.inBase64, base64Accum = this.base64Accum;
+      var res = "";
+      var lastI = 0;
+      var inBase64 = this.inBase64;
+      var base64Accum = this.base64Accum;
       for (var i3 = 0; i3 < buf.length; i3++) {
         if (!inBase64) {
           if (buf[i3] == plusChar) {
@@ -8388,8 +6947,9 @@ var require_utf7 = __commonJS({
               var b64str = base64Accum + this.iconv.decode(buf.slice(lastI, i3), "ascii");
               res += this.iconv.decode(Buffer4.from(b64str, "base64"), "utf16-be");
             }
-            if (buf[i3] != minusChar)
+            if (buf[i3] != minusChar) {
               i3--;
+            }
             lastI = i3 + 1;
             inBase64 = false;
             base64Accum = "";
@@ -8411,8 +6971,9 @@ var require_utf7 = __commonJS({
     };
     Utf7Decoder.prototype.end = function() {
       var res = "";
-      if (this.inBase64 && this.base64Accum.length > 0)
+      if (this.inBase64 && this.base64Accum.length > 0) {
         res = this.iconv.decode(Buffer4.from(this.base64Accum, "base64"), "utf16-be");
+      }
       this.inBase64 = false;
       this.base64Accum = "";
       return res;
@@ -8433,10 +6994,14 @@ var require_utf7 = __commonJS({
     }
     __name(Utf7IMAPEncoder, "Utf7IMAPEncoder");
     Utf7IMAPEncoder.prototype.write = function(str) {
-      var inBase64 = this.inBase64, base64Accum = this.base64Accum, base64AccumIdx = this.base64AccumIdx, buf = Buffer4.alloc(str.length * 5 + 10), bufIdx = 0;
+      var inBase64 = this.inBase64;
+      var base64Accum = this.base64Accum;
+      var base64AccumIdx = this.base64AccumIdx;
+      var buf = Buffer4.alloc(str.length * 5 + 10);
+      var bufIdx = 0;
       for (var i3 = 0; i3 < str.length; i3++) {
         var uChar = str.charCodeAt(i3);
-        if (32 <= uChar && uChar <= 126) {
+        if (uChar >= 32 && uChar <= 126) {
           if (inBase64) {
             if (base64AccumIdx > 0) {
               bufIdx += buf.write(base64Accum.slice(0, base64AccumIdx).toString("base64").replace(/\//g, ",").replace(/=+$/, ""), bufIdx);
@@ -8447,8 +7012,9 @@ var require_utf7 = __commonJS({
           }
           if (!inBase64) {
             buf[bufIdx++] = uChar;
-            if (uChar === andChar)
+            if (uChar === andChar) {
               buf[bufIdx++] = minusChar;
+            }
           }
         } else {
           if (!inBase64) {
@@ -8470,7 +7036,8 @@ var require_utf7 = __commonJS({
       return buf.slice(0, bufIdx);
     };
     Utf7IMAPEncoder.prototype.end = function() {
-      var buf = Buffer4.alloc(10), bufIdx = 0;
+      var buf = Buffer4.alloc(10);
+      var bufIdx = 0;
       if (this.inBase64) {
         if (this.base64AccumIdx > 0) {
           bufIdx += buf.write(this.base64Accum.slice(0, this.base64AccumIdx).toString("base64").replace(/\//g, ",").replace(/=+$/, ""), bufIdx);
@@ -8490,7 +7057,10 @@ var require_utf7 = __commonJS({
     var base64IMAPChars = base64Chars.slice();
     base64IMAPChars[",".charCodeAt(0)] = true;
     Utf7IMAPDecoder.prototype.write = function(buf) {
-      var res = "", lastI = 0, inBase64 = this.inBase64, base64Accum = this.base64Accum;
+      var res = "";
+      var lastI = 0;
+      var inBase64 = this.inBase64;
+      var base64Accum = this.base64Accum;
       for (var i3 = 0; i3 < buf.length; i3++) {
         if (!inBase64) {
           if (buf[i3] == andChar) {
@@ -8506,8 +7076,9 @@ var require_utf7 = __commonJS({
               var b64str = base64Accum + this.iconv.decode(buf.slice(lastI, i3), "ascii").replace(/,/g, "/");
               res += this.iconv.decode(Buffer4.from(b64str, "base64"), "utf16-be");
             }
-            if (buf[i3] != minusChar)
+            if (buf[i3] != minusChar) {
               i3--;
+            }
             lastI = i3 + 1;
             inBase64 = false;
             base64Accum = "";
@@ -8529,8 +7100,9 @@ var require_utf7 = __commonJS({
     };
     Utf7IMAPDecoder.prototype.end = function() {
       var res = "";
-      if (this.inBase64 && this.base64Accum.length > 0)
+      if (this.inBase64 && this.base64Accum.length > 0) {
         res = this.iconv.decode(Buffer4.from(this.base64Accum, "base64"), "utf16-be");
+      }
       this.inBase64 = false;
       this.base64Accum = "";
       return res;
@@ -8538,27 +7110,31 @@ var require_utf7 = __commonJS({
   }
 });
 
-// node_modules/.pnpm/iconv-lite@0.6.3/node_modules/iconv-lite/encodings/sbcs-codec.js
+// node_modules/iconv-lite/encodings/sbcs-codec.js
 var require_sbcs_codec = __commonJS({
-  "node_modules/.pnpm/iconv-lite@0.6.3/node_modules/iconv-lite/encodings/sbcs-codec.js"(exports2) {
+  "node_modules/iconv-lite/encodings/sbcs-codec.js"(exports2) {
     "use strict";
     var Buffer4 = require_safer().Buffer;
     exports2._sbcs = SBCSCodec;
     function SBCSCodec(codecOptions, iconv) {
-      if (!codecOptions)
+      if (!codecOptions) {
         throw new Error("SBCS codec is called without the data.");
-      if (!codecOptions.chars || codecOptions.chars.length !== 128 && codecOptions.chars.length !== 256)
+      }
+      if (!codecOptions.chars || codecOptions.chars.length !== 128 && codecOptions.chars.length !== 256) {
         throw new Error("Encoding '" + codecOptions.type + "' has incorrect 'chars' (must be of len 128 or 256)");
+      }
       if (codecOptions.chars.length === 128) {
         var asciiString = "";
-        for (var i2 = 0; i2 < 128; i2++)
+        for (var i2 = 0; i2 < 128; i2++) {
           asciiString += String.fromCharCode(i2);
+        }
         codecOptions.chars = asciiString + codecOptions.chars;
       }
       this.decodeBuf = Buffer4.from(codecOptions.chars, "ucs2");
       var encodeBuf = Buffer4.alloc(65536, iconv.defaultCharSingleByte.charCodeAt(0));
-      for (var i2 = 0; i2 < codecOptions.chars.length; i2++)
+      for (var i2 = 0; i2 < codecOptions.chars.length; i2++) {
         encodeBuf[codecOptions.chars.charCodeAt(i2)] = i2;
+      }
       this.encodeBuf = encodeBuf;
     }
     __name(SBCSCodec, "SBCSCodec");
@@ -8570,8 +7146,9 @@ var require_sbcs_codec = __commonJS({
     __name(SBCSEncoder, "SBCSEncoder");
     SBCSEncoder.prototype.write = function(str) {
       var buf = Buffer4.alloc(str.length);
-      for (var i2 = 0; i2 < str.length; i2++)
+      for (var i2 = 0; i2 < str.length; i2++) {
         buf[i2] = this.encodeBuf[str.charCodeAt(i2)];
+      }
       return buf;
     };
     SBCSEncoder.prototype.end = function() {
@@ -8583,7 +7160,8 @@ var require_sbcs_codec = __commonJS({
     SBCSDecoder.prototype.write = function(buf) {
       var decodeBuf = this.decodeBuf;
       var newBuf = Buffer4.alloc(buf.length * 2);
-      var idx1 = 0, idx2 = 0;
+      var idx1 = 0;
+      var idx2 = 0;
       for (var i2 = 0; i2 < buf.length; i2++) {
         idx1 = buf[i2] * 2;
         idx2 = i2 * 2;
@@ -8597,162 +7175,162 @@ var require_sbcs_codec = __commonJS({
   }
 });
 
-// node_modules/.pnpm/iconv-lite@0.6.3/node_modules/iconv-lite/encodings/sbcs-data.js
+// node_modules/iconv-lite/encodings/sbcs-data.js
 var require_sbcs_data = __commonJS({
-  "node_modules/.pnpm/iconv-lite@0.6.3/node_modules/iconv-lite/encodings/sbcs-data.js"(exports2, module2) {
+  "node_modules/iconv-lite/encodings/sbcs-data.js"(exports2, module2) {
     "use strict";
     module2.exports = {
       // Not supported by iconv, not sure why.
-      "10029": "maccenteuro",
-      "maccenteuro": {
-        "type": "_sbcs",
-        "chars": "\xC4\u0100\u0101\xC9\u0104\xD6\xDC\xE1\u0105\u010C\xE4\u010D\u0106\u0107\xE9\u0179\u017A\u010E\xED\u010F\u0112\u0113\u0116\xF3\u0117\xF4\xF6\xF5\xFA\u011A\u011B\xFC\u2020\xB0\u0118\xA3\xA7\u2022\xB6\xDF\xAE\xA9\u2122\u0119\xA8\u2260\u0123\u012E\u012F\u012A\u2264\u2265\u012B\u0136\u2202\u2211\u0142\u013B\u013C\u013D\u013E\u0139\u013A\u0145\u0146\u0143\xAC\u221A\u0144\u0147\u2206\xAB\xBB\u2026\xA0\u0148\u0150\xD5\u0151\u014C\u2013\u2014\u201C\u201D\u2018\u2019\xF7\u25CA\u014D\u0154\u0155\u0158\u2039\u203A\u0159\u0156\u0157\u0160\u201A\u201E\u0161\u015A\u015B\xC1\u0164\u0165\xCD\u017D\u017E\u016A\xD3\xD4\u016B\u016E\xDA\u016F\u0170\u0171\u0172\u0173\xDD\xFD\u0137\u017B\u0141\u017C\u0122\u02C7"
+      10029: "maccenteuro",
+      maccenteuro: {
+        type: "_sbcs",
+        chars: "\xC4\u0100\u0101\xC9\u0104\xD6\xDC\xE1\u0105\u010C\xE4\u010D\u0106\u0107\xE9\u0179\u017A\u010E\xED\u010F\u0112\u0113\u0116\xF3\u0117\xF4\xF6\xF5\xFA\u011A\u011B\xFC\u2020\xB0\u0118\xA3\xA7\u2022\xB6\xDF\xAE\xA9\u2122\u0119\xA8\u2260\u0123\u012E\u012F\u012A\u2264\u2265\u012B\u0136\u2202\u2211\u0142\u013B\u013C\u013D\u013E\u0139\u013A\u0145\u0146\u0143\xAC\u221A\u0144\u0147\u2206\xAB\xBB\u2026\xA0\u0148\u0150\xD5\u0151\u014C\u2013\u2014\u201C\u201D\u2018\u2019\xF7\u25CA\u014D\u0154\u0155\u0158\u2039\u203A\u0159\u0156\u0157\u0160\u201A\u201E\u0161\u015A\u015B\xC1\u0164\u0165\xCD\u017D\u017E\u016A\xD3\xD4\u016B\u016E\xDA\u016F\u0170\u0171\u0172\u0173\xDD\xFD\u0137\u017B\u0141\u017C\u0122\u02C7"
       },
-      "808": "cp808",
-      "ibm808": "cp808",
-      "cp808": {
-        "type": "_sbcs",
-        "chars": "\u0410\u0411\u0412\u0413\u0414\u0415\u0416\u0417\u0418\u0419\u041A\u041B\u041C\u041D\u041E\u041F\u0420\u0421\u0422\u0423\u0424\u0425\u0426\u0427\u0428\u0429\u042A\u042B\u042C\u042D\u042E\u042F\u0430\u0431\u0432\u0433\u0434\u0435\u0436\u0437\u0438\u0439\u043A\u043B\u043C\u043D\u043E\u043F\u2591\u2592\u2593\u2502\u2524\u2561\u2562\u2556\u2555\u2563\u2551\u2557\u255D\u255C\u255B\u2510\u2514\u2534\u252C\u251C\u2500\u253C\u255E\u255F\u255A\u2554\u2569\u2566\u2560\u2550\u256C\u2567\u2568\u2564\u2565\u2559\u2558\u2552\u2553\u256B\u256A\u2518\u250C\u2588\u2584\u258C\u2590\u2580\u0440\u0441\u0442\u0443\u0444\u0445\u0446\u0447\u0448\u0449\u044A\u044B\u044C\u044D\u044E\u044F\u0401\u0451\u0404\u0454\u0407\u0457\u040E\u045E\xB0\u2219\xB7\u221A\u2116\u20AC\u25A0\xA0"
+      808: "cp808",
+      ibm808: "cp808",
+      cp808: {
+        type: "_sbcs",
+        chars: "\u0410\u0411\u0412\u0413\u0414\u0415\u0416\u0417\u0418\u0419\u041A\u041B\u041C\u041D\u041E\u041F\u0420\u0421\u0422\u0423\u0424\u0425\u0426\u0427\u0428\u0429\u042A\u042B\u042C\u042D\u042E\u042F\u0430\u0431\u0432\u0433\u0434\u0435\u0436\u0437\u0438\u0439\u043A\u043B\u043C\u043D\u043E\u043F\u2591\u2592\u2593\u2502\u2524\u2561\u2562\u2556\u2555\u2563\u2551\u2557\u255D\u255C\u255B\u2510\u2514\u2534\u252C\u251C\u2500\u253C\u255E\u255F\u255A\u2554\u2569\u2566\u2560\u2550\u256C\u2567\u2568\u2564\u2565\u2559\u2558\u2552\u2553\u256B\u256A\u2518\u250C\u2588\u2584\u258C\u2590\u2580\u0440\u0441\u0442\u0443\u0444\u0445\u0446\u0447\u0448\u0449\u044A\u044B\u044C\u044D\u044E\u044F\u0401\u0451\u0404\u0454\u0407\u0457\u040E\u045E\xB0\u2219\xB7\u221A\u2116\u20AC\u25A0\xA0"
       },
-      "mik": {
-        "type": "_sbcs",
-        "chars": "\u0410\u0411\u0412\u0413\u0414\u0415\u0416\u0417\u0418\u0419\u041A\u041B\u041C\u041D\u041E\u041F\u0420\u0421\u0422\u0423\u0424\u0425\u0426\u0427\u0428\u0429\u042A\u042B\u042C\u042D\u042E\u042F\u0430\u0431\u0432\u0433\u0434\u0435\u0436\u0437\u0438\u0439\u043A\u043B\u043C\u043D\u043E\u043F\u0440\u0441\u0442\u0443\u0444\u0445\u0446\u0447\u0448\u0449\u044A\u044B\u044C\u044D\u044E\u044F\u2514\u2534\u252C\u251C\u2500\u253C\u2563\u2551\u255A\u2554\u2569\u2566\u2560\u2550\u256C\u2510\u2591\u2592\u2593\u2502\u2524\u2116\xA7\u2557\u255D\u2518\u250C\u2588\u2584\u258C\u2590\u2580\u03B1\xDF\u0393\u03C0\u03A3\u03C3\xB5\u03C4\u03A6\u0398\u03A9\u03B4\u221E\u03C6\u03B5\u2229\u2261\xB1\u2265\u2264\u2320\u2321\xF7\u2248\xB0\u2219\xB7\u221A\u207F\xB2\u25A0\xA0"
+      mik: {
+        type: "_sbcs",
+        chars: "\u0410\u0411\u0412\u0413\u0414\u0415\u0416\u0417\u0418\u0419\u041A\u041B\u041C\u041D\u041E\u041F\u0420\u0421\u0422\u0423\u0424\u0425\u0426\u0427\u0428\u0429\u042A\u042B\u042C\u042D\u042E\u042F\u0430\u0431\u0432\u0433\u0434\u0435\u0436\u0437\u0438\u0439\u043A\u043B\u043C\u043D\u043E\u043F\u0440\u0441\u0442\u0443\u0444\u0445\u0446\u0447\u0448\u0449\u044A\u044B\u044C\u044D\u044E\u044F\u2514\u2534\u252C\u251C\u2500\u253C\u2563\u2551\u255A\u2554\u2569\u2566\u2560\u2550\u256C\u2510\u2591\u2592\u2593\u2502\u2524\u2116\xA7\u2557\u255D\u2518\u250C\u2588\u2584\u258C\u2590\u2580\u03B1\xDF\u0393\u03C0\u03A3\u03C3\xB5\u03C4\u03A6\u0398\u03A9\u03B4\u221E\u03C6\u03B5\u2229\u2261\xB1\u2265\u2264\u2320\u2321\xF7\u2248\xB0\u2219\xB7\u221A\u207F\xB2\u25A0\xA0"
       },
-      "cp720": {
-        "type": "_sbcs",
-        "chars": "\x80\x81\xE9\xE2\x84\xE0\x86\xE7\xEA\xEB\xE8\xEF\xEE\x8D\x8E\x8F\x90\u0651\u0652\xF4\xA4\u0640\xFB\xF9\u0621\u0622\u0623\u0624\xA3\u0625\u0626\u0627\u0628\u0629\u062A\u062B\u062C\u062D\u062E\u062F\u0630\u0631\u0632\u0633\u0634\u0635\xAB\xBB\u2591\u2592\u2593\u2502\u2524\u2561\u2562\u2556\u2555\u2563\u2551\u2557\u255D\u255C\u255B\u2510\u2514\u2534\u252C\u251C\u2500\u253C\u255E\u255F\u255A\u2554\u2569\u2566\u2560\u2550\u256C\u2567\u2568\u2564\u2565\u2559\u2558\u2552\u2553\u256B\u256A\u2518\u250C\u2588\u2584\u258C\u2590\u2580\u0636\u0637\u0638\u0639\u063A\u0641\xB5\u0642\u0643\u0644\u0645\u0646\u0647\u0648\u0649\u064A\u2261\u064B\u064C\u064D\u064E\u064F\u0650\u2248\xB0\u2219\xB7\u221A\u207F\xB2\u25A0\xA0"
+      cp720: {
+        type: "_sbcs",
+        chars: "\x80\x81\xE9\xE2\x84\xE0\x86\xE7\xEA\xEB\xE8\xEF\xEE\x8D\x8E\x8F\x90\u0651\u0652\xF4\xA4\u0640\xFB\xF9\u0621\u0622\u0623\u0624\xA3\u0625\u0626\u0627\u0628\u0629\u062A\u062B\u062C\u062D\u062E\u062F\u0630\u0631\u0632\u0633\u0634\u0635\xAB\xBB\u2591\u2592\u2593\u2502\u2524\u2561\u2562\u2556\u2555\u2563\u2551\u2557\u255D\u255C\u255B\u2510\u2514\u2534\u252C\u251C\u2500\u253C\u255E\u255F\u255A\u2554\u2569\u2566\u2560\u2550\u256C\u2567\u2568\u2564\u2565\u2559\u2558\u2552\u2553\u256B\u256A\u2518\u250C\u2588\u2584\u258C\u2590\u2580\u0636\u0637\u0638\u0639\u063A\u0641\xB5\u0642\u0643\u0644\u0645\u0646\u0647\u0648\u0649\u064A\u2261\u064B\u064C\u064D\u064E\u064F\u0650\u2248\xB0\u2219\xB7\u221A\u207F\xB2\u25A0\xA0"
       },
       // Aliases of generated encodings.
-      "ascii8bit": "ascii",
-      "usascii": "ascii",
-      "ansix34": "ascii",
-      "ansix341968": "ascii",
-      "ansix341986": "ascii",
-      "csascii": "ascii",
-      "cp367": "ascii",
-      "ibm367": "ascii",
-      "isoir6": "ascii",
-      "iso646us": "ascii",
-      "iso646irv": "ascii",
-      "us": "ascii",
-      "latin1": "iso88591",
-      "latin2": "iso88592",
-      "latin3": "iso88593",
-      "latin4": "iso88594",
-      "latin5": "iso88599",
-      "latin6": "iso885910",
-      "latin7": "iso885913",
-      "latin8": "iso885914",
-      "latin9": "iso885915",
-      "latin10": "iso885916",
-      "csisolatin1": "iso88591",
-      "csisolatin2": "iso88592",
-      "csisolatin3": "iso88593",
-      "csisolatin4": "iso88594",
-      "csisolatincyrillic": "iso88595",
-      "csisolatinarabic": "iso88596",
-      "csisolatingreek": "iso88597",
-      "csisolatinhebrew": "iso88598",
-      "csisolatin5": "iso88599",
-      "csisolatin6": "iso885910",
-      "l1": "iso88591",
-      "l2": "iso88592",
-      "l3": "iso88593",
-      "l4": "iso88594",
-      "l5": "iso88599",
-      "l6": "iso885910",
-      "l7": "iso885913",
-      "l8": "iso885914",
-      "l9": "iso885915",
-      "l10": "iso885916",
-      "isoir14": "iso646jp",
-      "isoir57": "iso646cn",
-      "isoir100": "iso88591",
-      "isoir101": "iso88592",
-      "isoir109": "iso88593",
-      "isoir110": "iso88594",
-      "isoir144": "iso88595",
-      "isoir127": "iso88596",
-      "isoir126": "iso88597",
-      "isoir138": "iso88598",
-      "isoir148": "iso88599",
-      "isoir157": "iso885910",
-      "isoir166": "tis620",
-      "isoir179": "iso885913",
-      "isoir199": "iso885914",
-      "isoir203": "iso885915",
-      "isoir226": "iso885916",
-      "cp819": "iso88591",
-      "ibm819": "iso88591",
-      "cyrillic": "iso88595",
-      "arabic": "iso88596",
-      "arabic8": "iso88596",
-      "ecma114": "iso88596",
-      "asmo708": "iso88596",
-      "greek": "iso88597",
-      "greek8": "iso88597",
-      "ecma118": "iso88597",
-      "elot928": "iso88597",
-      "hebrew": "iso88598",
-      "hebrew8": "iso88598",
-      "turkish": "iso88599",
-      "turkish8": "iso88599",
-      "thai": "iso885911",
-      "thai8": "iso885911",
-      "celtic": "iso885914",
-      "celtic8": "iso885914",
-      "isoceltic": "iso885914",
-      "tis6200": "tis620",
-      "tis62025291": "tis620",
-      "tis62025330": "tis620",
-      "10000": "macroman",
-      "10006": "macgreek",
-      "10007": "maccyrillic",
-      "10079": "maciceland",
-      "10081": "macturkish",
-      "cspc8codepage437": "cp437",
-      "cspc775baltic": "cp775",
-      "cspc850multilingual": "cp850",
-      "cspcp852": "cp852",
-      "cspc862latinhebrew": "cp862",
-      "cpgr": "cp869",
-      "msee": "cp1250",
-      "mscyrl": "cp1251",
-      "msansi": "cp1252",
-      "msgreek": "cp1253",
-      "msturk": "cp1254",
-      "mshebr": "cp1255",
-      "msarab": "cp1256",
-      "winbaltrim": "cp1257",
-      "cp20866": "koi8r",
-      "20866": "koi8r",
-      "ibm878": "koi8r",
-      "cskoi8r": "koi8r",
-      "cp21866": "koi8u",
-      "21866": "koi8u",
-      "ibm1168": "koi8u",
-      "strk10482002": "rk1048",
-      "tcvn5712": "tcvn",
-      "tcvn57121": "tcvn",
-      "gb198880": "iso646cn",
-      "cn": "iso646cn",
-      "csiso14jisc6220ro": "iso646jp",
-      "jisc62201969ro": "iso646jp",
-      "jp": "iso646jp",
-      "cshproman8": "hproman8",
-      "r8": "hproman8",
-      "roman8": "hproman8",
-      "xroman8": "hproman8",
-      "ibm1051": "hproman8",
-      "mac": "macintosh",
-      "csmacintosh": "macintosh"
+      ascii8bit: "ascii",
+      usascii: "ascii",
+      ansix34: "ascii",
+      ansix341968: "ascii",
+      ansix341986: "ascii",
+      csascii: "ascii",
+      cp367: "ascii",
+      ibm367: "ascii",
+      isoir6: "ascii",
+      iso646us: "ascii",
+      iso646irv: "ascii",
+      us: "ascii",
+      latin1: "iso88591",
+      latin2: "iso88592",
+      latin3: "iso88593",
+      latin4: "iso88594",
+      latin5: "iso88599",
+      latin6: "iso885910",
+      latin7: "iso885913",
+      latin8: "iso885914",
+      latin9: "iso885915",
+      latin10: "iso885916",
+      csisolatin1: "iso88591",
+      csisolatin2: "iso88592",
+      csisolatin3: "iso88593",
+      csisolatin4: "iso88594",
+      csisolatincyrillic: "iso88595",
+      csisolatinarabic: "iso88596",
+      csisolatingreek: "iso88597",
+      csisolatinhebrew: "iso88598",
+      csisolatin5: "iso88599",
+      csisolatin6: "iso885910",
+      l1: "iso88591",
+      l2: "iso88592",
+      l3: "iso88593",
+      l4: "iso88594",
+      l5: "iso88599",
+      l6: "iso885910",
+      l7: "iso885913",
+      l8: "iso885914",
+      l9: "iso885915",
+      l10: "iso885916",
+      isoir14: "iso646jp",
+      isoir57: "iso646cn",
+      isoir100: "iso88591",
+      isoir101: "iso88592",
+      isoir109: "iso88593",
+      isoir110: "iso88594",
+      isoir144: "iso88595",
+      isoir127: "iso88596",
+      isoir126: "iso88597",
+      isoir138: "iso88598",
+      isoir148: "iso88599",
+      isoir157: "iso885910",
+      isoir166: "tis620",
+      isoir179: "iso885913",
+      isoir199: "iso885914",
+      isoir203: "iso885915",
+      isoir226: "iso885916",
+      cp819: "iso88591",
+      ibm819: "iso88591",
+      cyrillic: "iso88595",
+      arabic: "iso88596",
+      arabic8: "iso88596",
+      ecma114: "iso88596",
+      asmo708: "iso88596",
+      greek: "iso88597",
+      greek8: "iso88597",
+      ecma118: "iso88597",
+      elot928: "iso88597",
+      hebrew: "iso88598",
+      hebrew8: "iso88598",
+      turkish: "iso88599",
+      turkish8: "iso88599",
+      thai: "iso885911",
+      thai8: "iso885911",
+      celtic: "iso885914",
+      celtic8: "iso885914",
+      isoceltic: "iso885914",
+      tis6200: "tis620",
+      tis62025291: "tis620",
+      tis62025330: "tis620",
+      1e4: "macroman",
+      10006: "macgreek",
+      10007: "maccyrillic",
+      10079: "maciceland",
+      10081: "macturkish",
+      cspc8codepage437: "cp437",
+      cspc775baltic: "cp775",
+      cspc850multilingual: "cp850",
+      cspcp852: "cp852",
+      cspc862latinhebrew: "cp862",
+      cpgr: "cp869",
+      msee: "cp1250",
+      mscyrl: "cp1251",
+      msansi: "cp1252",
+      msgreek: "cp1253",
+      msturk: "cp1254",
+      mshebr: "cp1255",
+      msarab: "cp1256",
+      winbaltrim: "cp1257",
+      cp20866: "koi8r",
+      20866: "koi8r",
+      ibm878: "koi8r",
+      cskoi8r: "koi8r",
+      cp21866: "koi8u",
+      21866: "koi8u",
+      ibm1168: "koi8u",
+      strk10482002: "rk1048",
+      tcvn5712: "tcvn",
+      tcvn57121: "tcvn",
+      gb198880: "iso646cn",
+      cn: "iso646cn",
+      csiso14jisc6220ro: "iso646jp",
+      jisc62201969ro: "iso646jp",
+      jp: "iso646jp",
+      cshproman8: "hproman8",
+      r8: "hproman8",
+      roman8: "hproman8",
+      xroman8: "hproman8",
+      ibm1051: "hproman8",
+      mac: "macintosh",
+      csmacintosh: "macintosh"
     };
   }
 });
 
-// node_modules/.pnpm/iconv-lite@0.6.3/node_modules/iconv-lite/encodings/sbcs-data-generated.js
+// node_modules/iconv-lite/encodings/sbcs-data-generated.js
 var require_sbcs_data_generated = __commonJS({
-  "node_modules/.pnpm/iconv-lite@0.6.3/node_modules/iconv-lite/encodings/sbcs-data-generated.js"(exports2, module2) {
+  "node_modules/iconv-lite/encodings/sbcs-data-generated.js"(exports2, module2) {
     "use strict";
     module2.exports = {
       "437": "cp437",
@@ -9205,9 +7783,9 @@ var require_sbcs_data_generated = __commonJS({
   }
 });
 
-// node_modules/.pnpm/iconv-lite@0.6.3/node_modules/iconv-lite/encodings/dbcs-codec.js
+// node_modules/iconv-lite/encodings/dbcs-codec.js
 var require_dbcs_codec = __commonJS({
-  "node_modules/.pnpm/iconv-lite@0.6.3/node_modules/iconv-lite/encodings/dbcs-codec.js"(exports2) {
+  "node_modules/iconv-lite/encodings/dbcs-codec.js"(exports2) {
     "use strict";
     var Buffer4 = require_safer().Buffer;
     exports2._dbcs = DBCSCodec;
@@ -9217,21 +7795,25 @@ var require_dbcs_codec = __commonJS({
     var NODE_START = -1e3;
     var UNASSIGNED_NODE = new Array(256);
     var DEF_CHAR = -1;
-    for (i2 = 0; i2 < 256; i2++)
+    for (i2 = 0; i2 < 256; i2++) {
       UNASSIGNED_NODE[i2] = UNASSIGNED;
+    }
     var i2;
     function DBCSCodec(codecOptions, iconv) {
       this.encodingName = codecOptions.encodingName;
-      if (!codecOptions)
+      if (!codecOptions) {
         throw new Error("DBCS codec is called without the data.");
-      if (!codecOptions.table)
+      }
+      if (!codecOptions.table) {
         throw new Error("Encoding '" + this.encodingName + "' has no data.");
+      }
       var mappingTable = codecOptions.table();
       this.decodeTables = [];
       this.decodeTables[0] = UNASSIGNED_NODE.slice(0);
       this.decodeTableSeq = [];
-      for (var i3 = 0; i3 < mappingTable.length; i3++)
+      for (var i3 = 0; i3 < mappingTable.length; i3++) {
         this._addDecodeChunk(mappingTable[i3]);
+      }
       if (typeof codecOptions.gb18030 === "function") {
         this.gb18030 = codecOptions.gb18030();
         var commonThirdByteNodeIdx = this.decodeTables.length;
@@ -9258,8 +7840,9 @@ var require_dbcs_codec = __commonJS({
               }
               var fourthByteNode = this.decodeTables[NODE_START - thirdByteNode[k]];
               for (var l = 48; l <= 57; l++) {
-                if (fourthByteNode[l] === UNASSIGNED)
+                if (fourthByteNode[l] === UNASSIGNED) {
                   fourthByteNode[l] = GB18030_CODE;
+                }
               }
             }
           }
@@ -9269,36 +7852,41 @@ var require_dbcs_codec = __commonJS({
       this.encodeTable = [];
       this.encodeTableSeq = [];
       var skipEncodeChars = {};
-      if (codecOptions.encodeSkipVals)
+      if (codecOptions.encodeSkipVals) {
         for (var i3 = 0; i3 < codecOptions.encodeSkipVals.length; i3++) {
           var val = codecOptions.encodeSkipVals[i3];
-          if (typeof val === "number")
+          if (typeof val === "number") {
             skipEncodeChars[val] = true;
-          else
-            for (var j = val.from; j <= val.to; j++)
+          } else {
+            for (var j = val.from; j <= val.to; j++) {
               skipEncodeChars[j] = true;
+            }
+          }
         }
+      }
       this._fillEncodeTable(0, 0, skipEncodeChars);
       if (codecOptions.encodeAdd) {
-        for (var uChar in codecOptions.encodeAdd)
-          if (Object.prototype.hasOwnProperty.call(codecOptions.encodeAdd, uChar))
+        for (var uChar in codecOptions.encodeAdd) {
+          if (Object.prototype.hasOwnProperty.call(codecOptions.encodeAdd, uChar)) {
             this._setEncodeChar(uChar.charCodeAt(0), codecOptions.encodeAdd[uChar]);
+          }
+        }
       }
       this.defCharSB = this.encodeTable[0][iconv.defaultCharSingleByte.charCodeAt(0)];
-      if (this.defCharSB === UNASSIGNED)
-        this.defCharSB = this.encodeTable[0]["?"];
-      if (this.defCharSB === UNASSIGNED)
-        this.defCharSB = "?".charCodeAt(0);
+      if (this.defCharSB === UNASSIGNED) this.defCharSB = this.encodeTable[0]["?"];
+      if (this.defCharSB === UNASSIGNED) this.defCharSB = "?".charCodeAt(0);
     }
     __name(DBCSCodec, "DBCSCodec");
     DBCSCodec.prototype.encoder = DBCSEncoder;
     DBCSCodec.prototype.decoder = DBCSDecoder;
     DBCSCodec.prototype._getDecodeTrieNode = function(addr) {
       var bytes = [];
-      for (; addr > 0; addr >>>= 8)
+      for (; addr > 0; addr >>>= 8) {
         bytes.push(addr & 255);
-      if (bytes.length == 0)
+      }
+      if (bytes.length == 0) {
         bytes.push(0);
+      }
       var node = this.decodeTables[0];
       for (var i3 = bytes.length - 1; i3 > 0; i3--) {
         var val = node[bytes[i3]];
@@ -9307,8 +7895,9 @@ var require_dbcs_codec = __commonJS({
           this.decodeTables.push(node = UNASSIGNED_NODE.slice(0));
         } else if (val <= NODE_START) {
           node = this.decodeTables[NODE_START - val];
-        } else
+        } else {
           throw new Error("Overwrite byte in " + this.encodingName + ", addr: " + addr.toString(16));
+        }
       }
       return node;
     };
@@ -9321,45 +7910,53 @@ var require_dbcs_codec = __commonJS({
         if (typeof part === "string") {
           for (var l = 0; l < part.length; ) {
             var code = part.charCodeAt(l++);
-            if (55296 <= code && code < 56320) {
+            if (code >= 55296 && code < 56320) {
               var codeTrail = part.charCodeAt(l++);
-              if (56320 <= codeTrail && codeTrail < 57344)
+              if (codeTrail >= 56320 && codeTrail < 57344) {
                 writeTable[curAddr++] = 65536 + (code - 55296) * 1024 + (codeTrail - 56320);
-              else
+              } else {
                 throw new Error("Incorrect surrogate pair in " + this.encodingName + " at chunk " + chunk[0]);
-            } else if (4080 < code && code <= 4095) {
+              }
+            } else if (code > 4080 && code <= 4095) {
               var len = 4095 - code + 2;
               var seq = [];
-              for (var m2 = 0; m2 < len; m2++)
+              for (var m2 = 0; m2 < len; m2++) {
                 seq.push(part.charCodeAt(l++));
+              }
               writeTable[curAddr++] = SEQ_START - this.decodeTableSeq.length;
               this.decodeTableSeq.push(seq);
-            } else
+            } else {
               writeTable[curAddr++] = code;
+            }
           }
         } else if (typeof part === "number") {
           var charCode = writeTable[curAddr - 1] + 1;
-          for (var l = 0; l < part; l++)
+          for (var l = 0; l < part; l++) {
             writeTable[curAddr++] = charCode++;
-        } else
+          }
+        } else {
           throw new Error("Incorrect type '" + typeof part + "' given in " + this.encodingName + " at chunk " + chunk[0]);
+        }
       }
-      if (curAddr > 255)
+      if (curAddr > 255) {
         throw new Error("Incorrect chunk in " + this.encodingName + " at addr " + chunk[0] + ": too long" + curAddr);
+      }
     };
     DBCSCodec.prototype._getEncodeBucket = function(uCode) {
       var high = uCode >> 8;
-      if (this.encodeTable[high] === void 0)
+      if (this.encodeTable[high] === void 0) {
         this.encodeTable[high] = UNASSIGNED_NODE.slice(0);
+      }
       return this.encodeTable[high];
     };
     DBCSCodec.prototype._setEncodeChar = function(uCode, dbcsCode) {
       var bucket = this._getEncodeBucket(uCode);
       var low = uCode & 255;
-      if (bucket[low] <= SEQ_START)
+      if (bucket[low] <= SEQ_START) {
         this.encodeTableSeq[SEQ_START - bucket[low]][DEF_CHAR] = dbcsCode;
-      else if (bucket[low] == UNASSIGNED)
+      } else if (bucket[low] == UNASSIGNED) {
         bucket[low] = dbcsCode;
+      }
     };
     DBCSCodec.prototype._setEncodeSequence = function(seq, dbcsCode) {
       var uCode = seq[0];
@@ -9370,19 +7967,19 @@ var require_dbcs_codec = __commonJS({
         node = this.encodeTableSeq[SEQ_START - bucket[low]];
       } else {
         node = {};
-        if (bucket[low] !== UNASSIGNED)
-          node[DEF_CHAR] = bucket[low];
+        if (bucket[low] !== UNASSIGNED) node[DEF_CHAR] = bucket[low];
         bucket[low] = SEQ_START - this.encodeTableSeq.length;
         this.encodeTableSeq.push(node);
       }
       for (var j = 1; j < seq.length - 1; j++) {
         var oldVal = node[uCode];
-        if (typeof oldVal === "object")
+        if (typeof oldVal === "object") {
           node = oldVal;
-        else {
+        } else {
           node = node[uCode] = {};
-          if (oldVal !== void 0)
+          if (oldVal !== void 0) {
             node[DEF_CHAR] = oldVal;
+          }
         }
       }
       uCode = seq[seq.length - 1];
@@ -9395,8 +7992,9 @@ var require_dbcs_codec = __commonJS({
       for (var i3 = 0; i3 < 256; i3++) {
         var uCode = node[i3];
         var mbCode = prefix + i3;
-        if (skipEncodeChars[mbCode])
+        if (skipEncodeChars[mbCode]) {
           continue;
+        }
         if (uCode >= 0) {
           this._setEncodeChar(uCode, mbCode);
           hasValues = true;
@@ -9404,10 +8002,11 @@ var require_dbcs_codec = __commonJS({
           var subNodeIdx = NODE_START - uCode;
           if (!subNodeEmpty[subNodeIdx]) {
             var newPrefix = mbCode << 8 >>> 0;
-            if (this._fillEncodeTable(subNodeIdx, newPrefix, skipEncodeChars))
+            if (this._fillEncodeTable(subNodeIdx, newPrefix, skipEncodeChars)) {
               hasValues = true;
-            else
+            } else {
               subNodeEmpty[subNodeIdx] = true;
+            }
           }
         } else if (uCode <= SEQ_START) {
           this._setEncodeSequence(this.decodeTableSeq[SEQ_START - uCode], mbCode);
@@ -9426,17 +8025,21 @@ var require_dbcs_codec = __commonJS({
     }
     __name(DBCSEncoder, "DBCSEncoder");
     DBCSEncoder.prototype.write = function(str) {
-      var newBuf = Buffer4.alloc(str.length * (this.gb18030 ? 4 : 3)), leadSurrogate = this.leadSurrogate, seqObj = this.seqObj, nextChar = -1, i3 = 0, j = 0;
+      var newBuf = Buffer4.alloc(str.length * (this.gb18030 ? 4 : 3));
+      var leadSurrogate = this.leadSurrogate;
+      var seqObj = this.seqObj;
+      var nextChar = -1;
+      var i3 = 0;
+      var j = 0;
       while (true) {
         if (nextChar === -1) {
-          if (i3 == str.length)
-            break;
+          if (i3 == str.length) break;
           var uCode = str.charCodeAt(i3++);
         } else {
           var uCode = nextChar;
           nextChar = -1;
         }
-        if (55296 <= uCode && uCode < 57344) {
+        if (uCode >= 55296 && uCode < 57344) {
           if (uCode < 56320) {
             if (leadSurrogate === -1) {
               leadSurrogate = uCode;
@@ -9464,7 +8067,7 @@ var require_dbcs_codec = __commonJS({
           if (typeof resCode === "object") {
             seqObj = resCode;
             continue;
-          } else if (typeof resCode == "number") {
+          } else if (typeof resCode === "number") {
             dbcsCode = resCode;
           } else if (resCode == void 0) {
             resCode = seqObj[DEF_CHAR];
@@ -9477,8 +8080,9 @@ var require_dbcs_codec = __commonJS({
           seqObj = void 0;
         } else if (uCode >= 0) {
           var subtable = this.encodeTable[uCode >> 8];
-          if (subtable !== void 0)
+          if (subtable !== void 0) {
             dbcsCode = subtable[uCode & 255];
+          }
           if (dbcsCode <= SEQ_START) {
             seqObj = this.encodeTableSeq[SEQ_START - dbcsCode];
             continue;
@@ -9498,8 +8102,9 @@ var require_dbcs_codec = __commonJS({
             }
           }
         }
-        if (dbcsCode === UNASSIGNED)
+        if (dbcsCode === UNASSIGNED) {
           dbcsCode = this.defaultCharSingleByte;
+        }
         if (dbcsCode < 256) {
           newBuf[j++] = dbcsCode;
         } else if (dbcsCode < 65536) {
@@ -9521,9 +8126,11 @@ var require_dbcs_codec = __commonJS({
       return newBuf.slice(0, j);
     };
     DBCSEncoder.prototype.end = function() {
-      if (this.leadSurrogate === -1 && this.seqObj === void 0)
+      if (this.leadSurrogate === -1 && this.seqObj === void 0) {
         return;
-      var newBuf = Buffer4.alloc(10), j = 0;
+      }
+      var newBuf = Buffer4.alloc(10);
+      var j = 0;
       if (this.seqObj) {
         var dbcsCode = this.seqObj[DEF_CHAR];
         if (dbcsCode !== void 0) {
@@ -9554,7 +8161,12 @@ var require_dbcs_codec = __commonJS({
     }
     __name(DBCSDecoder, "DBCSDecoder");
     DBCSDecoder.prototype.write = function(buf) {
-      var newBuf = Buffer4.alloc(buf.length * 2), nodeIdx = this.nodeIdx, prevBytes = this.prevBytes, prevOffset = this.prevBytes.length, seqStart = -this.prevBytes.length, uCode;
+      var newBuf = Buffer4.alloc(buf.length * 2);
+      var nodeIdx = this.nodeIdx;
+      var prevBytes = this.prevBytes;
+      var prevOffset = this.prevBytes.length;
+      var seqStart = -this.prevBytes.length;
+      var uCode;
       for (var i3 = 0, j = 0; i3 < buf.length; i3++) {
         var curByte = i3 >= 0 ? buf[i3] : prevBytes[i3 + prevOffset];
         var uCode = this.decodeTables[nodeIdx][curByte];
@@ -9581,8 +8193,9 @@ var require_dbcs_codec = __commonJS({
             newBuf[j++] = uCode >> 8;
           }
           uCode = seq[seq.length - 1];
-        } else
+        } else {
           throw new Error("iconv-lite internal error: invalid decoding table value " + uCode + " at " + nodeIdx + "/" + curByte);
+        }
         if (uCode >= 65536) {
           uCode -= 65536;
           var uCodeLead = 55296 | uCode >> 10;
@@ -9606,23 +8219,27 @@ var require_dbcs_codec = __commonJS({
         var bytesArr = this.prevBytes.slice(1);
         this.prevBytes = [];
         this.nodeIdx = 0;
-        if (bytesArr.length > 0)
+        if (bytesArr.length > 0) {
           ret += this.write(bytesArr);
+        }
       }
       this.prevBytes = [];
       this.nodeIdx = 0;
       return ret;
     };
     function findIdx(table, val) {
-      if (table[0] > val)
+      if (table[0] > val) {
         return -1;
-      var l = 0, r2 = table.length;
+      }
+      var l = 0;
+      var r2 = table.length;
       while (l < r2 - 1) {
         var mid = l + (r2 - l + 1 >> 1);
-        if (table[mid] <= val)
+        if (table[mid] <= val) {
           l = mid;
-        else
+        } else {
           r2 = mid;
+        }
       }
       return l;
     }
@@ -9630,9 +8247,9 @@ var require_dbcs_codec = __commonJS({
   }
 });
 
-// node_modules/.pnpm/iconv-lite@0.6.3/node_modules/iconv-lite/encodings/tables/shiftjis.json
+// node_modules/iconv-lite/encodings/tables/shiftjis.json
 var require_shiftjis = __commonJS({
-  "node_modules/.pnpm/iconv-lite@0.6.3/node_modules/iconv-lite/encodings/tables/shiftjis.json"(exports2, module2) {
+  "node_modules/iconv-lite/encodings/tables/shiftjis.json"(exports2, module2) {
     module2.exports = [
       ["0", "\0", 128],
       ["a1", "\uFF61", 62],
@@ -9761,9 +8378,9 @@ var require_shiftjis = __commonJS({
   }
 });
 
-// node_modules/.pnpm/iconv-lite@0.6.3/node_modules/iconv-lite/encodings/tables/eucjp.json
+// node_modules/iconv-lite/encodings/tables/eucjp.json
 var require_eucjp = __commonJS({
-  "node_modules/.pnpm/iconv-lite@0.6.3/node_modules/iconv-lite/encodings/tables/eucjp.json"(exports2, module2) {
+  "node_modules/iconv-lite/encodings/tables/eucjp.json"(exports2, module2) {
     module2.exports = [
       ["0", "\0", 127],
       ["8ea1", "\uFF61", 62],
@@ -9949,9 +8566,9 @@ var require_eucjp = __commonJS({
   }
 });
 
-// node_modules/.pnpm/iconv-lite@0.6.3/node_modules/iconv-lite/encodings/tables/cp936.json
+// node_modules/iconv-lite/encodings/tables/cp936.json
 var require_cp936 = __commonJS({
-  "node_modules/.pnpm/iconv-lite@0.6.3/node_modules/iconv-lite/encodings/tables/cp936.json"(exports2, module2) {
+  "node_modules/iconv-lite/encodings/tables/cp936.json"(exports2, module2) {
     module2.exports = [
       ["0", "\0", 127, "\u20AC"],
       ["8140", "\u4E02\u4E04\u4E05\u4E06\u4E0F\u4E12\u4E17\u4E1F\u4E20\u4E21\u4E23\u4E26\u4E29\u4E2E\u4E2F\u4E31\u4E33\u4E35\u4E37\u4E3C\u4E40\u4E41\u4E42\u4E44\u4E46\u4E4A\u4E51\u4E55\u4E57\u4E5A\u4E5B\u4E62\u4E63\u4E64\u4E65\u4E67\u4E68\u4E6A", 5, "\u4E72\u4E74", 9, "\u4E7F", 6, "\u4E87\u4E8A"],
@@ -10219,9 +8836,9 @@ var require_cp936 = __commonJS({
   }
 });
 
-// node_modules/.pnpm/iconv-lite@0.6.3/node_modules/iconv-lite/encodings/tables/gbk-added.json
+// node_modules/iconv-lite/encodings/tables/gbk-added.json
 var require_gbk_added = __commonJS({
-  "node_modules/.pnpm/iconv-lite@0.6.3/node_modules/iconv-lite/encodings/tables/gbk-added.json"(exports2, module2) {
+  "node_modules/iconv-lite/encodings/tables/gbk-added.json"(exports2, module2) {
     module2.exports = [
       ["a140", "\uE4C6", 62],
       ["a180", "\uE505", 32],
@@ -10281,16 +8898,16 @@ var require_gbk_added = __commonJS({
   }
 });
 
-// node_modules/.pnpm/iconv-lite@0.6.3/node_modules/iconv-lite/encodings/tables/gb18030-ranges.json
+// node_modules/iconv-lite/encodings/tables/gb18030-ranges.json
 var require_gb18030_ranges = __commonJS({
-  "node_modules/.pnpm/iconv-lite@0.6.3/node_modules/iconv-lite/encodings/tables/gb18030-ranges.json"(exports2, module2) {
+  "node_modules/iconv-lite/encodings/tables/gb18030-ranges.json"(exports2, module2) {
     module2.exports = { uChars: [128, 165, 169, 178, 184, 216, 226, 235, 238, 244, 248, 251, 253, 258, 276, 284, 300, 325, 329, 334, 364, 463, 465, 467, 469, 471, 473, 475, 477, 506, 594, 610, 712, 716, 730, 930, 938, 962, 970, 1026, 1104, 1106, 8209, 8215, 8218, 8222, 8231, 8241, 8244, 8246, 8252, 8365, 8452, 8454, 8458, 8471, 8482, 8556, 8570, 8596, 8602, 8713, 8720, 8722, 8726, 8731, 8737, 8740, 8742, 8748, 8751, 8760, 8766, 8777, 8781, 8787, 8802, 8808, 8816, 8854, 8858, 8870, 8896, 8979, 9322, 9372, 9548, 9588, 9616, 9622, 9634, 9652, 9662, 9672, 9676, 9680, 9702, 9735, 9738, 9793, 9795, 11906, 11909, 11913, 11917, 11928, 11944, 11947, 11951, 11956, 11960, 11964, 11979, 12284, 12292, 12312, 12319, 12330, 12351, 12436, 12447, 12535, 12543, 12586, 12842, 12850, 12964, 13200, 13215, 13218, 13253, 13263, 13267, 13270, 13384, 13428, 13727, 13839, 13851, 14617, 14703, 14801, 14816, 14964, 15183, 15471, 15585, 16471, 16736, 17208, 17325, 17330, 17374, 17623, 17997, 18018, 18212, 18218, 18301, 18318, 18760, 18811, 18814, 18820, 18823, 18844, 18848, 18872, 19576, 19620, 19738, 19887, 40870, 59244, 59336, 59367, 59413, 59417, 59423, 59431, 59437, 59443, 59452, 59460, 59478, 59493, 63789, 63866, 63894, 63976, 63986, 64016, 64018, 64021, 64025, 64034, 64037, 64042, 65074, 65093, 65107, 65112, 65127, 65132, 65375, 65510, 65536], gbChars: [0, 36, 38, 45, 50, 81, 89, 95, 96, 100, 103, 104, 105, 109, 126, 133, 148, 172, 175, 179, 208, 306, 307, 308, 309, 310, 311, 312, 313, 341, 428, 443, 544, 545, 558, 741, 742, 749, 750, 805, 819, 820, 7922, 7924, 7925, 7927, 7934, 7943, 7944, 7945, 7950, 8062, 8148, 8149, 8152, 8164, 8174, 8236, 8240, 8262, 8264, 8374, 8380, 8381, 8384, 8388, 8390, 8392, 8393, 8394, 8396, 8401, 8406, 8416, 8419, 8424, 8437, 8439, 8445, 8482, 8485, 8496, 8521, 8603, 8936, 8946, 9046, 9050, 9063, 9066, 9076, 9092, 9100, 9108, 9111, 9113, 9131, 9162, 9164, 9218, 9219, 11329, 11331, 11334, 11336, 11346, 11361, 11363, 11366, 11370, 11372, 11375, 11389, 11682, 11686, 11687, 11692, 11694, 11714, 11716, 11723, 11725, 11730, 11736, 11982, 11989, 12102, 12336, 12348, 12350, 12384, 12393, 12395, 12397, 12510, 12553, 12851, 12962, 12973, 13738, 13823, 13919, 13933, 14080, 14298, 14585, 14698, 15583, 15847, 16318, 16434, 16438, 16481, 16729, 17102, 17122, 17315, 17320, 17402, 17418, 17859, 17909, 17911, 17915, 17916, 17936, 17939, 17961, 18664, 18703, 18814, 18962, 19043, 33469, 33470, 33471, 33484, 33485, 33490, 33497, 33501, 33505, 33513, 33520, 33536, 33550, 37845, 37921, 37948, 38029, 38038, 38064, 38065, 38066, 38069, 38075, 38076, 38078, 39108, 39109, 39113, 39114, 39115, 39116, 39265, 39394, 189e3] };
   }
 });
 
-// node_modules/.pnpm/iconv-lite@0.6.3/node_modules/iconv-lite/encodings/tables/cp949.json
+// node_modules/iconv-lite/encodings/tables/cp949.json
 var require_cp949 = __commonJS({
-  "node_modules/.pnpm/iconv-lite@0.6.3/node_modules/iconv-lite/encodings/tables/cp949.json"(exports2, module2) {
+  "node_modules/iconv-lite/encodings/tables/cp949.json"(exports2, module2) {
     module2.exports = [
       ["0", "\0", 127],
       ["8141", "\uAC02\uAC03\uAC05\uAC06\uAC0B", 4, "\uAC18\uAC1E\uAC1F\uAC21\uAC22\uAC23\uAC25", 6, "\uAC2E\uAC32\uAC33\uAC34"],
@@ -10567,9 +9184,9 @@ var require_cp949 = __commonJS({
   }
 });
 
-// node_modules/.pnpm/iconv-lite@0.6.3/node_modules/iconv-lite/encodings/tables/cp950.json
+// node_modules/iconv-lite/encodings/tables/cp950.json
 var require_cp950 = __commonJS({
-  "node_modules/.pnpm/iconv-lite@0.6.3/node_modules/iconv-lite/encodings/tables/cp950.json"(exports2, module2) {
+  "node_modules/iconv-lite/encodings/tables/cp950.json"(exports2, module2) {
     module2.exports = [
       ["0", "\0", 127],
       ["a140", "\u3000\uFF0C\u3001\u3002\uFF0E\u2027\uFF1B\uFF1A\uFF1F\uFF01\uFE30\u2026\u2025\uFE50\uFE51\uFE52\xB7\uFE54\uFE55\uFE56\uFE57\uFF5C\u2013\uFE31\u2014\uFE33\u2574\uFE34\uFE4F\uFF08\uFF09\uFE35\uFE36\uFF5B\uFF5D\uFE37\uFE38\u3014\u3015\uFE39\uFE3A\u3010\u3011\uFE3B\uFE3C\u300A\u300B\uFE3D\uFE3E\u3008\u3009\uFE3F\uFE40\u300C\u300D\uFE41\uFE42\u300E\u300F\uFE43\uFE44\uFE59\uFE5A"],
@@ -10750,9 +9367,9 @@ var require_cp950 = __commonJS({
   }
 });
 
-// node_modules/.pnpm/iconv-lite@0.6.3/node_modules/iconv-lite/encodings/tables/big5-added.json
+// node_modules/iconv-lite/encodings/tables/big5-added.json
 var require_big5_added = __commonJS({
-  "node_modules/.pnpm/iconv-lite@0.6.3/node_modules/iconv-lite/encodings/tables/big5-added.json"(exports2, module2) {
+  "node_modules/iconv-lite/encodings/tables/big5-added.json"(exports2, module2) {
     module2.exports = [
       ["8740", "\u43F0\u4C32\u4603\u45A6\u4578\u{27267}\u4D77\u45B3\u{27CB1}\u4CE2\u{27CC5}\u3B95\u4736\u4744\u4C47\u4C40\u{242BF}\u{23617}\u{27352}\u{26E8B}\u{270D2}\u4C57\u{2A351}\u474F\u45DA\u4C85\u{27C6C}\u4D07\u4AA4\u46A1\u{26B23}\u7225\u{25A54}\u{21A63}\u{23E06}\u{23F61}\u664D\u56FB"],
       ["8767", "\u7D95\u591D\u{28BB9}\u3DF4\u9734\u{27BEF}\u5BDB\u{21D5E}\u5AA4\u3625\u{29EB0}\u5AD1\u5BB7\u5CFC\u676E\u8593\u{29945}\u7461\u749D\u3875\u{21D53}\u{2369E}\u{26021}\u3EEC"],
@@ -10878,15 +9495,15 @@ var require_big5_added = __commonJS({
   }
 });
 
-// node_modules/.pnpm/iconv-lite@0.6.3/node_modules/iconv-lite/encodings/dbcs-data.js
+// node_modules/iconv-lite/encodings/dbcs-data.js
 var require_dbcs_data = __commonJS({
-  "node_modules/.pnpm/iconv-lite@0.6.3/node_modules/iconv-lite/encodings/dbcs-data.js"(exports2, module2) {
+  "node_modules/iconv-lite/encodings/dbcs-data.js"(exports2, module2) {
     "use strict";
     module2.exports = {
       // == Japanese/ShiftJIS ====================================================
       // All japanese encodings are based on JIS X set of standards:
       // JIS X 0201 - Single-byte encoding of ASCII + ¥ + Kana chars at 0xA1-0xDF.
-      // JIS X 0208 - Main set of 6879 characters, placed in 94x94 plane, to be encoded by 2 bytes. 
+      // JIS X 0208 - Main set of 6879 characters, placed in 94x94 plane, to be encoded by 2 bytes.
       //              Has several variations in 1978, 1983, 1990 and 1997.
       // JIS X 0212 - Supplementary plane of 6067 chars in 94x94 plane. 1990. Effectively dead.
       // JIS X 0213 - Extension and modern replacement of 0208 and 0212. Total chars: 11233.
@@ -10903,7 +9520,7 @@ var require_dbcs_data = __commonJS({
       //               0x8F, (0xA1-0xFE)x2 - 0212 plane (94x94).
       //  * JIS X 208: 7-bit, direct encoding of 0208. Byte ranges: 0x21-0x7E (94 values). Uncommon.
       //               Used as-is in ISO2022 family.
-      //  * ISO2022-JP: Stateful encoding, with escape sequences to switch between ASCII, 
+      //  * ISO2022-JP: Stateful encoding, with escape sequences to switch between ASCII,
       //                0201-1976 Roman, 0208-1978, 0208-1983.
       //  * ISO2022-JP-1: Adds esc seq for 0212-1990.
       //  * ISO2022-JP-2: Adds esc seq for GB2313-1980, KSX1001-1992, ISO8859-1, ISO8859-7.
@@ -10913,29 +9530,29 @@ var require_dbcs_data = __commonJS({
       // After JIS X 0213 appeared, Shift_JIS-2004, EUC-JISX0213 and ISO2022-JP-2004 followed, with just changing the planes.
       //
       // Overall, it seems that it's a mess :( http://www8.plala.or.jp/tkubota1/unicode-symbols-map2.html
-      "shiftjis": {
+      shiftjis: {
         type: "_dbcs",
-        table: function() {
+        table: /* @__PURE__ */ __name(function() {
           return require_shiftjis();
-        },
+        }, "table"),
         encodeAdd: { "\xA5": 92, "\u203E": 126 },
         encodeSkipVals: [{ from: 60736, to: 63808 }]
       },
-      "csshiftjis": "shiftjis",
-      "mskanji": "shiftjis",
-      "sjis": "shiftjis",
-      "windows31j": "shiftjis",
-      "ms31j": "shiftjis",
-      "xsjis": "shiftjis",
-      "windows932": "shiftjis",
-      "ms932": "shiftjis",
-      "932": "shiftjis",
-      "cp932": "shiftjis",
-      "eucjp": {
+      csshiftjis: "shiftjis",
+      mskanji: "shiftjis",
+      sjis: "shiftjis",
+      windows31j: "shiftjis",
+      ms31j: "shiftjis",
+      xsjis: "shiftjis",
+      windows932: "shiftjis",
+      ms932: "shiftjis",
+      932: "shiftjis",
+      cp932: "shiftjis",
+      eucjp: {
         type: "_dbcs",
-        table: function() {
+        table: /* @__PURE__ */ __name(function() {
           return require_eucjp();
-        },
+        }, "table"),
         encodeAdd: { "\xA5": 92, "\u203E": 126 }
       },
       // TODO: KDDI extension to Shift_JIS
@@ -10945,67 +9562,67 @@ var require_dbcs_data = __commonJS({
       // http://en.wikipedia.org/wiki/GBK
       // We mostly implement W3C recommendation: https://www.w3.org/TR/encoding/#gbk-encoder
       // Oldest GB2312 (1981, ~7600 chars) is a subset of CP936
-      "gb2312": "cp936",
-      "gb231280": "cp936",
-      "gb23121980": "cp936",
-      "csgb2312": "cp936",
-      "csiso58gb231280": "cp936",
-      "euccn": "cp936",
+      gb2312: "cp936",
+      gb231280: "cp936",
+      gb23121980: "cp936",
+      csgb2312: "cp936",
+      csiso58gb231280: "cp936",
+      euccn: "cp936",
       // Microsoft's CP936 is a subset and approximation of GBK.
-      "windows936": "cp936",
-      "ms936": "cp936",
-      "936": "cp936",
-      "cp936": {
+      windows936: "cp936",
+      ms936: "cp936",
+      936: "cp936",
+      cp936: {
         type: "_dbcs",
-        table: function() {
+        table: /* @__PURE__ */ __name(function() {
           return require_cp936();
-        }
+        }, "table")
       },
       // GBK (~22000 chars) is an extension of CP936 that added user-mapped chars and some other.
-      "gbk": {
+      gbk: {
         type: "_dbcs",
-        table: function() {
+        table: /* @__PURE__ */ __name(function() {
           return require_cp936().concat(require_gbk_added());
-        }
+        }, "table")
       },
-      "xgbk": "gbk",
-      "isoir58": "gbk",
+      xgbk: "gbk",
+      isoir58: "gbk",
       // GB18030 is an algorithmic extension of GBK.
       // Main source: https://www.w3.org/TR/encoding/#gbk-encoder
       // http://icu-project.org/docs/papers/gb18030.html
       // http://source.icu-project.org/repos/icu/data/trunk/charset/data/xml/gb-18030-2000.xml
       // http://www.khngai.com/chinese/charmap/tblgbk.php?page=0
-      "gb18030": {
+      gb18030: {
         type: "_dbcs",
-        table: function() {
+        table: /* @__PURE__ */ __name(function() {
           return require_cp936().concat(require_gbk_added());
-        },
-        gb18030: function() {
+        }, "table"),
+        gb18030: /* @__PURE__ */ __name(function() {
           return require_gb18030_ranges();
-        },
+        }, "gb18030"),
         encodeSkipVals: [128],
         encodeAdd: { "\u20AC": 41699 }
       },
-      "chinese": "gb18030",
+      chinese: "gb18030",
       // == Korean ===============================================================
       // EUC-KR, KS_C_5601 and KS X 1001 are exactly the same.
-      "windows949": "cp949",
-      "ms949": "cp949",
-      "949": "cp949",
-      "cp949": {
+      windows949: "cp949",
+      ms949: "cp949",
+      949: "cp949",
+      cp949: {
         type: "_dbcs",
-        table: function() {
+        table: /* @__PURE__ */ __name(function() {
           return require_cp949();
-        }
+        }, "table")
       },
-      "cseuckr": "cp949",
-      "csksc56011987": "cp949",
-      "euckr": "cp949",
-      "isoir149": "cp949",
-      "korean": "cp949",
-      "ksc56011987": "cp949",
-      "ksc56011989": "cp949",
-      "ksc5601": "cp949",
+      cseuckr: "cp949",
+      csksc56011987: "cp949",
+      euckr: "cp949",
+      isoir149: "cp949",
+      korean: "cp949",
+      ksc56011987: "cp949",
+      ksc56011989: "cp949",
+      ksc5601: "cp949",
       // == Big5/Taiwan/Hong Kong ================================================
       // There are lots of tables for Big5 and cp950. Please see the following links for history:
       // http://moztw.org/docs/big5/  http://www.haible.de/bruno/charsets/conversion-tables/Big5.html
@@ -11014,7 +9631,7 @@ var require_dbcs_data = __commonJS({
       //  * Windows CP 951: Microsoft variant of Big5-HKSCS-2001. Seems to be never public. http://me.abelcheung.org/articles/research/what-is-cp951/
       //  * Big5-2003 (Taiwan standard) almost superset of cp950.
       //  * Unicode-at-on (UAO) / Mozilla 1.8. Falling out of use on the Web. Not supported by other browsers.
-      //  * Big5-HKSCS (-2001, -2004, -2008). Hong Kong standard. 
+      //  * Big5-HKSCS (-2001, -2004, -2008). Hong Kong standard.
       //    many unicode code points moved from PUA to Supplementary plane (U+2XXXX) over the years.
       //    Plus, it has 4 combining sequences.
       //    Seems that Mozilla refused to support it for 10 yrs. https://bugzilla.mozilla.org/show_bug.cgi?id=162431 https://bugzilla.mozilla.org/show_bug.cgi?id=310299
@@ -11025,25 +9642,25 @@ var require_dbcs_data = __commonJS({
       //    In the encoder, it might make sense to support encoding old PUA mappings to Big5 bytes seq-s.
       //    Official spec: http://www.ogcio.gov.hk/en/business/tech_promotion/ccli/terms/doc/2003cmp_2008.txt
       //                   http://www.ogcio.gov.hk/tc/business/tech_promotion/ccli/terms/doc/hkscs-2008-big5-iso.txt
-      // 
+      //
       // Current understanding of how to deal with Big5(-HKSCS) is in the Encoding Standard, http://encoding.spec.whatwg.org/#big5-encoder
       // Unicode mapping (http://www.unicode.org/Public/MAPPINGS/OBSOLETE/EASTASIA/OTHER/BIG5.TXT) is said to be wrong.
-      "windows950": "cp950",
-      "ms950": "cp950",
-      "950": "cp950",
-      "cp950": {
+      windows950: "cp950",
+      ms950: "cp950",
+      950: "cp950",
+      cp950: {
         type: "_dbcs",
-        table: function() {
+        table: /* @__PURE__ */ __name(function() {
           return require_cp950();
-        }
+        }, "table")
       },
       // Big5 has many variations and is an extension of cp950. We use Encoding Standard's as a consensus.
-      "big5": "big5hkscs",
-      "big5hkscs": {
+      big5: "big5hkscs",
+      big5hkscs: {
         type: "_dbcs",
-        table: function() {
+        table: /* @__PURE__ */ __name(function() {
           return require_cp950().concat(require_big5_added());
-        },
+        }, "table"),
         encodeSkipVals: [
           // Although Encoding Standard says we should avoid encoding to HKSCS area (See Step 1 of
           // https://encoding.spec.whatwg.org/#index-big5-pointer), we still do it to increase compatibility with ICU.
@@ -11118,17 +9735,18 @@ var require_dbcs_data = __commonJS({
           41678
         ]
       },
-      "cnbig5": "big5hkscs",
-      "csbig5": "big5hkscs",
-      "xxbig5": "big5hkscs"
+      cnbig5: "big5hkscs",
+      csbig5: "big5hkscs",
+      xxbig5: "big5hkscs"
     };
   }
 });
 
-// node_modules/.pnpm/iconv-lite@0.6.3/node_modules/iconv-lite/encodings/index.js
+// node_modules/iconv-lite/encodings/index.js
 var require_encodings = __commonJS({
-  "node_modules/.pnpm/iconv-lite@0.6.3/node_modules/iconv-lite/encodings/index.js"(exports2, module2) {
+  "node_modules/iconv-lite/encodings/index.js"(exports2, module2) {
     "use strict";
+    var mergeModules = require_merge_exports();
     var modules = [
       require_internal(),
       require_utf32(),
@@ -11142,23 +9760,20 @@ var require_encodings = __commonJS({
     ];
     for (i2 = 0; i2 < modules.length; i2++) {
       module2 = modules[i2];
-      for (enc in module2)
-        if (Object.prototype.hasOwnProperty.call(module2, enc))
-          exports2[enc] = module2[enc];
+      mergeModules(exports2, module2);
     }
     var module2;
-    var enc;
     var i2;
   }
 });
 
-// node_modules/.pnpm/iconv-lite@0.6.3/node_modules/iconv-lite/lib/streams.js
+// node_modules/iconv-lite/lib/streams.js
 var require_streams = __commonJS({
-  "node_modules/.pnpm/iconv-lite@0.6.3/node_modules/iconv-lite/lib/streams.js"(exports2, module2) {
+  "node_modules/iconv-lite/lib/streams.js"(exports2, module2) {
     "use strict";
     var Buffer4 = require_safer().Buffer;
-    module2.exports = function(stream_module) {
-      var Transform = stream_module.Transform;
+    module2.exports = function(streamModule) {
+      var Transform = streamModule.Transform;
       function IconvLiteEncoderStream(conv, options) {
         this.conv = conv;
         options = options || {};
@@ -11170,12 +9785,12 @@ var require_streams = __commonJS({
         constructor: { value: IconvLiteEncoderStream }
       });
       IconvLiteEncoderStream.prototype._transform = function(chunk, encoding, done) {
-        if (typeof chunk != "string")
+        if (typeof chunk !== "string") {
           return done(new Error("Iconv encoding stream needs strings as its input."));
+        }
         try {
           var res = this.conv.write(chunk);
-          if (res && res.length)
-            this.push(res);
+          if (res && res.length) this.push(res);
           done();
         } catch (e2) {
           done(e2);
@@ -11184,8 +9799,7 @@ var require_streams = __commonJS({
       IconvLiteEncoderStream.prototype._flush = function(done) {
         try {
           var res = this.conv.end();
-          if (res && res.length)
-            this.push(res);
+          if (res && res.length) this.push(res);
           done();
         } catch (e2) {
           done(e2);
@@ -11213,12 +9827,12 @@ var require_streams = __commonJS({
         constructor: { value: IconvLiteDecoderStream }
       });
       IconvLiteDecoderStream.prototype._transform = function(chunk, encoding, done) {
-        if (!Buffer4.isBuffer(chunk) && !(chunk instanceof Uint8Array))
+        if (!Buffer4.isBuffer(chunk) && !(chunk instanceof Uint8Array)) {
           return done(new Error("Iconv decoding stream needs buffers as its input."));
+        }
         try {
           var res = this.conv.write(chunk);
-          if (res && res.length)
-            this.push(res, this.encoding);
+          if (res && res.length) this.push(res, this.encoding);
           done();
         } catch (e2) {
           done(e2);
@@ -11227,8 +9841,7 @@ var require_streams = __commonJS({
       IconvLiteDecoderStream.prototype._flush = function(done) {
         try {
           var res = this.conv.end();
-          if (res && res.length)
-            this.push(res, this.encoding);
+          if (res && res.length) this.push(res, this.encoding);
           done();
         } catch (e2) {
           done(e2);
@@ -11253,117 +9866,129 @@ var require_streams = __commonJS({
   }
 });
 
-// node_modules/.pnpm/iconv-lite@0.6.3/node_modules/iconv-lite/lib/index.js
-var require_lib = __commonJS({
-  "node_modules/.pnpm/iconv-lite@0.6.3/node_modules/iconv-lite/lib/index.js"(exports2, module2) {
+// node_modules/iconv-lite/lib/index.js
+var require_lib3 = __commonJS({
+  "node_modules/iconv-lite/lib/index.js"(exports2, module2) {
     "use strict";
     var Buffer4 = require_safer().Buffer;
     var bomHandling = require_bom_handling();
-    var iconv = module2.exports;
-    iconv.encodings = null;
-    iconv.defaultCharUnicode = "\uFFFD";
-    iconv.defaultCharSingleByte = "?";
-    iconv.encode = /* @__PURE__ */ __name(function encode(str, encoding, options) {
+    var mergeModules = require_merge_exports();
+    module2.exports.encodings = null;
+    module2.exports.defaultCharUnicode = "\uFFFD";
+    module2.exports.defaultCharSingleByte = "?";
+    module2.exports.encode = /* @__PURE__ */ __name(function encode(str, encoding, options) {
       str = "" + (str || "");
-      var encoder = iconv.getEncoder(encoding, options);
+      var encoder = module2.exports.getEncoder(encoding, options);
       var res = encoder.write(str);
       var trail = encoder.end();
       return trail && trail.length > 0 ? Buffer4.concat([res, trail]) : res;
     }, "encode");
-    iconv.decode = /* @__PURE__ */ __name(function decode(buf, encoding, options) {
+    module2.exports.decode = /* @__PURE__ */ __name(function decode(buf, encoding, options) {
       if (typeof buf === "string") {
-        if (!iconv.skipDecodeWarning) {
+        if (!module2.exports.skipDecodeWarning) {
           console.error("Iconv-lite warning: decode()-ing strings is deprecated. Refer to https://github.com/ashtuchkin/iconv-lite/wiki/Use-Buffers-when-decoding");
-          iconv.skipDecodeWarning = true;
+          module2.exports.skipDecodeWarning = true;
         }
         buf = Buffer4.from("" + (buf || ""), "binary");
       }
-      var decoder = iconv.getDecoder(encoding, options);
+      var decoder = module2.exports.getDecoder(encoding, options);
       var res = decoder.write(buf);
       var trail = decoder.end();
       return trail ? res + trail : res;
     }, "decode");
-    iconv.encodingExists = /* @__PURE__ */ __name(function encodingExists(enc) {
+    module2.exports.encodingExists = /* @__PURE__ */ __name(function encodingExists(enc) {
       try {
-        iconv.getCodec(enc);
+        module2.exports.getCodec(enc);
         return true;
       } catch (e2) {
         return false;
       }
     }, "encodingExists");
-    iconv.toEncoding = iconv.encode;
-    iconv.fromEncoding = iconv.decode;
-    iconv._codecDataCache = {};
-    iconv.getCodec = /* @__PURE__ */ __name(function getCodec(encoding) {
-      if (!iconv.encodings)
-        iconv.encodings = require_encodings();
-      var enc = iconv._canonicalizeEncoding(encoding);
+    module2.exports.toEncoding = module2.exports.encode;
+    module2.exports.fromEncoding = module2.exports.decode;
+    module2.exports._codecDataCache = { __proto__: null };
+    module2.exports.getCodec = /* @__PURE__ */ __name(function getCodec(encoding) {
+      if (!module2.exports.encodings) {
+        var raw = require_encodings();
+        module2.exports.encodings = { __proto__: null };
+        mergeModules(module2.exports.encodings, raw);
+      }
+      var enc = module2.exports._canonicalizeEncoding(encoding);
       var codecOptions = {};
       while (true) {
-        var codec = iconv._codecDataCache[enc];
-        if (codec)
+        var codec = module2.exports._codecDataCache[enc];
+        if (codec) {
           return codec;
-        var codecDef = iconv.encodings[enc];
+        }
+        var codecDef = module2.exports.encodings[enc];
         switch (typeof codecDef) {
           case "string":
             enc = codecDef;
             break;
           case "object":
-            for (var key in codecDef)
+            for (var key in codecDef) {
               codecOptions[key] = codecDef[key];
-            if (!codecOptions.encodingName)
+            }
+            if (!codecOptions.encodingName) {
               codecOptions.encodingName = enc;
+            }
             enc = codecDef.type;
             break;
           case "function":
-            if (!codecOptions.encodingName)
+            if (!codecOptions.encodingName) {
               codecOptions.encodingName = enc;
-            codec = new codecDef(codecOptions, iconv);
-            iconv._codecDataCache[codecOptions.encodingName] = codec;
+            }
+            codec = new codecDef(codecOptions, module2.exports);
+            module2.exports._codecDataCache[codecOptions.encodingName] = codec;
             return codec;
           default:
             throw new Error("Encoding not recognized: '" + encoding + "' (searched as: '" + enc + "')");
         }
       }
     }, "getCodec");
-    iconv._canonicalizeEncoding = function(encoding) {
+    module2.exports._canonicalizeEncoding = function(encoding) {
       return ("" + encoding).toLowerCase().replace(/:\d{4}$|[^0-9a-z]/g, "");
     };
-    iconv.getEncoder = /* @__PURE__ */ __name(function getEncoder(encoding, options) {
-      var codec = iconv.getCodec(encoding), encoder = new codec.encoder(options, codec);
-      if (codec.bomAware && options && options.addBOM)
+    module2.exports.getEncoder = /* @__PURE__ */ __name(function getEncoder(encoding, options) {
+      var codec = module2.exports.getCodec(encoding);
+      var encoder = new codec.encoder(options, codec);
+      if (codec.bomAware && options && options.addBOM) {
         encoder = new bomHandling.PrependBOM(encoder, options);
+      }
       return encoder;
     }, "getEncoder");
-    iconv.getDecoder = /* @__PURE__ */ __name(function getDecoder(encoding, options) {
-      var codec = iconv.getCodec(encoding), decoder = new codec.decoder(options, codec);
-      if (codec.bomAware && !(options && options.stripBOM === false))
+    module2.exports.getDecoder = /* @__PURE__ */ __name(function getDecoder(encoding, options) {
+      var codec = module2.exports.getCodec(encoding);
+      var decoder = new codec.decoder(options, codec);
+      if (codec.bomAware && !(options && options.stripBOM === false)) {
         decoder = new bomHandling.StripBOM(decoder, options);
+      }
       return decoder;
     }, "getDecoder");
-    iconv.enableStreamingAPI = /* @__PURE__ */ __name(function enableStreamingAPI(stream_module2) {
-      if (iconv.supportsStreams)
+    module2.exports.enableStreamingAPI = /* @__PURE__ */ __name(function enableStreamingAPI(streamModule2) {
+      if (module2.exports.supportsStreams) {
         return;
-      var streams = require_streams()(stream_module2);
-      iconv.IconvLiteEncoderStream = streams.IconvLiteEncoderStream;
-      iconv.IconvLiteDecoderStream = streams.IconvLiteDecoderStream;
-      iconv.encodeStream = /* @__PURE__ */ __name(function encodeStream(encoding, options) {
-        return new iconv.IconvLiteEncoderStream(iconv.getEncoder(encoding, options), options);
+      }
+      var streams = require_streams()(streamModule2);
+      module2.exports.IconvLiteEncoderStream = streams.IconvLiteEncoderStream;
+      module2.exports.IconvLiteDecoderStream = streams.IconvLiteDecoderStream;
+      module2.exports.encodeStream = /* @__PURE__ */ __name(function encodeStream(encoding, options) {
+        return new module2.exports.IconvLiteEncoderStream(module2.exports.getEncoder(encoding, options), options);
       }, "encodeStream");
-      iconv.decodeStream = /* @__PURE__ */ __name(function decodeStream(encoding, options) {
-        return new iconv.IconvLiteDecoderStream(iconv.getDecoder(encoding, options), options);
+      module2.exports.decodeStream = /* @__PURE__ */ __name(function decodeStream(encoding, options) {
+        return new module2.exports.IconvLiteDecoderStream(module2.exports.getDecoder(encoding, options), options);
       }, "decodeStream");
-      iconv.supportsStreams = true;
+      module2.exports.supportsStreams = true;
     }, "enableStreamingAPI");
-    var stream_module;
+    var streamModule;
     try {
-      stream_module = require("stream");
+      streamModule = require("stream");
     } catch (e2) {
     }
-    if (stream_module && stream_module.Transform) {
-      iconv.enableStreamingAPI(stream_module);
+    if (streamModule && streamModule.Transform) {
+      module2.exports.enableStreamingAPI(streamModule);
     } else {
-      iconv.encodeStream = iconv.decodeStream = function() {
+      module2.exports.encodeStream = module2.exports.decodeStream = function() {
         throw new Error("iconv-lite Streaming API is not enabled. Use iconv.enableStreamingAPI(require('stream')); to enable it.");
       };
     }
@@ -11373,16 +9998,35 @@ var require_lib = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/parsers/string.js
+// node_modules/mysql2/lib/parsers/string.js
 var require_string = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/parsers/string.js"(exports2) {
+  "node_modules/mysql2/lib/parsers/string.js"(exports2) {
     "use strict";
-    var Iconv = require_lib();
+    var Iconv = require_lib3();
+    var { createLRU } = require_lib();
+    var decoderCache = createLRU({
+      max: 500
+    });
     exports2.decode = function(buffer, encoding, start, end, options) {
       if (Buffer.isEncoding(encoding)) {
         return buffer.toString(encoding, start, end);
       }
-      const decoder = Iconv.getDecoder(encoding, options || {});
+      let decoder;
+      if (!options) {
+        decoder = decoderCache.get(encoding);
+        if (!decoder) {
+          decoder = Iconv.getDecoder(encoding);
+          decoderCache.set(encoding, decoder);
+        }
+      } else {
+        const decoderArgs = { encoding, options };
+        const decoderKey = JSON.stringify(decoderArgs);
+        decoder = decoderCache.get(decoderKey);
+        if (!decoder) {
+          decoder = Iconv.getDecoder(decoderArgs.encoding, decoderArgs.options);
+          decoderCache.set(decoderKey, decoder);
+        }
+      }
       const res = decoder.write(buffer.slice(start, end));
       const trail = decoder.end();
       return trail ? res + trail : res;
@@ -11399,14 +10043,108 @@ var require_string = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/packets/packet.js
+// node_modules/mysql2/lib/constants/types.js
+var require_types = __commonJS({
+  "node_modules/mysql2/lib/constants/types.js"(exports2, module2) {
+    "use strict";
+    module2.exports = {
+      0: "DECIMAL",
+      // aka DECIMAL
+      1: "TINY",
+      // aka TINYINT, 1 byte
+      2: "SHORT",
+      // aka SMALLINT, 2 bytes
+      3: "LONG",
+      // aka INT, 4 bytes
+      4: "FLOAT",
+      // aka FLOAT, 4-8 bytes
+      5: "DOUBLE",
+      // aka DOUBLE, 8 bytes
+      6: "NULL",
+      // NULL (used for prepared statements, I think)
+      7: "TIMESTAMP",
+      // aka TIMESTAMP
+      8: "LONGLONG",
+      // aka BIGINT, 8 bytes
+      9: "INT24",
+      // aka MEDIUMINT, 3 bytes
+      10: "DATE",
+      // aka DATE
+      11: "TIME",
+      // aka TIME
+      12: "DATETIME",
+      // aka DATETIME
+      13: "YEAR",
+      // aka YEAR, 1 byte (don't ask)
+      14: "NEWDATE",
+      // aka ?
+      15: "VARCHAR",
+      // aka VARCHAR (?)
+      16: "BIT",
+      // aka BIT, 1-8 byte
+      245: "JSON",
+      246: "NEWDECIMAL",
+      // aka DECIMAL
+      247: "ENUM",
+      // aka ENUM
+      248: "SET",
+      // aka SET
+      249: "TINY_BLOB",
+      // aka TINYBLOB, TINYTEXT
+      250: "MEDIUM_BLOB",
+      // aka MEDIUMBLOB, MEDIUMTEXT
+      251: "LONG_BLOB",
+      // aka LONGBLOG, LONGTEXT
+      252: "BLOB",
+      // aka BLOB, TEXT
+      253: "VAR_STRING",
+      // aka VARCHAR, VARBINARY
+      254: "STRING",
+      // aka CHAR, BINARY
+      255: "GEOMETRY"
+      // aka GEOMETRY
+    };
+    module2.exports.DECIMAL = 0;
+    module2.exports.TINY = 1;
+    module2.exports.SHORT = 2;
+    module2.exports.LONG = 3;
+    module2.exports.FLOAT = 4;
+    module2.exports.DOUBLE = 5;
+    module2.exports.NULL = 6;
+    module2.exports.TIMESTAMP = 7;
+    module2.exports.LONGLONG = 8;
+    module2.exports.INT24 = 9;
+    module2.exports.DATE = 10;
+    module2.exports.TIME = 11;
+    module2.exports.DATETIME = 12;
+    module2.exports.YEAR = 13;
+    module2.exports.NEWDATE = 14;
+    module2.exports.VARCHAR = 15;
+    module2.exports.BIT = 16;
+    module2.exports.VECTOR = 242;
+    module2.exports.JSON = 245;
+    module2.exports.NEWDECIMAL = 246;
+    module2.exports.ENUM = 247;
+    module2.exports.SET = 248;
+    module2.exports.TINY_BLOB = 249;
+    module2.exports.MEDIUM_BLOB = 250;
+    module2.exports.LONG_BLOB = 251;
+    module2.exports.BLOB = 252;
+    module2.exports.VAR_STRING = 253;
+    module2.exports.STRING = 254;
+    module2.exports.GEOMETRY = 255;
+  }
+});
+
+// node_modules/mysql2/lib/packets/packet.js
 var require_packet = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/packets/packet.js"(exports2, module2) {
+  "node_modules/mysql2/lib/packets/packet.js"(exports2, module2) {
     "use strict";
     var ErrorCodeToName = require_errors();
     var NativeBuffer = require("buffer").Buffer;
     var Long = require_umd();
     var StringParser = require_string();
+    var Types = require_types();
     var INVALID_DATE = /* @__PURE__ */ new Date(NaN);
     var pad = "000000000000";
     function leftPad(num, value) {
@@ -11422,7 +10160,10 @@ var require_packet = __commonJS({
     var dot = ".".charCodeAt(0);
     var exponent = "e".charCodeAt(0);
     var exponentCapital = "E".charCodeAt(0);
-    var _Packet = class _Packet {
+    var Packet = class _Packet {
+      static {
+        __name(this, "Packet");
+      }
       constructor(id, buffer, start, end) {
         this.sequenceId = id;
         this.numPackets = 1;
@@ -11512,20 +10253,16 @@ var require_packet = __commonJS({
       readInt64() {
         const word0 = this.readInt32();
         const word1 = this.readInt32();
-        let res = new Long(word0, word1, true);
+        const res = new Long(word0, word1, true);
         const resNumber = res.toNumber();
-        const resString = res.toString();
-        res = resNumber.toString() === resString ? resNumber : resString;
-        return res;
+        return Number.isSafeInteger(resNumber) ? resNumber : res.toString();
       }
       readSInt64() {
         const word0 = this.readInt32();
         const word1 = this.readInt32();
-        let res = new Long(word0, word1, false);
+        const res = new Long(word0, word1, false);
         const resNumber = res.toNumber();
-        const resString = res.toString();
-        res = resNumber.toString() === resString ? resNumber : resString;
-        return res;
+        return Number.isSafeInteger(resNumber) ? resNumber : res.toString();
       }
       isEOF() {
         return this.buffer[this.offset] === 254 && this.length() < 13;
@@ -11570,8 +10307,10 @@ var require_packet = __commonJS({
           res = new Long(word0, word1, !signed);
           const resNumber = res.toNumber();
           const resString = res.toString();
-          res = resNumber.toString() === resString ? resNumber : resString;
-          return bigNumberStrings ? resString : res;
+          if (bigNumberStrings || !Number.isSafeInteger(resNumber)) {
+            return resString;
+          }
+          return resNumber;
         }
         console.trace();
         throw new Error(`Should not reach here: ${tag}`);
@@ -11628,13 +10367,16 @@ var require_packet = __commonJS({
           }
           return new Date(y, m2 - 1, d, H, M, S2, ms);
         }
-        let str = this.readDateTimeString(6, "T");
+        let str = this.readDateTimeString(6, "T", null);
+        if (!str) {
+          return INVALID_DATE;
+        }
         if (str.length === 10) {
           str += "T00:00:00";
         }
         return new Date(str + timezone);
       }
-      readDateTimeString(decimals, timeSep) {
+      readDateTimeString(decimals, timeSep, columnType) {
         const length = this.readInt8();
         let y = 0;
         let m2 = 0;
@@ -11659,6 +10401,8 @@ var require_packet = __commonJS({
             leftPad(2, M),
             leftPad(2, S2)
           ].join(":")}`;
+        } else if (columnType === Types.DATETIME) {
+          str += " 00:00:00";
         }
         if (length > 10) {
           ms = this.readInt32();
@@ -11727,7 +10471,7 @@ var require_packet = __commonJS({
       readNullTerminatedString(encoding) {
         const start = this.offset;
         let end = this.offset;
-        while (this.buffer[end]) {
+        while (end < this.end && this.buffer[end] !== 0) {
           end = end + 1;
         }
         this.offset = end + 1;
@@ -11776,7 +10520,7 @@ var require_packet = __commonJS({
           if (numDigits >= 15) {
             str = this.readString(end - this.offset, "binary");
             result = parseInt(str, 10);
-            if (result.toString() === str) {
+            if (Number.isSafeInteger(sign * result)) {
               return sign * result;
             }
             return sign === -1 ? `-${str}` : str;
@@ -11798,11 +10542,10 @@ var require_packet = __commonJS({
         if (!supportBigNumbers) {
           return num;
         }
-        str = this.buffer.toString("ascii", start, end);
-        if (num.toString() === str) {
+        if (Number.isSafeInteger(num)) {
           return num;
         }
-        return str;
+        return this.buffer.toString("ascii", start, end);
       }
       // note that if value of inputNumberAsString is bigger than MAX_SAFE_INTEGER
       // ( or smaller than MIN_SAFE_INTEGER ) the parseIntNoBigCheck result might be
@@ -11832,22 +10575,29 @@ var require_packet = __commonJS({
         }
         return result * sign;
       }
-      // copy-paste from https://github.com/mysqljs/mysql/blob/master/lib/protocol/Parser.js
+      // adapted from https://github.com/mysqljs/mysql/blob/dc9c152a87ec51a1f647447268917243d2eab1fd/lib/protocol/Parser.js
       parseGeometryValue() {
         const buffer = this.readLengthCodedBuffer();
         let offset = 4;
         if (buffer === null || !buffer.length) {
           return null;
         }
+        const bufferLength = buffer.length;
         function parseGeometry() {
-          let x2, y, i2, j, numPoints, line;
+          let x2, y, i2, j, numPoints, numRings, num, line;
           let result = null;
+          if (offset + 5 > bufferLength) {
+            return null;
+          }
           const byteOrder = buffer.readUInt8(offset);
           offset += 1;
           const wkbType = byteOrder ? buffer.readUInt32LE(offset) : buffer.readUInt32BE(offset);
           offset += 4;
           switch (wkbType) {
             case 1:
+              if (offset + 16 > bufferLength) {
+                return null;
+              }
               x2 = byteOrder ? buffer.readDoubleLE(offset) : buffer.readDoubleBE(offset);
               offset += 8;
               y = byteOrder ? buffer.readDoubleLE(offset) : buffer.readDoubleBE(offset);
@@ -11855,10 +10605,19 @@ var require_packet = __commonJS({
               result = { x: x2, y };
               break;
             case 2:
+              if (offset + 4 > bufferLength) {
+                return null;
+              }
               numPoints = byteOrder ? buffer.readUInt32LE(offset) : buffer.readUInt32BE(offset);
               offset += 4;
+              if (numPoints > (bufferLength - offset) / 16) {
+                return null;
+              }
               result = [];
               for (i2 = numPoints; i2 > 0; i2--) {
+                if (offset + 16 > bufferLength) {
+                  break;
+                }
                 x2 = byteOrder ? buffer.readDoubleLE(offset) : buffer.readDoubleBE(offset);
                 offset += 8;
                 y = byteOrder ? buffer.readDoubleLE(offset) : buffer.readDoubleBE(offset);
@@ -11867,14 +10626,26 @@ var require_packet = __commonJS({
               }
               break;
             case 3:
-              const numRings = byteOrder ? buffer.readUInt32LE(offset) : buffer.readUInt32BE(offset);
+              if (offset + 4 > bufferLength) {
+                return null;
+              }
+              numRings = byteOrder ? buffer.readUInt32LE(offset) : buffer.readUInt32BE(offset);
               offset += 4;
+              if (numRings > (bufferLength - offset) / 4) {
+                return null;
+              }
               result = [];
               for (i2 = numRings; i2 > 0; i2--) {
+                if (offset + 4 > bufferLength) {
+                  break;
+                }
                 numPoints = byteOrder ? buffer.readUInt32LE(offset) : buffer.readUInt32BE(offset);
                 offset += 4;
                 line = [];
                 for (j = numPoints; j > 0; j--) {
+                  if (offset + 16 > bufferLength) {
+                    break;
+                  }
                   x2 = byteOrder ? buffer.readDoubleLE(offset) : buffer.readDoubleBE(offset);
                   offset += 8;
                   y = byteOrder ? buffer.readDoubleLE(offset) : buffer.readDoubleBE(offset);
@@ -11888,8 +10659,14 @@ var require_packet = __commonJS({
             case 5:
             case 6:
             case 7:
-              const num = byteOrder ? buffer.readUInt32LE(offset) : buffer.readUInt32BE(offset);
+              if (offset + 4 > bufferLength) {
+                return null;
+              }
+              num = byteOrder ? buffer.readUInt32LE(offset) : buffer.readUInt32BE(offset);
               offset += 4;
+              if (num > (bufferLength - offset) / 9) {
+                return null;
+              }
               result = [];
               for (i2 = num; i2 > 0; i2--) {
                 result.push(parseGeometry());
@@ -11900,6 +10677,15 @@ var require_packet = __commonJS({
         }
         __name(parseGeometry, "parseGeometry");
         return parseGeometry();
+      }
+      parseVector() {
+        const bufLen = this.readLengthCodedNumber();
+        const vectorEnd = this.offset + bufLen;
+        const result = [];
+        while (this.offset < vectorEnd && this.offset < this.end) {
+          result.push(this.readFloat());
+        }
+        return result;
       }
       parseDate(timezone) {
         const strLen = this.readLengthCodedNumber();
@@ -11938,14 +10724,19 @@ var require_packet = __commonJS({
         if (len === null) {
           return null;
         }
+        if (len === 0) {
+          return 0;
+        }
+        if (len > 17) {
+          const str = this.buffer.toString("utf8", this.offset, this.offset + len);
+          this.offset += len;
+          return Number.parseFloat(str);
+        }
         let result = 0;
         const end = this.offset + len;
         let factor = 1;
         let pastDot = false;
         let charCode = 0;
-        if (len === 0) {
-          return 0;
-        }
         if (this.buffer[this.offset] === minus) {
           this.offset++;
           factor = -1;
@@ -11959,9 +10750,10 @@ var require_packet = __commonJS({
             pastDot = true;
             this.offset++;
           } else if (charCode === exponent || charCode === exponentCapital) {
-            this.offset++;
-            const exponentValue = this.parseInt(end - this.offset);
-            return result / factor * Math.pow(10, exponentValue);
+            const start = end - len;
+            const str = this.buffer.toString("utf8", start, end);
+            this.offset = end;
+            return Number.parseFloat(str);
           } else {
             result *= 10;
             result += this.buffer[this.offset] - 48;
@@ -12087,9 +10879,9 @@ var require_packet = __commonJS({
           return this.writeInt8(251);
         }
         this.writeInt8(254);
-        this.buffer.writeUInt32LE(n, this.offset);
+        this.buffer.writeUInt32LE(n >>> 0, this.offset);
         this.offset += 4;
-        this.buffer.writeUInt32LE(n >> 32, this.offset);
+        this.buffer.writeUInt32LE(Math.floor(n / 4294967296), this.offset);
         this.offset += 4;
         return this.offset;
       }
@@ -12171,15 +10963,13 @@ var require_packet = __commonJS({
         return res;
       }
     };
-    __name(_Packet, "Packet");
-    var Packet = _Packet;
     module2.exports = Packet;
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/packet_parser.js
+// node_modules/mysql2/lib/packet_parser.js
 var require_packet_parser = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/packet_parser.js"(exports2, module2) {
+  "node_modules/mysql2/lib/packet_parser.js"(exports2, module2) {
     "use strict";
     var Packet = require_packet();
     var MAX_PACKET_LENGTH = 16777215;
@@ -12193,7 +10983,10 @@ var require_packet_parser = __commonJS({
       return b0 + (b1 << 8) + (b2 << 16);
     }
     __name(readPacketLength, "readPacketLength");
-    var _PacketParser = class _PacketParser {
+    var PacketParser = class _PacketParser {
+      static {
+        __name(this, "PacketParser");
+      }
       constructor(onPacket, packetHeaderLength) {
         if (typeof packetHeaderLength === "undefined") {
           packetHeaderLength = 4;
@@ -12341,18 +11134,19 @@ var require_packet_parser = __commonJS({
         return this.executePayload(chunk.slice(1));
       }
     };
-    __name(_PacketParser, "PacketParser");
-    var PacketParser = _PacketParser;
     module2.exports = PacketParser;
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/packets/auth_next_factor.js
+// node_modules/mysql2/lib/packets/auth_next_factor.js
 var require_auth_next_factor = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/packets/auth_next_factor.js"(exports2, module2) {
+  "node_modules/mysql2/lib/packets/auth_next_factor.js"(exports2, module2) {
     "use strict";
     var Packet = require_packet();
-    var _AuthNextFactor = class _AuthNextFactor {
+    var AuthNextFactor = class _AuthNextFactor {
+      static {
+        __name(this, "AuthNextFactor");
+      }
       constructor(opts) {
         this.pluginName = opts.pluginName;
         this.pluginData = opts.pluginData;
@@ -12377,18 +11171,19 @@ var require_auth_next_factor = __commonJS({
         });
       }
     };
-    __name(_AuthNextFactor, "AuthNextFactor");
-    var AuthNextFactor = _AuthNextFactor;
     module2.exports = AuthNextFactor;
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/packets/auth_switch_request.js
+// node_modules/mysql2/lib/packets/auth_switch_request.js
 var require_auth_switch_request = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/packets/auth_switch_request.js"(exports2, module2) {
+  "node_modules/mysql2/lib/packets/auth_switch_request.js"(exports2, module2) {
     "use strict";
     var Packet = require_packet();
-    var _AuthSwitchRequest = class _AuthSwitchRequest {
+    var AuthSwitchRequest = class _AuthSwitchRequest {
+      static {
+        __name(this, "AuthSwitchRequest");
+      }
       constructor(opts) {
         this.pluginName = opts.pluginName;
         this.pluginData = opts.pluginData;
@@ -12413,18 +11208,19 @@ var require_auth_switch_request = __commonJS({
         });
       }
     };
-    __name(_AuthSwitchRequest, "AuthSwitchRequest");
-    var AuthSwitchRequest = _AuthSwitchRequest;
     module2.exports = AuthSwitchRequest;
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/packets/auth_switch_request_more_data.js
+// node_modules/mysql2/lib/packets/auth_switch_request_more_data.js
 var require_auth_switch_request_more_data = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/packets/auth_switch_request_more_data.js"(exports2, module2) {
+  "node_modules/mysql2/lib/packets/auth_switch_request_more_data.js"(exports2, module2) {
     "use strict";
     var Packet = require_packet();
-    var _AuthSwitchRequestMoreData = class _AuthSwitchRequestMoreData {
+    var AuthSwitchRequestMoreData = class _AuthSwitchRequestMoreData {
+      static {
+        __name(this, "AuthSwitchRequestMoreData");
+      }
       constructor(data) {
         this.data = data;
       }
@@ -12446,18 +11242,19 @@ var require_auth_switch_request_more_data = __commonJS({
         return packet.peekByte() === 1;
       }
     };
-    __name(_AuthSwitchRequestMoreData, "AuthSwitchRequestMoreData");
-    var AuthSwitchRequestMoreData = _AuthSwitchRequestMoreData;
     module2.exports = AuthSwitchRequestMoreData;
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/packets/auth_switch_response.js
+// node_modules/mysql2/lib/packets/auth_switch_response.js
 var require_auth_switch_response = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/packets/auth_switch_response.js"(exports2, module2) {
+  "node_modules/mysql2/lib/packets/auth_switch_response.js"(exports2, module2) {
     "use strict";
     var Packet = require_packet();
-    var _AuthSwitchResponse = class _AuthSwitchResponse {
+    var AuthSwitchResponse = class _AuthSwitchResponse {
+      static {
+        __name(this, "AuthSwitchResponse");
+      }
       constructor(data) {
         if (!Buffer.isBuffer(data)) {
           data = Buffer.from(data);
@@ -12477,112 +11274,21 @@ var require_auth_switch_response = __commonJS({
         return new _AuthSwitchResponse(data);
       }
     };
-    __name(_AuthSwitchResponse, "AuthSwitchResponse");
-    var AuthSwitchResponse = _AuthSwitchResponse;
     module2.exports = AuthSwitchResponse;
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/constants/types.js
-var require_types = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/constants/types.js"(exports2, module2) {
-    "use strict";
-    module2.exports = {
-      0: "DECIMAL",
-      // aka DECIMAL 
-      1: "TINY",
-      // aka TINYINT, 1 byte
-      2: "SHORT",
-      // aka SMALLINT, 2 bytes
-      3: "LONG",
-      // aka INT, 4 bytes
-      4: "FLOAT",
-      // aka FLOAT, 4-8 bytes
-      5: "DOUBLE",
-      // aka DOUBLE, 8 bytes
-      6: "NULL",
-      // NULL (used for prepared statements, I think)
-      7: "TIMESTAMP",
-      // aka TIMESTAMP
-      8: "LONGLONG",
-      // aka BIGINT, 8 bytes
-      9: "INT24",
-      // aka MEDIUMINT, 3 bytes
-      10: "DATE",
-      // aka DATE
-      11: "TIME",
-      // aka TIME
-      12: "DATETIME",
-      // aka DATETIME
-      13: "YEAR",
-      // aka YEAR, 1 byte (don't ask)
-      14: "NEWDATE",
-      // aka ?
-      15: "VARCHAR",
-      // aka VARCHAR (?)
-      16: "BIT",
-      // aka BIT, 1-8 byte
-      245: "JSON",
-      246: "NEWDECIMAL",
-      // aka DECIMAL
-      247: "ENUM",
-      // aka ENUM
-      248: "SET",
-      // aka SET
-      249: "TINY_BLOB",
-      // aka TINYBLOB, TINYTEXT
-      250: "MEDIUM_BLOB",
-      // aka MEDIUMBLOB, MEDIUMTEXT
-      251: "LONG_BLOB",
-      // aka LONGBLOG, LONGTEXT
-      252: "BLOB",
-      // aka BLOB, TEXT
-      253: "VAR_STRING",
-      // aka VARCHAR, VARBINARY
-      254: "STRING",
-      // aka CHAR, BINARY
-      255: "GEOMETRY"
-      // aka GEOMETRY
-    };
-    module2.exports.DECIMAL = 0;
-    module2.exports.TINY = 1;
-    module2.exports.SHORT = 2;
-    module2.exports.LONG = 3;
-    module2.exports.FLOAT = 4;
-    module2.exports.DOUBLE = 5;
-    module2.exports.NULL = 6;
-    module2.exports.TIMESTAMP = 7;
-    module2.exports.LONGLONG = 8;
-    module2.exports.INT24 = 9;
-    module2.exports.DATE = 10;
-    module2.exports.TIME = 11;
-    module2.exports.DATETIME = 12;
-    module2.exports.YEAR = 13;
-    module2.exports.NEWDATE = 14;
-    module2.exports.VARCHAR = 15;
-    module2.exports.BIT = 16;
-    module2.exports.JSON = 245;
-    module2.exports.NEWDECIMAL = 246;
-    module2.exports.ENUM = 247;
-    module2.exports.SET = 248;
-    module2.exports.TINY_BLOB = 249;
-    module2.exports.MEDIUM_BLOB = 250;
-    module2.exports.LONG_BLOB = 251;
-    module2.exports.BLOB = 252;
-    module2.exports.VAR_STRING = 253;
-    module2.exports.STRING = 254;
-    module2.exports.GEOMETRY = 255;
-  }
-});
-
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/packets/binary_row.js
+// node_modules/mysql2/lib/packets/binary_row.js
 var require_binary_row = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/packets/binary_row.js"(exports2, module2) {
+  "node_modules/mysql2/lib/packets/binary_row.js"(exports2, module2) {
     "use strict";
     var Types = require_types();
     var Packet = require_packet();
     var binaryReader = new Array(256);
-    var _BinaryRow = class _BinaryRow {
+    var BinaryRow = class _BinaryRow {
+      static {
+        __name(this, "BinaryRow");
+      }
       constructor(columns) {
         this.columns = columns || [];
       }
@@ -12642,8 +11348,6 @@ var require_binary_row = __commonJS({
         return new _BinaryRow(columns);
       }
     };
-    __name(_BinaryRow, "BinaryRow");
-    var BinaryRow = _BinaryRow;
     binaryReader[Types.DECIMAL] = Packet.prototype.readLengthCodedString;
     binaryReader[1] = Packet.prototype.readInt8;
     binaryReader[2] = Packet.prototype.readInt16;
@@ -12663,9 +11367,9 @@ var require_binary_row = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/constants/commands.js
+// node_modules/mysql2/lib/constants/commands.js
 var require_commands = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/constants/commands.js"(exports2, module2) {
+  "node_modules/mysql2/lib/constants/commands.js"(exports2, module2) {
     "use strict";
     module2.exports = {
       SLEEP: 0,
@@ -12705,19 +11409,24 @@ var require_commands = __commonJS({
       DAEMON: 29,
       // deprecated
       BINLOG_DUMP_GTID: 30,
+      RESET_CONNECTION: 31,
+      // introduced in 5.7.3
       UNKNOWN: 255
       // bad!
     };
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/packets/binlog_dump.js
+// node_modules/mysql2/lib/packets/binlog_dump.js
 var require_binlog_dump = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/packets/binlog_dump.js"(exports2, module2) {
+  "node_modules/mysql2/lib/packets/binlog_dump.js"(exports2, module2) {
     "use strict";
     var Packet = require_packet();
     var CommandCodes = require_commands();
-    var _BinlogDump = class _BinlogDump {
+    var BinlogDump = class {
+      static {
+        __name(this, "BinlogDump");
+      }
       constructor(opts) {
         this.binlogPos = opts.binlogPos || 0;
         this.serverId = opts.serverId || 0;
@@ -12737,15 +11446,13 @@ var require_binlog_dump = __commonJS({
         return packet;
       }
     };
-    __name(_BinlogDump, "BinlogDump");
-    var BinlogDump = _BinlogDump;
     module2.exports = BinlogDump;
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/constants/client.js
+// node_modules/mysql2/lib/constants/client.js
 var require_client = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/constants/client.js"(exports2) {
+  "node_modules/mysql2/lib/constants/client.js"(exports2) {
     "use strict";
     exports2.LONG_PASSWORD = 1;
     exports2.FOUND_ROWS = 2;
@@ -12771,16 +11478,16 @@ var require_client = __commonJS({
     exports2.PLUGIN_AUTH_LENENC_CLIENT_DATA = 2097152;
     exports2.CAN_HANDLE_EXPIRED_PASSWORDS = 4194304;
     exports2.SESSION_TRACK = 8388608;
-    exports2.DEPRECATE_EOF = 16777216;
+    exports2.CLIENT_QUERY_ATTRIBUTES = 134217728;
     exports2.SSL_VERIFY_SERVER_CERT = 1073741824;
     exports2.REMEMBER_OPTIONS = 2147483648;
     exports2.MULTI_FACTOR_AUTHENTICATION = 268435456;
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/auth_41.js
+// node_modules/mysql2/lib/auth_41.js
 var require_auth_41 = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/auth_41.js"(exports2) {
+  "node_modules/mysql2/lib/auth_41.js"(exports2) {
     "use strict";
     var crypto = require("crypto");
     function sha1(msg, msg1, msg2) {
@@ -12841,9 +11548,9 @@ var require_auth_41 = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/constants/charset_encodings.js
+// node_modules/mysql2/lib/constants/charset_encodings.js
 var require_charset_encodings = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/constants/charset_encodings.js"(exports2, module2) {
+  "node_modules/mysql2/lib/constants/charset_encodings.js"(exports2, module2) {
     "use strict";
     module2.exports = [
       "utf8",
@@ -13154,21 +11861,25 @@ var require_charset_encodings = __commonJS({
       "utf8",
       "utf8",
       "utf8",
+      "utf8",
       "utf8"
     ];
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/packets/change_user.js
+// node_modules/mysql2/lib/packets/change_user.js
 var require_change_user = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/packets/change_user.js"(exports2, module2) {
+  "node_modules/mysql2/lib/packets/change_user.js"(exports2, module2) {
     "use strict";
     var CommandCode = require_commands();
     var ClientConstants = require_client();
     var Packet = require_packet();
     var auth41 = require_auth_41();
     var CharsetToEncoding = require_charset_encodings();
-    var _ChangeUser = class _ChangeUser {
+    var ChangeUser = class {
+      static {
+        __name(this, "ChangeUser");
+      }
       constructor(opts) {
         this.flags = opts.flags;
         this.user = opts.user || "";
@@ -13250,19 +11961,20 @@ var require_change_user = __commonJS({
         return this.serializeToBuffer(Buffer.allocUnsafe(p.offset));
       }
     };
-    __name(_ChangeUser, "ChangeUser");
-    var ChangeUser = _ChangeUser;
     module2.exports = ChangeUser;
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/packets/close_statement.js
+// node_modules/mysql2/lib/packets/close_statement.js
 var require_close_statement = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/packets/close_statement.js"(exports2, module2) {
+  "node_modules/mysql2/lib/packets/close_statement.js"(exports2, module2) {
     "use strict";
     var Packet = require_packet();
     var CommandCodes = require_commands();
-    var _CloseStatement = class _CloseStatement {
+    var CloseStatement = class {
+      static {
+        __name(this, "CloseStatement");
+      }
       constructor(id) {
         this.id = id;
       }
@@ -13275,15 +11987,13 @@ var require_close_statement = __commonJS({
         return packet;
       }
     };
-    __name(_CloseStatement, "CloseStatement");
-    var CloseStatement = _CloseStatement;
     module2.exports = CloseStatement;
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/constants/field_flags.js
+// node_modules/mysql2/lib/constants/field_flags.js
 var require_field_flags = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/constants/field_flags.js"(exports2) {
+  "node_modules/mysql2/lib/constants/field_flags.js"(exports2) {
     "use strict";
     exports2.NOT_NULL = 1;
     exports2.PRI_KEY = 2;
@@ -13303,15 +12013,18 @@ var require_field_flags = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/packets/column_definition.js
+// node_modules/mysql2/lib/packets/column_definition.js
 var require_column_definition = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/packets/column_definition.js"(exports2, module2) {
+  "node_modules/mysql2/lib/packets/column_definition.js"(exports2, module2) {
     "use strict";
     var Packet = require_packet();
     var StringParser = require_string();
     var CharsetToEncoding = require_charset_encodings();
     var fields = ["catalog", "schema", "table", "orgTable", "name", "orgName"];
-    var _ColumnDefinition = class _ColumnDefinition {
+    var ColumnDefinition = class {
+      static {
+        __name(this, "ColumnDefinition");
+      }
       constructor(packet, clientEncoding) {
         this._buf = packet.buffer;
         this._clientEncoding = clientEncoding;
@@ -13516,11 +12229,9 @@ var require_column_definition = __commonJS({
         return this.schema;
       }
     };
-    __name(_ColumnDefinition, "ColumnDefinition");
-    var ColumnDefinition = _ColumnDefinition;
     var addString = /* @__PURE__ */ __name(function(name) {
       Object.defineProperty(ColumnDefinition.prototype, name, {
-        get: function() {
+        get: /* @__PURE__ */ __name(function() {
           const start = this[`_${name}Start`];
           const end = start + this[`_${name}Length`];
           const val = StringParser.decode(
@@ -13536,7 +12247,7 @@ var require_column_definition = __commonJS({
             enumerable: false
           });
           return val;
-        }
+        }, "get")
       });
     }, "addString");
     addString("catalog");
@@ -13548,28 +12259,26 @@ var require_column_definition = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/constants/cursor.js
+// node_modules/mysql2/lib/constants/cursor.js
 var require_cursor = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/constants/cursor.js"(exports2, module2) {
+  "node_modules/mysql2/lib/constants/cursor.js"(exports2, module2) {
     "use strict";
     module2.exports = {
       NO_CURSOR: 0,
       READ_ONLY: 1,
       FOR_UPDATE: 2,
-      SCROLLABLE: 3
+      SCROLLABLE: 3,
+      PARAMETER_COUNT_AVAILABLE: 8
     };
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/packets/execute.js
-var require_execute = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/packets/execute.js"(exports2, module2) {
+// node_modules/mysql2/lib/packets/encode_parameter.js
+var require_encode_parameter = __commonJS({
+  "node_modules/mysql2/lib/packets/encode_parameter.js"(exports2, module2) {
     "use strict";
-    var CursorType = require_cursor();
-    var CommandCodes = require_commands();
     var Types = require_types();
     var Packet = require_packet();
-    var CharsetToEncoding = require_charset_encodings();
     function isJSON(value) {
       return Array.isArray(value) || value.constructor === Object || typeof value.toJSON === "function" && !Buffer.isBuffer(value);
     }
@@ -13625,12 +12334,32 @@ var require_execute = __commonJS({
       return { value, type, length, writer };
     }
     __name(toParameter, "toParameter");
-    var _Execute = class _Execute {
-      constructor(id, parameters, charsetNumber, timezone) {
+    module2.exports = { toParameter, isJSON };
+  }
+});
+
+// node_modules/mysql2/lib/packets/execute.js
+var require_execute = __commonJS({
+  "node_modules/mysql2/lib/packets/execute.js"(exports2, module2) {
+    "use strict";
+    var CursorType = require_cursor();
+    var CommandCodes = require_commands();
+    var ClientConstants = require_client();
+    var Types = require_types();
+    var Packet = require_packet();
+    var CharsetToEncoding = require_charset_encodings();
+    var { toParameter } = require_encode_parameter();
+    var Execute = class {
+      static {
+        __name(this, "Execute");
+      }
+      constructor(id, parameters, charsetNumber, timezone, attributes, clientFlags) {
         this.id = id;
         this.parameters = parameters;
         this.encoding = CharsetToEncoding[charsetNumber];
         this.timezone = timezone;
+        this.attributes = attributes;
+        this.clientFlags = clientFlags || 0;
       }
       static fromPacket(packet, encoding) {
         const stmtId = packet.readInt32();
@@ -13672,32 +12401,36 @@ var require_execute = __commonJS({
         }
         return { stmtId, flags, iterationCount, values };
       }
-      toPacket() {
-        let length = 14;
-        let parameters;
-        if (this.parameters && this.parameters.length > 0) {
-          length += Math.floor((this.parameters.length + 7) / 8);
-          length += 1;
-          length += 2 * this.parameters.length;
-          parameters = this.parameters.map(
-            (value) => toParameter(value, this.encoding, this.timezone)
-          );
-          length += parameters.reduce(
-            (accumulator, parameter) => accumulator + parameter.length,
-            0
-          );
-        }
-        const buffer = Buffer.allocUnsafe(length);
-        const packet = new Packet(0, buffer, 0, length);
+      _serializeToBuffer(buffer) {
+        const useQueryAttributes = this.clientFlags & ClientConstants.CLIENT_QUERY_ATTRIBUTES;
+        const attrNames = useQueryAttributes && this.attributes ? Object.keys(this.attributes) : [];
+        const numParams = this.parameters ? this.parameters.length : 0;
+        const numAttrs = attrNames.length;
+        const totalParams = numParams + numAttrs;
+        const packet = new Packet(0, buffer, 0, buffer.length);
         packet.offset = 4;
         packet.writeInt8(CommandCodes.STMT_EXECUTE);
         packet.writeInt32(this.id);
-        packet.writeInt8(CursorType.NO_CURSOR);
+        let cursorFlags = CursorType.NO_CURSOR;
+        if (useQueryAttributes) {
+          cursorFlags |= CursorType.PARAMETER_COUNT_AVAILABLE;
+        }
+        packet.writeInt8(cursorFlags);
         packet.writeInt32(1);
-        if (parameters) {
+        if (useQueryAttributes) {
+          packet.writeLengthCodedNumber(totalParams);
+        }
+        if (totalParams > 0) {
+          const bindParams = numParams > 0 ? this.parameters.map(
+            (v) => toParameter(v, this.encoding, this.timezone)
+          ) : [];
+          const attrParams = attrNames.map(
+            (name) => toParameter(this.attributes[name], this.encoding, this.timezone)
+          );
+          const allParams = bindParams.concat(attrParams);
           let bitmap = 0;
           let bitValue = 1;
-          parameters.forEach((parameter) => {
+          allParams.forEach((parameter) => {
             if (parameter.type === Types.NULL) {
               bitmap += bitValue;
             }
@@ -13712,11 +12445,15 @@ var require_execute = __commonJS({
             packet.writeInt8(bitmap);
           }
           packet.writeInt8(1);
-          parameters.forEach((parameter) => {
-            packet.writeInt8(parameter.type);
+          for (let i2 = 0; i2 < allParams.length; i2++) {
+            packet.writeInt8(allParams[i2].type);
             packet.writeInt8(0);
-          });
-          parameters.forEach((parameter) => {
+            if (useQueryAttributes) {
+              const name = i2 < numParams ? "" : attrNames[i2 - numParams];
+              packet.writeLengthCodedString(name, this.encoding);
+            }
+          }
+          allParams.forEach((parameter) => {
             if (parameter.type !== Types.NULL) {
               parameter.writer.call(packet, parameter.value);
             }
@@ -13724,20 +12461,25 @@ var require_execute = __commonJS({
         }
         return packet;
       }
+      toPacket() {
+        const p = this._serializeToBuffer(Packet.MockBuffer());
+        return this._serializeToBuffer(Buffer.allocUnsafe(p.offset));
+      }
     };
-    __name(_Execute, "Execute");
-    var Execute = _Execute;
     module2.exports = Execute;
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/packets/handshake.js
+// node_modules/mysql2/lib/packets/handshake.js
 var require_handshake = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/packets/handshake.js"(exports2, module2) {
+  "node_modules/mysql2/lib/packets/handshake.js"(exports2, module2) {
     "use strict";
     var Packet = require_packet();
     var ClientConstants = require_client();
-    var _Handshake = class _Handshake {
+    var Handshake = class _Handshake {
+      static {
+        __name(this, "Handshake");
+      }
       constructor(args) {
         this.protocolVersion = args.protocolVersion;
         this.serverVersion = args.serverVersion;
@@ -13747,7 +12489,7 @@ var require_handshake = __commonJS({
         this.authPluginData2 = args.authPluginData2;
         this.characterSet = args.characterSet;
         this.statusFlags = args.statusFlags;
-        this.autPluginName = args.autPluginName;
+        this.authPluginName = args.authPluginName;
       }
       setScrambleData(cb) {
         require("crypto").randomBytes(20, (err, data) => {
@@ -13824,26 +12566,27 @@ var require_handshake = __commonJS({
           }
         }
         if (args.capabilityFlags & ClientConstants.PLUGIN_AUTH) {
-          args.autPluginName = packet.readNullTerminatedString("ascii");
+          args.authPluginName = packet.readNullTerminatedString("ascii");
         }
         return new _Handshake(args);
       }
     };
-    __name(_Handshake, "Handshake");
-    var Handshake = _Handshake;
     module2.exports = Handshake;
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/packets/handshake_response.js
+// node_modules/mysql2/lib/packets/handshake_response.js
 var require_handshake_response = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/packets/handshake_response.js"(exports2, module2) {
+  "node_modules/mysql2/lib/packets/handshake_response.js"(exports2, module2) {
     "use strict";
     var ClientConstants = require_client();
     var CharsetToEncoding = require_charset_encodings();
     var Packet = require_packet();
     var auth41 = require_auth_41();
-    var _HandshakeResponse = class _HandshakeResponse {
+    var HandshakeResponse = class {
+      static {
+        __name(this, "HandshakeResponse");
+      }
       constructor(handshake) {
         this.user = handshake.user || "";
         this.database = handshake.database || "";
@@ -13853,21 +12596,37 @@ var require_handshake_response = __commonJS({
         this.authPluginData2 = handshake.authPluginData2;
         this.compress = handshake.compress;
         this.clientFlags = handshake.flags;
-        let authToken;
-        if (this.passwordSha1) {
-          authToken = auth41.calculateTokenFromPasswordSha(
-            this.passwordSha1,
-            this.authPluginData1,
-            this.authPluginData2
-          );
+        if (handshake.authToken !== void 0 && handshake.authPluginName !== void 0) {
+          if (!Buffer.isBuffer(handshake.authToken)) {
+            throw new TypeError(
+              "HandshakeResponse authToken must be a Buffer when provided"
+            );
+          }
+          if (typeof handshake.authPluginName !== "string") {
+            throw new TypeError(
+              "HandshakeResponse authPluginName must be a string when provided"
+            );
+          }
+          this.authToken = handshake.authToken;
+          this.authPluginName = handshake.authPluginName;
         } else {
-          authToken = auth41.calculateToken(
-            this.password,
-            this.authPluginData1,
-            this.authPluginData2
-          );
+          let authToken;
+          if (this.passwordSha1) {
+            authToken = auth41.calculateTokenFromPasswordSha(
+              this.passwordSha1,
+              this.authPluginData1,
+              this.authPluginData2
+            );
+          } else {
+            authToken = auth41.calculateToken(
+              this.password,
+              this.authPluginData1,
+              this.authPluginData2
+            );
+          }
+          this.authToken = authToken;
+          this.authPluginName = "mysql_native_password";
         }
-        this.authToken = authToken;
         this.charsetNumber = handshake.charsetNumber;
         this.encoding = CharsetToEncoding[handshake.charsetNumber];
         this.connectAttributes = handshake.connectAttributes;
@@ -13897,7 +12656,10 @@ var require_handshake_response = __commonJS({
           packet.writeNullTerminatedString(this.database, encoding);
         }
         if (isSet("PLUGIN_AUTH")) {
-          packet.writeNullTerminatedString("mysql_native_password", "latin1");
+          packet.writeNullTerminatedString(
+            this.authPluginName || "mysql_native_password",
+            "latin1"
+          );
         }
         if (isSet("CONNECT_ATTRS")) {
           const connectAttributes = this.connectAttributes || {};
@@ -13931,11 +12693,11 @@ var require_handshake_response = __commonJS({
         const p = this.serializeResponse(Packet.MockBuffer());
         return this.serializeResponse(Buffer.alloc(p.offset));
       }
-      static fromPacket(packet) {
+      static fromPacket(packet, serverFlags = 4294967295) {
         const args = {};
         args.clientFlags = packet.readInt32();
         function isSet(flag) {
-          return args.clientFlags & ClientConstants[flag];
+          return args.clientFlags & serverFlags & ClientConstants[flag];
         }
         __name(isSet, "isSet");
         args.maxPacketSize = packet.readInt32();
@@ -13972,21 +12734,22 @@ var require_handshake_response = __commonJS({
         return args;
       }
     };
-    __name(_HandshakeResponse, "HandshakeResponse");
-    var HandshakeResponse = _HandshakeResponse;
     module2.exports = HandshakeResponse;
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/packets/prepare_statement.js
+// node_modules/mysql2/lib/packets/prepare_statement.js
 var require_prepare_statement = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/packets/prepare_statement.js"(exports2, module2) {
+  "node_modules/mysql2/lib/packets/prepare_statement.js"(exports2, module2) {
     "use strict";
     var Packet = require_packet();
     var CommandCodes = require_commands();
     var StringParser = require_string();
     var CharsetToEncoding = require_charset_encodings();
-    var _PrepareStatement = class _PrepareStatement {
+    var PrepareStatement = class {
+      static {
+        __name(this, "PrepareStatement");
+      }
       constructor(sql, charsetNumber) {
         this.query = sql;
         this.charsetNumber = charsetNumber;
@@ -14003,17 +12766,18 @@ var require_prepare_statement = __commonJS({
         return packet;
       }
     };
-    __name(_PrepareStatement, "PrepareStatement");
-    var PrepareStatement = _PrepareStatement;
     module2.exports = PrepareStatement;
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/packets/prepared_statement_header.js
+// node_modules/mysql2/lib/packets/prepared_statement_header.js
 var require_prepared_statement_header = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/packets/prepared_statement_header.js"(exports2, module2) {
+  "node_modules/mysql2/lib/packets/prepared_statement_header.js"(exports2, module2) {
     "use strict";
-    var _PreparedStatementHeader = class _PreparedStatementHeader {
+    var PreparedStatementHeader = class {
+      static {
+        __name(this, "PreparedStatementHeader");
+      }
       constructor(packet) {
         packet.skip(1);
         this.id = packet.readInt32();
@@ -14023,50 +12787,110 @@ var require_prepared_statement_header = __commonJS({
         this.warningCount = packet.readInt16();
       }
     };
-    __name(_PreparedStatementHeader, "PreparedStatementHeader");
-    var PreparedStatementHeader = _PreparedStatementHeader;
     module2.exports = PreparedStatementHeader;
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/packets/query.js
+// node_modules/mysql2/lib/packets/query.js
 var require_query = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/packets/query.js"(exports2, module2) {
+  "node_modules/mysql2/lib/packets/query.js"(exports2, module2) {
     "use strict";
     var Packet = require_packet();
     var CommandCode = require_commands();
     var StringParser = require_string();
     var CharsetToEncoding = require_charset_encodings();
-    var _Query = class _Query {
-      constructor(sql, charsetNumber) {
+    var ClientConstants = require_client();
+    var Types = require_types();
+    var { toParameter } = require_encode_parameter();
+    var Query = class {
+      static {
+        __name(this, "Query");
+      }
+      constructor(sql, charsetNumber, attributes, clientFlags) {
         this.query = sql;
         this.charsetNumber = charsetNumber;
         this.encoding = CharsetToEncoding[charsetNumber];
+        this.attributes = attributes;
+        this.clientFlags = clientFlags || 0;
       }
-      toPacket() {
-        const buf = StringParser.encode(this.query, this.encoding);
-        const length = 5 + buf.length;
-        const buffer = Buffer.allocUnsafe(length);
-        const packet = new Packet(0, buffer, 0, length);
+      serializeToBuffer(buffer) {
+        const useQueryAttributes = this.clientFlags & ClientConstants.CLIENT_QUERY_ATTRIBUTES;
+        const sqlBuf = StringParser.encode(this.query, this.encoding);
+        const packet = new Packet(0, buffer, 0, buffer.length);
         packet.offset = 4;
         packet.writeInt8(CommandCode.QUERY);
-        packet.writeBuffer(buf);
+        if (useQueryAttributes) {
+          const attrs = this.attributes;
+          const names = attrs ? Object.keys(attrs) : [];
+          const paramCount = names.length;
+          packet.writeLengthCodedNumber(paramCount);
+          packet.writeLengthCodedNumber(1);
+          if (paramCount > 0) {
+            const parameters = names.map(
+              (name) => toParameter(attrs[name], this.encoding, "local")
+            );
+            let bitmap = 0;
+            let bitValue = 1;
+            parameters.forEach((parameter) => {
+              if (parameter.type === Types.NULL) {
+                bitmap += bitValue;
+              }
+              bitValue *= 2;
+              if (bitValue === 256) {
+                packet.writeInt8(bitmap);
+                bitmap = 0;
+                bitValue = 1;
+              }
+            });
+            if (bitValue !== 1) {
+              packet.writeInt8(bitmap);
+            }
+            packet.writeInt8(1);
+            for (let i2 = 0; i2 < paramCount; i2++) {
+              packet.writeInt8(parameters[i2].type);
+              packet.writeInt8(0);
+              packet.writeLengthCodedString(names[i2], this.encoding);
+            }
+            parameters.forEach((parameter) => {
+              if (parameter.type !== Types.NULL) {
+                parameter.writer.call(packet, parameter.value);
+              }
+            });
+          }
+        }
+        packet.writeBuffer(sqlBuf);
         return packet;
       }
+      toPacket() {
+        const useQueryAttributes = this.clientFlags & ClientConstants.CLIENT_QUERY_ATTRIBUTES;
+        if (!useQueryAttributes) {
+          const buf = StringParser.encode(this.query, this.encoding);
+          const length = 5 + buf.length;
+          const buffer = Buffer.allocUnsafe(length);
+          const packet = new Packet(0, buffer, 0, length);
+          packet.offset = 4;
+          packet.writeInt8(CommandCode.QUERY);
+          packet.writeBuffer(buf);
+          return packet;
+        }
+        const p = this.serializeToBuffer(Packet.MockBuffer());
+        return this.serializeToBuffer(Buffer.allocUnsafe(p.offset));
+      }
     };
-    __name(_Query, "Query");
-    var Query = _Query;
     module2.exports = Query;
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/packets/register_slave.js
+// node_modules/mysql2/lib/packets/register_slave.js
 var require_register_slave = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/packets/register_slave.js"(exports2, module2) {
+  "node_modules/mysql2/lib/packets/register_slave.js"(exports2, module2) {
     "use strict";
     var Packet = require_packet();
     var CommandCodes = require_commands();
-    var _RegisterSlave = class _RegisterSlave {
+    var RegisterSlave = class {
+      static {
+        __name(this, "RegisterSlave");
+      }
       constructor(opts) {
         this.serverId = opts.serverId || 0;
         this.slaveHostname = opts.slaveHostname || "";
@@ -14096,15 +12920,36 @@ var require_register_slave = __commonJS({
         return packet;
       }
     };
-    __name(_RegisterSlave, "RegisterSlave");
-    var RegisterSlave = _RegisterSlave;
     module2.exports = RegisterSlave;
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/constants/server_status.js
+// node_modules/mysql2/lib/packets/reset_connection.js
+var require_reset_connection = __commonJS({
+  "node_modules/mysql2/lib/packets/reset_connection.js"(exports2, module2) {
+    "use strict";
+    var Packet = require_packet();
+    var CommandCodes = require_commands();
+    var ResetConnection = class {
+      static {
+        __name(this, "ResetConnection");
+      }
+      constructor() {
+      }
+      toPacket() {
+        const packet = new Packet(0, Buffer.alloc(5), 0, 5);
+        packet.offset = 4;
+        packet.writeInt8(CommandCodes.RESET_CONNECTION);
+        return packet;
+      }
+    };
+    module2.exports = ResetConnection;
+  }
+});
+
+// node_modules/mysql2/lib/constants/server_status.js
 var require_server_status = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/constants/server_status.js"(exports2) {
+  "node_modules/mysql2/lib/constants/server_status.js"(exports2) {
     "use strict";
     exports2.SERVER_STATUS_IN_TRANS = 1;
     exports2.SERVER_STATUS_AUTOCOMMIT = 2;
@@ -14123,9 +12968,9 @@ var require_server_status = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/constants/encoding_charset.js
+// node_modules/mysql2/lib/constants/encoding_charset.js
 var require_encoding_charset = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/constants/encoding_charset.js"(exports2, module2) {
+  "node_modules/mysql2/lib/constants/encoding_charset.js"(exports2, module2) {
     "use strict";
     module2.exports = {
       big5: 1,
@@ -14169,14 +13014,15 @@ var require_encoding_charset = __commonJS({
       geostd8: 92,
       cp932: 95,
       eucjpms: 97,
-      gb18030: 248
+      gb18030: 248,
+      utf8mb3: 192
     };
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/constants/session_track.js
+// node_modules/mysql2/lib/constants/session_track.js
 var require_session_track = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/constants/session_track.js"(exports2) {
+  "node_modules/mysql2/lib/constants/session_track.js"(exports2) {
     "use strict";
     exports2.SYSTEM_VARIABLES = 0;
     exports2.SCHEMA = 1;
@@ -14189,16 +13035,19 @@ var require_session_track = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/packets/resultset_header.js
+// node_modules/mysql2/lib/packets/resultset_header.js
 var require_resultset_header = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/packets/resultset_header.js"(exports2, module2) {
+  "node_modules/mysql2/lib/packets/resultset_header.js"(exports2, module2) {
     "use strict";
     var Packet = require_packet();
     var ClientConstants = require_client();
     var ServerSatusFlags = require_server_status();
     var EncodingToCharset = require_encoding_charset();
     var sessionInfoTypes = require_session_track();
-    var _ResultSetHeader = class _ResultSetHeader {
+    var ResultSetHeader = class {
+      static {
+        __name(this, "ResultSetHeader");
+      }
       constructor(packet, connection) {
         const bigNumberStrings = connection.config.bigNumberStrings;
         const encoding = connection.serverEncoding;
@@ -14226,7 +13075,7 @@ var require_resultset_header = __commonJS({
         let stateChanges = null;
         if (isSet("SESSION_TRACK") && packet.offset < packet.end) {
           this.info = packet.readLengthCodedString(encoding);
-          if (this.serverStatus && ServerSatusFlags.SERVER_SESSION_STATE_CHANGED) {
+          if (this.serverStatus & ServerSatusFlags.SERVER_SESSION_STATE_CHANGED) {
             let len = packet.offset < packet.end ? packet.readLengthCodedNumber() : 0;
             const end = packet.offset + len;
             let type, key, stateEnd;
@@ -14248,15 +13097,15 @@ var require_resultset_header = __commonJS({
                 stateChanges.systemVariables[key] = val;
                 if (key === "character_set_client") {
                   const charsetNumber = EncodingToCharset[val];
-                  connection.config.charsetNumber = charsetNumber;
+                  if (typeof charsetNumber !== "undefined") {
+                    connection.config.charsetNumber = charsetNumber;
+                  }
                 }
               } else if (type === sessionInfoTypes.SCHEMA) {
                 key = packet.readLengthCodedString(encoding);
                 stateChanges.schema = key;
               } else if (type === sessionInfoTypes.STATE_CHANGE) {
-                stateChanges.trackStateChange = packet.readLengthCodedString(
-                  encoding
-                );
+                stateChanges.trackStateChange = packet.readLengthCodedString(encoding);
               } else if (type === sessionInfoTypes.STATE_GTIDS) {
                 const _unknownString = packet.readLengthCodedString(encoding);
                 const gtid = packet.readLengthCodedString(encoding);
@@ -14295,19 +13144,20 @@ var require_resultset_header = __commonJS({
         return packet;
       }
     };
-    __name(_ResultSetHeader, "ResultSetHeader");
-    var ResultSetHeader = _ResultSetHeader;
     module2.exports = ResultSetHeader;
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/packets/ssl_request.js
+// node_modules/mysql2/lib/packets/ssl_request.js
 var require_ssl_request = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/packets/ssl_request.js"(exports2, module2) {
+  "node_modules/mysql2/lib/packets/ssl_request.js"(exports2, module2) {
     "use strict";
     var ClientConstants = require_client();
     var Packet = require_packet();
-    var _SSLRequest = class _SSLRequest {
+    var SSLRequest = class {
+      static {
+        __name(this, "SSLRequest");
+      }
       constructor(flags, charset) {
         this.clientFlags = flags | ClientConstants.SSL;
         this.charset = charset;
@@ -14324,18 +13174,19 @@ var require_ssl_request = __commonJS({
         return packet;
       }
     };
-    __name(_SSLRequest, "SSLRequest");
-    var SSLRequest = _SSLRequest;
     module2.exports = SSLRequest;
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/packets/text_row.js
+// node_modules/mysql2/lib/packets/text_row.js
 var require_text_row = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/packets/text_row.js"(exports2, module2) {
+  "node_modules/mysql2/lib/packets/text_row.js"(exports2, module2) {
     "use strict";
     var Packet = require_packet();
-    var _TextRow = class _TextRow {
+    var TextRow = class _TextRow {
+      static {
+        __name(this, "TextRow");
+      }
       constructor(columns) {
         this.columns = columns || [];
       }
@@ -14373,15 +13224,13 @@ var require_text_row = __commonJS({
         return packet;
       }
     };
-    __name(_TextRow, "TextRow");
-    var TextRow = _TextRow;
     module2.exports = TextRow;
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/packets/index.js
+// node_modules/mysql2/lib/packets/index.js
 var require_packets = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/packets/index.js"(exports2, module2) {
+  "node_modules/mysql2/lib/packets/index.js"(exports2, module2) {
     "use strict";
     var process2 = require("process");
     var AuthNextFactor = require_auth_next_factor();
@@ -14400,6 +13249,7 @@ var require_packets = __commonJS({
     var PreparedStatementHeader = require_prepared_statement_header();
     var Query = require_query();
     var RegisterSlave = require_register_slave();
+    var ResetConnection = require_reset_connection();
     var ResultSetHeader = require_resultset_header();
     var SSLRequest = require_ssl_request();
     var TextRow = require_text_row();
@@ -14420,6 +13270,7 @@ var require_packets = __commonJS({
       PreparedStatementHeader,
       Query,
       RegisterSlave,
+      ResetConnection,
       ResultSetHeader,
       SSLRequest,
       TextRow
@@ -14439,7 +13290,10 @@ var require_packets = __commonJS({
     });
     var Packet = require_packet();
     exports2.Packet = Packet;
-    var _OK = class _OK {
+    var OK = class {
+      static {
+        __name(this, "OK");
+      }
       static toPacket(args, encoding) {
         args = args || {};
         const affectedRows = args.affectedRows || 0;
@@ -14462,10 +13316,11 @@ var require_packets = __commonJS({
         return packet;
       }
     };
-    __name(_OK, "OK");
-    var OK = _OK;
     exports2.OK = OK;
-    var _EOF = class _EOF {
+    var EOF = class {
+      static {
+        __name(this, "EOF");
+      }
       static toPacket(warnings, statusFlags) {
         if (typeof warnings === "undefined") {
           warnings = 0;
@@ -14482,10 +13337,11 @@ var require_packets = __commonJS({
         return packet;
       }
     };
-    __name(_EOF, "EOF");
-    var EOF = _EOF;
     exports2.EOF = EOF;
-    var _Error = class _Error {
+    var Error2 = class _Error {
+      static {
+        __name(this, "Error");
+      }
       static toPacket(args, encoding) {
         const length = 13 + Buffer.byteLength(args.message, "utf8");
         const packet = new Packet(0, Buffer.allocUnsafe(length), 0, length);
@@ -14509,19 +13365,20 @@ var require_packets = __commonJS({
         return error;
       }
     };
-    __name(_Error, "Error");
-    var Error2 = _Error;
     exports2.Error = Error2;
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/commands/command.js
+// node_modules/mysql2/lib/commands/command.js
 var require_command = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/commands/command.js"(exports2, module2) {
+  "node_modules/mysql2/lib/commands/command.js"(exports2, module2) {
     "use strict";
     var EventEmitter = require("events").EventEmitter;
     var Timers = require("timers");
-    var _Command = class _Command extends EventEmitter {
+    var Command = class extends EventEmitter {
+      static {
+        __name(this, "Command");
+      }
       constructor() {
         super();
         this.next = null;
@@ -14565,29 +13422,31 @@ var require_command = __commonJS({
         return true;
       }
     };
-    __name(_Command, "Command");
-    var Command = _Command;
     module2.exports = Command;
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/auth_plugins/sha256_password.js
+// node_modules/mysql2/lib/auth_plugins/sha256_password.js
 var require_sha256_password = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/auth_plugins/sha256_password.js"(exports2, module2) {
+  "node_modules/mysql2/lib/auth_plugins/sha256_password.js"(exports2, module2) {
     "use strict";
     var PLUGIN_NAME = "sha256_password";
     var crypto = require("crypto");
     var { xorRotating } = require_auth_41();
+    var Tls = require("tls");
     var REQUEST_SERVER_KEY_PACKET = Buffer.from([1]);
     var STATE_INITIAL = 0;
     var STATE_WAIT_SERVER_KEY = 1;
     var STATE_FINAL = -1;
     function encrypt(password, scramble, key) {
-      const stage1 = xorRotating(
-        Buffer.from(`${password}\0`, "utf8"),
-        scramble
+      const stage1 = xorRotating(Buffer.from(`${password}\0`, "utf8"), scramble);
+      return crypto.publicEncrypt(
+        {
+          key,
+          oaepHash: "sha1"
+        },
+        stage1
       );
-      return crypto.publicEncrypt(key, stage1);
     }
     __name(encrypt, "encrypt");
     module2.exports = (pluginOptions = {}) => ({ connection }) => {
@@ -14602,6 +13461,9 @@ var require_sha256_password = __commonJS({
       return (data) => {
         switch (state) {
           case STATE_INITIAL:
+            if (connection.stream instanceof Tls.TLSSocket && connection.stream.encrypted === true) {
+              return Buffer.from(`${password}\0`, "utf8");
+            }
             scramble = data.slice(0, 20);
             if (pluginOptions.serverPublicKey) {
               return authWithKey(pluginOptions.serverPublicKey);
@@ -14626,9 +13488,9 @@ var require_sha256_password = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/auth_plugins/caching_sha2_password.js
+// node_modules/mysql2/lib/auth_plugins/caching_sha2_password.js
 var require_caching_sha2_password = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/auth_plugins/caching_sha2_password.js"(exports2, module2) {
+  "node_modules/mysql2/lib/auth_plugins/caching_sha2_password.js"(exports2, module2) {
     "use strict";
     var PLUGIN_NAME = "caching_sha2_password";
     var crypto = require("crypto");
@@ -14657,14 +13519,18 @@ var require_caching_sha2_password = __commonJS({
     }
     __name(calculateToken, "calculateToken");
     function encrypt(password, scramble, key) {
-      const stage1 = xorRotating(
-        Buffer.from(`${password}\0`, "utf8"),
-        scramble
+      const stage1 = xorRotating(Buffer.from(`${password}\0`, "utf8"), scramble);
+      return crypto.publicEncrypt(
+        {
+          key,
+          oaepHash: "sha1",
+          padding: crypto.constants.RSA_PKCS1_OAEP_PADDING
+        },
+        stage1
       );
-      return crypto.publicEncrypt(key, stage1);
     }
     __name(encrypt, "encrypt");
-    module2.exports = (pluginOptions = {}) => ({ connection }) => {
+    var pluginFactory = /* @__PURE__ */ __name((pluginOptions = {}) => ({ connection }) => {
       let state = 0;
       let scramble = null;
       const password = connection.config.password;
@@ -14713,13 +13579,15 @@ var require_caching_sha2_password = __commonJS({
           `Unexpected data in AuthMoreData packet received by ${PLUGIN_NAME} plugin in state ${state}`
         );
       };
-    };
+    }, "pluginFactory");
+    module2.exports = pluginFactory;
+    module2.exports.calculateToken = calculateToken;
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/auth_plugins/mysql_native_password.js
+// node_modules/mysql2/lib/auth_plugins/mysql_native_password.js
 var require_mysql_native_password = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/auth_plugins/mysql_native_password.js"(exports2, module2) {
+  "node_modules/mysql2/lib/auth_plugins/mysql_native_password.js"(exports2, module2) {
     "use strict";
     var auth41 = require_auth_41();
     module2.exports = (pluginOptions) => ({ connection, command }) => {
@@ -14748,9 +13616,9 @@ var require_mysql_native_password = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/auth_plugins/mysql_clear_password.js
+// node_modules/mysql2/lib/auth_plugins/mysql_clear_password.js
 var require_mysql_clear_password = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/auth_plugins/mysql_clear_password.js"(exports2, module2) {
+  "node_modules/mysql2/lib/auth_plugins/mysql_clear_password.js"(exports2, module2) {
     "use strict";
     function bufferFromStr(str) {
       return Buffer.from(`${str}\0`);
@@ -14766,21 +13634,29 @@ var require_mysql_clear_password = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/commands/auth_switch.js
+// node_modules/mysql2/lib/commands/auth_switch.js
 var require_auth_switch = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/commands/auth_switch.js"(exports2, module2) {
+  "node_modules/mysql2/lib/commands/auth_switch.js"(exports2, module2) {
     "use strict";
     var Packets = require_packets();
     var sha256_password = require_sha256_password();
     var caching_sha2_password = require_caching_sha2_password();
     var mysql_native_password = require_mysql_native_password();
     var mysql_clear_password = require_mysql_clear_password();
-    var standardAuthPlugins = {
+    var standardAuthPlugins = Object.assign(/* @__PURE__ */ Object.create(null), {
       sha256_password: sha256_password({}),
       caching_sha2_password: caching_sha2_password({}),
       mysql_native_password: mysql_native_password({}),
       mysql_clear_password: mysql_clear_password({})
-    };
+    });
+    function getAuthPlugin(pluginName, connection) {
+      const customPlugins = connection.config.authPlugins;
+      if (customPlugins && Object.prototype.hasOwnProperty.call(customPlugins, pluginName)) {
+        return customPlugins[pluginName];
+      }
+      return standardAuthPlugins[pluginName];
+    }
+    __name(getAuthPlugin, "getAuthPlugin");
     function warnLegacyAuthSwitch() {
       console.warn(
         "WARNING! authSwitchHandler api is deprecated, please use new authPlugins api"
@@ -14794,10 +13670,7 @@ var require_auth_switch = __commonJS({
     }
     __name(authSwitchPluginError, "authSwitchPluginError");
     function authSwitchRequest(packet, connection, command) {
-      const { pluginName, pluginData } = Packets.AuthSwitchRequest.fromPacket(
-        packet
-      );
-      let authPlugin = connection.config.authPlugins && connection.config.authPlugins[pluginName];
+      const { pluginName, pluginData } = Packets.AuthSwitchRequest.fromPacket(packet);
       if (connection.config.authSwitchHandler && pluginName !== "mysql_native_password") {
         const legacySwitchHandler = connection.config.authSwitchHandler;
         warnLegacyAuthSwitch();
@@ -14809,9 +13682,21 @@ var require_auth_switch = __commonJS({
         });
         return;
       }
-      if (!authPlugin) {
-        authPlugin = standardAuthPlugins[pluginName];
+      if (pluginName === "mysql_clear_password") {
+        const hasCustomPlugin = connection.config.authPlugins && Object.prototype.hasOwnProperty.call(
+          connection.config.authPlugins,
+          "mysql_clear_password"
+        );
+        if (!hasCustomPlugin && !connection.config.enableCleartextPlugin) {
+          const err = new Error(
+            "Server requested authentication using mysql_clear_password, which sends the password in plaintext over the network and is disabled by default. To enable it, set the `enableCleartextPlugin` option to `true` in your connection configuration, or provide a custom `mysql_clear_password` auth plugin via the `authPlugins` option. Only use this over a secure connection (TLS/SSL)."
+          );
+          err.code = "MYSQL_CLEAR_PASSWORD_NOT_ENABLED";
+          err.fatal = true;
+          throw err;
+        }
       }
+      const authPlugin = getAuthPlugin(pluginName, connection);
       if (!authPlugin) {
         throw new Error(
           `Server requests authentication using unknown plugin ${pluginName}. See ${"TODO: add plugins doco here"} on how to configure or author authentication plugins.`
@@ -14856,138 +13741,45 @@ var require_auth_switch = __commonJS({
     __name(authSwitchRequestMoreData, "authSwitchRequestMoreData");
     module2.exports = {
       authSwitchRequest,
-      authSwitchRequestMoreData
+      authSwitchRequestMoreData,
+      getAuthPlugin,
+      standardAuthPlugins
     };
   }
 });
 
-// node_modules/.pnpm/seq-queue@0.0.5/node_modules/seq-queue/lib/seq-queue.js
-var require_seq_queue = __commonJS({
-  "node_modules/.pnpm/seq-queue@0.0.5/node_modules/seq-queue/lib/seq-queue.js"(exports2, module2) {
-    var EventEmitter = require("events").EventEmitter;
-    var util = require("util");
-    var DEFAULT_TIMEOUT = 3e3;
-    var INIT_ID = 0;
-    var EVENT_CLOSED = "closed";
-    var EVENT_DRAINED = "drained";
-    var SeqQueue = /* @__PURE__ */ __name(function(timeout) {
-      EventEmitter.call(this);
-      if (timeout && timeout > 0) {
-        this.timeout = timeout;
-      } else {
-        this.timeout = DEFAULT_TIMEOUT;
-      }
-      this.status = SeqQueueManager.STATUS_IDLE;
-      this.curId = INIT_ID;
-      this.queue = [];
-    }, "SeqQueue");
-    util.inherits(SeqQueue, EventEmitter);
-    SeqQueue.prototype.push = function(fn, ontimeout, timeout) {
-      if (this.status !== SeqQueueManager.STATUS_IDLE && this.status !== SeqQueueManager.STATUS_BUSY) {
-        return false;
-      }
-      if (typeof fn !== "function") {
-        throw new Error("fn should be a function.");
-      }
-      this.queue.push({ fn, ontimeout, timeout });
-      if (this.status === SeqQueueManager.STATUS_IDLE) {
-        this.status = SeqQueueManager.STATUS_BUSY;
-        var self2 = this;
-        process.nextTick(function() {
-          self2._next(self2.curId);
-        });
-      }
-      return true;
-    };
-    SeqQueue.prototype.close = function(force) {
-      if (this.status !== SeqQueueManager.STATUS_IDLE && this.status !== SeqQueueManager.STATUS_BUSY) {
-        return;
-      }
-      if (force) {
-        this.status = SeqQueueManager.STATUS_DRAINED;
-        if (this.timerId) {
-          clearTimeout(this.timerId);
-          this.timerId = void 0;
-        }
-        this.emit(EVENT_DRAINED);
-      } else {
-        this.status = SeqQueueManager.STATUS_CLOSED;
-        this.emit(EVENT_CLOSED);
-      }
-    };
-    SeqQueue.prototype._next = function(tid) {
-      if (tid !== this.curId || this.status !== SeqQueueManager.STATUS_BUSY && this.status !== SeqQueueManager.STATUS_CLOSED) {
-        return;
-      }
-      if (this.timerId) {
-        clearTimeout(this.timerId);
-        this.timerId = void 0;
-      }
-      var task = this.queue.shift();
-      if (!task) {
-        if (this.status === SeqQueueManager.STATUS_BUSY) {
-          this.status = SeqQueueManager.STATUS_IDLE;
-          this.curId++;
-        } else {
-          this.status = SeqQueueManager.STATUS_DRAINED;
-          this.emit(EVENT_DRAINED);
-        }
-        return;
-      }
-      var self2 = this;
-      task.id = ++this.curId;
-      var timeout = task.timeout > 0 ? task.timeout : this.timeout;
-      timeout = timeout > 0 ? timeout : DEFAULT_TIMEOUT;
-      this.timerId = setTimeout(function() {
-        process.nextTick(function() {
-          self2._next(task.id);
-        });
-        self2.emit("timeout", task);
-        if (task.ontimeout) {
-          task.ontimeout();
-        }
-      }, timeout);
-      try {
-        task.fn({
-          done: function() {
-            var res = task.id === self2.curId;
-            process.nextTick(function() {
-              self2._next(task.id);
-            });
-            return res;
-          }
-        });
-      } catch (err) {
-        self2.emit("error", err, task);
-        process.nextTick(function() {
-          self2._next(task.id);
-        });
-      }
-    };
-    var SeqQueueManager = module2.exports;
-    SeqQueueManager.STATUS_IDLE = 0;
-    SeqQueueManager.STATUS_BUSY = 1;
-    SeqQueueManager.STATUS_CLOSED = 2;
-    SeqQueueManager.STATUS_DRAINED = 3;
-    SeqQueueManager.createQueue = function(timeout) {
-      return new SeqQueue(timeout);
-    };
-  }
-});
-
-// node_modules/.pnpm/seq-queue@0.0.5/node_modules/seq-queue/index.js
-var require_seq_queue2 = __commonJS({
-  "node_modules/.pnpm/seq-queue@0.0.5/node_modules/seq-queue/index.js"(exports2, module2) {
-    module2.exports = require_seq_queue();
-  }
-});
-
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/compressed_protocol.js
+// node_modules/mysql2/lib/compressed_protocol.js
 var require_compressed_protocol = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/compressed_protocol.js"(exports2, module2) {
+  "node_modules/mysql2/lib/compressed_protocol.js"(exports2, module2) {
     "use strict";
     var zlib2 = require("zlib");
     var PacketParser = require_packet_parser();
+    var Queue = class {
+      static {
+        __name(this, "Queue");
+      }
+      constructor() {
+        this._queue = [];
+        this._running = false;
+      }
+      push(fn) {
+        this._queue.push(fn);
+        if (!this._running) {
+          this._running = true;
+          process.nextTick(() => this._next());
+        }
+      }
+      _next() {
+        const task = this._queue.shift();
+        if (!task) {
+          this._running = false;
+          return;
+        }
+        task({
+          done: /* @__PURE__ */ __name(() => process.nextTick(() => this._next()), "done")
+        });
+      }
+    };
     function handleCompressedPacket(packet) {
       const connection = this;
       const deflatedLength = packet.readInt24();
@@ -15076,26 +13868,30 @@ var require_compressed_protocol = __commonJS({
       }, 7);
       connection.writeUncompressed = connection.write;
       connection.write = writeCompressed;
-      const seqqueue = require_seq_queue2();
-      connection.inflateQueue = seqqueue.createQueue();
-      connection.deflateQueue = seqqueue.createQueue();
+      connection.inflateQueue = new Queue();
+      connection.deflateQueue = new Queue();
     }
     __name(enableCompression, "enableCompression");
     module2.exports = {
-      enableCompression
+      enableCompression,
+      Queue
     };
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/commands/client_handshake.js
+// node_modules/mysql2/lib/commands/client_handshake.js
 var require_client_handshake = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/commands/client_handshake.js"(exports2, module2) {
+  "node_modules/mysql2/lib/commands/client_handshake.js"(exports2, module2) {
     "use strict";
     var Command = require_command();
     var Packets = require_packets();
     var ClientConstants = require_client();
     var CharsetToEncoding = require_charset_encodings();
     var auth41 = require_auth_41();
+    var { getAuthPlugin } = require_auth_switch();
+    var {
+      calculateToken: calculateSha2Token
+    } = require_caching_sha2_password();
     function flagNames(flags) {
       const res = [];
       for (const c in ClientConstants) {
@@ -15106,7 +13902,10 @@ var require_client_handshake = __commonJS({
       return res;
     }
     __name(flagNames, "flagNames");
-    var _ClientHandshake = class _ClientHandshake extends Command {
+    var ClientHandshake = class _ClientHandshake extends Command {
+      static {
+        __name(this, "ClientHandshake");
+      }
       constructor(clientFlags) {
         super();
         this.handshake = null;
@@ -15138,7 +13937,32 @@ var require_client_handshake = __commonJS({
         this.password3 = connection.config.password3;
         this.passwordSha1 = connection.config.passwordSha1;
         this.database = connection.config.database;
-        this.autPluginName = this.handshake.autPluginName;
+        this.authPluginName = this.handshake.authPluginName;
+        const serverAuthMethod = this.handshake.authPluginName;
+        const isSecureConnection = connection.config.ssl || connection.config.socketPath;
+        const authPluginData = this.handshake.authPluginData1 && this.handshake.authPluginData2 ? Buffer.concat([
+          this.handshake.authPluginData1,
+          this.handshake.authPluginData2
+        ]).slice(0, 20) : Buffer.alloc(20);
+        const hasCustomAuthPlugin = connection.config.authPlugins && Object.prototype.hasOwnProperty.call(
+          connection.config.authPlugins,
+          serverAuthMethod
+        );
+        const hasLegacyAuthSwitchHandler = typeof connection.config.authSwitchHandler === "function";
+        const canUseDirectAuth = !hasCustomAuthPlugin && !hasLegacyAuthSwitchHandler && this.canUseAuthMethodDirectly(serverAuthMethod, isSecureConnection) && (serverAuthMethod !== "mysql_clear_password" || connection.config.enableCleartextPlugin);
+        const clientAuthMethod = canUseDirectAuth ? serverAuthMethod : "mysql_native_password";
+        const authToken = this.calculateAuthToken(
+          clientAuthMethod,
+          this.password,
+          authPluginData
+        );
+        if (connection.config.debug) {
+          console.log(
+            "Server auth method: %s, Using auth method: %s",
+            serverAuthMethod,
+            clientAuthMethod
+          );
+        }
         const handshakeResponse = new Packets.HandshakeResponse({
           flags: this.clientFlags,
           user: this.user,
@@ -15149,9 +13973,14 @@ var require_client_handshake = __commonJS({
           authPluginData1: this.handshake.authPluginData1,
           authPluginData2: this.handshake.authPluginData2,
           compress: connection.config.compress,
-          connectAttributes: connection.config.connectAttributes
+          connectAttributes: connection.config.connectAttributes,
+          authToken,
+          authPluginName: clientAuthMethod
         });
         connection.writePacket(handshakeResponse.toPacket());
+        if (clientAuthMethod !== "mysql_native_password") {
+          this.initializeAuthPlugin(clientAuthMethod, authPluginData, connection);
+        }
       }
       calculateNativePasswordAuthToken(authPluginData) {
         const authPluginData1 = authPluginData.slice(0, 8);
@@ -15171,6 +14000,56 @@ var require_client_handshake = __commonJS({
           );
         }
         return authToken;
+      }
+      calculateSha256Token(password, scramble) {
+        return calculateSha2Token(password, scramble);
+      }
+      // Helper: Calculate auth token for a specific auth method
+      calculateAuthToken(authMethod, password, authPluginData) {
+        switch (authMethod) {
+          case "mysql_native_password":
+            return this.calculateNativePasswordAuthToken(authPluginData);
+          case "caching_sha2_password":
+            return this.calculateSha256Token(password, authPluginData);
+          case "sha256_password":
+          case "mysql_clear_password":
+            return password ? Buffer.from(`${password}\0`, "utf8") : Buffer.alloc(0);
+          default:
+            return this.calculateNativePasswordAuthToken(authPluginData);
+        }
+      }
+      // Helper: Determine if we can use a specific auth method directly
+      canUseAuthMethodDirectly(authMethod, isSecureConnection) {
+        switch (authMethod) {
+          case "mysql_native_password":
+          case "caching_sha2_password":
+            return true;
+          case "sha256_password":
+          case "mysql_clear_password":
+            return isSecureConnection;
+          default:
+            return false;
+        }
+      }
+      // Helper: Initialize auth plugin for handling subsequent AuthMoreData packets
+      initializeAuthPlugin(authMethod, authPluginData, connection) {
+        const authPlugin = getAuthPlugin(authMethod, connection);
+        if (!authPlugin) {
+          return;
+        }
+        const pluginHandler = authPlugin({ connection, command: this });
+        connection._authPlugin = pluginHandler;
+        try {
+          Promise.resolve(pluginHandler(authPluginData)).catch((err) => {
+            if (connection.config.debug) {
+              console.log("Auth plugin initialization:", err.message);
+            }
+          });
+        } catch (err) {
+          if (connection.config.debug) {
+            console.log("Auth plugin initialization error:", err.message);
+          }
+        }
       }
       handshakeInit(helloPacket, connection) {
         this.on("error", (e2) => {
@@ -15195,7 +14074,7 @@ var require_client_handshake = __commonJS({
         this.clientFlags = this.clientFlags | connection.config.compress;
         if (connection.config.ssl) {
           if (!serverSSLSupport) {
-            const err = new Error("Server does not support secure connnection");
+            const err = new Error("Server does not support secure connection");
             err.code = "HANDSHAKE_NO_SSL_SUPPORT";
             err.fatal = true;
             this.emit("error", err);
@@ -15236,7 +14115,9 @@ var require_client_handshake = __commonJS({
             }
             return _ClientHandshake.prototype.handshakeResult;
           } catch (err) {
-            err.code = "AUTH_SWITCH_PLUGIN_ERROR";
+            if (!err.code) {
+              err.code = "AUTH_SWITCH_PLUGIN_ERROR";
+            }
             err.fatal = true;
             if (this.onResult) {
               this.onResult(err);
@@ -15270,21 +14151,22 @@ var require_client_handshake = __commonJS({
         return null;
       }
     };
-    __name(_ClientHandshake, "ClientHandshake");
-    var ClientHandshake = _ClientHandshake;
     module2.exports = ClientHandshake;
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/commands/server_handshake.js
+// node_modules/mysql2/lib/commands/server_handshake.js
 var require_server_handshake = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/commands/server_handshake.js"(exports2, module2) {
+  "node_modules/mysql2/lib/commands/server_handshake.js"(exports2, module2) {
     "use strict";
     var CommandCode = require_commands();
     var Errors = require_errors();
     var Command = require_command();
     var Packets = require_packets();
-    var _ServerHandshake = class _ServerHandshake extends Command {
+    var ServerHandshake = class _ServerHandshake extends Command {
+      static {
+        __name(this, "ServerHandshake");
+      }
       constructor(args) {
         super();
         this.args = args;
@@ -15302,7 +14184,10 @@ var require_server_handshake = __commonJS({
         return _ServerHandshake.prototype.readClientReply;
       }
       readClientReply(packet, connection) {
-        const clientHelloReply = Packets.HandshakeResponse.fromPacket(packet);
+        const clientHelloReply = Packets.HandshakeResponse.fromPacket(
+          packet,
+          this.args.capabilityFlags
+        );
         connection.clientHelloReply = clientHelloReply;
         if (this.args.authCallback) {
           this.args.authCallback(
@@ -15354,7 +14239,13 @@ var require_server_handshake = __commonJS({
           case CommandCode.STMT_EXECUTE:
             if (connection.listeners("stmt_execute").length) {
               const { stmtId, flags, iterationCount, values } = Packets.Execute.fromPacket(packet, encoding);
-              connection.emit("stmt_execute", stmtId, flags, iterationCount, values);
+              connection.emit(
+                "stmt_execute",
+                stmtId,
+                flags,
+                iterationCount,
+                values
+              );
             } else {
               connection.writeError({
                 code: Errors.HA_ERR_INTERNAL_ERROR,
@@ -15384,8 +14275,7 @@ var require_server_handshake = __commonJS({
                 connection.emit("stmt_prepare", query);
               } else if (this._isStatement(query, "EXECUTE")) {
                 connection.emit("stmt_execute", null, null, null, null, query);
-              } else
-                connection.emit("query", query);
+              } else connection.emit("query", query);
             } else {
               connection.writeError({
                 code: Errors.HA_ERR_INTERNAL_ERROR,
@@ -15423,15 +14313,13 @@ var require_server_handshake = __commonJS({
         return _ServerHandshake.prototype.dispatchCommands;
       }
     };
-    __name(_ServerHandshake, "ServerHandshake");
-    var ServerHandshake = _ServerHandshake;
     module2.exports = ServerHandshake;
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/constants/charsets.js
+// node_modules/mysql2/lib/constants/charsets.js
 var require_charsets = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/constants/charsets.js"(exports2) {
+  "node_modules/mysql2/lib/constants/charsets.js"(exports2) {
     "use strict";
     exports2.BIG5_CHINESE_CI = 1;
     exports2.LATIN2_CZECH_CS = 2;
@@ -15749,9 +14637,9 @@ var require_charsets = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/helpers.js
+// node_modules/mysql2/lib/helpers.js
 var require_helpers = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/helpers.js"(exports2) {
+  "node_modules/mysql2/lib/helpers.js"(exports2) {
     "use strict";
     function srcEscape(str) {
       return JSON.stringify({
@@ -15765,7 +14653,7 @@ var require_helpers = __commonJS({
     try {
       const REQUIRE_TERMINATOR = "";
       highlightFn = require(`cardinal${REQUIRE_TERMINATOR}`).highlight;
-    } catch (err) {
+    } catch {
       highlightFn = /* @__PURE__ */ __name((text) => {
         if (!cardinalRecommended) {
           console.log("For nicer debug output consider install cardinal@^2.0.0");
@@ -15792,12 +14680,29 @@ ${msg}:
     }
     __name(typeMatch, "typeMatch");
     exports2.typeMatch = typeMatch;
+    var privateObjectProps = /* @__PURE__ */ new Set([
+      "__defineGetter__",
+      "__defineSetter__",
+      "__lookupGetter__",
+      "__lookupSetter__",
+      "__proto__"
+    ]);
+    exports2.privateObjectProps = privateObjectProps;
+    var fieldEscape = /* @__PURE__ */ __name((field, isEval = true) => {
+      if (privateObjectProps.has(field)) {
+        throw new Error(
+          `The field name (${field}) can't be the same as an object's private property.`
+        );
+      }
+      return isEval ? srcEscape(field) : field;
+    }, "fieldEscape");
+    exports2.fieldEscape = fieldEscape;
   }
 });
 
-// node_modules/.pnpm/is-property@1.0.2/node_modules/is-property/is-property.js
+// node_modules/is-property/is-property.js
 var require_is_property = __commonJS({
-  "node_modules/.pnpm/is-property@1.0.2/node_modules/is-property/is-property.js"(exports2, module2) {
+  "node_modules/is-property/is-property.js"(exports2, module2) {
     "use strict";
     function isProperty(str) {
       return /^[$A-Z\_a-z\xaa\xb5\xba\xc0-\xd6\xd8-\xf6\xf8-\u02c1\u02c6-\u02d1\u02e0-\u02e4\u02ec\u02ee\u0370-\u0374\u0376\u0377\u037a-\u037d\u0386\u0388-\u038a\u038c\u038e-\u03a1\u03a3-\u03f5\u03f7-\u0481\u048a-\u0527\u0531-\u0556\u0559\u0561-\u0587\u05d0-\u05ea\u05f0-\u05f2\u0620-\u064a\u066e\u066f\u0671-\u06d3\u06d5\u06e5\u06e6\u06ee\u06ef\u06fa-\u06fc\u06ff\u0710\u0712-\u072f\u074d-\u07a5\u07b1\u07ca-\u07ea\u07f4\u07f5\u07fa\u0800-\u0815\u081a\u0824\u0828\u0840-\u0858\u08a0\u08a2-\u08ac\u0904-\u0939\u093d\u0950\u0958-\u0961\u0971-\u0977\u0979-\u097f\u0985-\u098c\u098f\u0990\u0993-\u09a8\u09aa-\u09b0\u09b2\u09b6-\u09b9\u09bd\u09ce\u09dc\u09dd\u09df-\u09e1\u09f0\u09f1\u0a05-\u0a0a\u0a0f\u0a10\u0a13-\u0a28\u0a2a-\u0a30\u0a32\u0a33\u0a35\u0a36\u0a38\u0a39\u0a59-\u0a5c\u0a5e\u0a72-\u0a74\u0a85-\u0a8d\u0a8f-\u0a91\u0a93-\u0aa8\u0aaa-\u0ab0\u0ab2\u0ab3\u0ab5-\u0ab9\u0abd\u0ad0\u0ae0\u0ae1\u0b05-\u0b0c\u0b0f\u0b10\u0b13-\u0b28\u0b2a-\u0b30\u0b32\u0b33\u0b35-\u0b39\u0b3d\u0b5c\u0b5d\u0b5f-\u0b61\u0b71\u0b83\u0b85-\u0b8a\u0b8e-\u0b90\u0b92-\u0b95\u0b99\u0b9a\u0b9c\u0b9e\u0b9f\u0ba3\u0ba4\u0ba8-\u0baa\u0bae-\u0bb9\u0bd0\u0c05-\u0c0c\u0c0e-\u0c10\u0c12-\u0c28\u0c2a-\u0c33\u0c35-\u0c39\u0c3d\u0c58\u0c59\u0c60\u0c61\u0c85-\u0c8c\u0c8e-\u0c90\u0c92-\u0ca8\u0caa-\u0cb3\u0cb5-\u0cb9\u0cbd\u0cde\u0ce0\u0ce1\u0cf1\u0cf2\u0d05-\u0d0c\u0d0e-\u0d10\u0d12-\u0d3a\u0d3d\u0d4e\u0d60\u0d61\u0d7a-\u0d7f\u0d85-\u0d96\u0d9a-\u0db1\u0db3-\u0dbb\u0dbd\u0dc0-\u0dc6\u0e01-\u0e30\u0e32\u0e33\u0e40-\u0e46\u0e81\u0e82\u0e84\u0e87\u0e88\u0e8a\u0e8d\u0e94-\u0e97\u0e99-\u0e9f\u0ea1-\u0ea3\u0ea5\u0ea7\u0eaa\u0eab\u0ead-\u0eb0\u0eb2\u0eb3\u0ebd\u0ec0-\u0ec4\u0ec6\u0edc-\u0edf\u0f00\u0f40-\u0f47\u0f49-\u0f6c\u0f88-\u0f8c\u1000-\u102a\u103f\u1050-\u1055\u105a-\u105d\u1061\u1065\u1066\u106e-\u1070\u1075-\u1081\u108e\u10a0-\u10c5\u10c7\u10cd\u10d0-\u10fa\u10fc-\u1248\u124a-\u124d\u1250-\u1256\u1258\u125a-\u125d\u1260-\u1288\u128a-\u128d\u1290-\u12b0\u12b2-\u12b5\u12b8-\u12be\u12c0\u12c2-\u12c5\u12c8-\u12d6\u12d8-\u1310\u1312-\u1315\u1318-\u135a\u1380-\u138f\u13a0-\u13f4\u1401-\u166c\u166f-\u167f\u1681-\u169a\u16a0-\u16ea\u16ee-\u16f0\u1700-\u170c\u170e-\u1711\u1720-\u1731\u1740-\u1751\u1760-\u176c\u176e-\u1770\u1780-\u17b3\u17d7\u17dc\u1820-\u1877\u1880-\u18a8\u18aa\u18b0-\u18f5\u1900-\u191c\u1950-\u196d\u1970-\u1974\u1980-\u19ab\u19c1-\u19c7\u1a00-\u1a16\u1a20-\u1a54\u1aa7\u1b05-\u1b33\u1b45-\u1b4b\u1b83-\u1ba0\u1bae\u1baf\u1bba-\u1be5\u1c00-\u1c23\u1c4d-\u1c4f\u1c5a-\u1c7d\u1ce9-\u1cec\u1cee-\u1cf1\u1cf5\u1cf6\u1d00-\u1dbf\u1e00-\u1f15\u1f18-\u1f1d\u1f20-\u1f45\u1f48-\u1f4d\u1f50-\u1f57\u1f59\u1f5b\u1f5d\u1f5f-\u1f7d\u1f80-\u1fb4\u1fb6-\u1fbc\u1fbe\u1fc2-\u1fc4\u1fc6-\u1fcc\u1fd0-\u1fd3\u1fd6-\u1fdb\u1fe0-\u1fec\u1ff2-\u1ff4\u1ff6-\u1ffc\u2071\u207f\u2090-\u209c\u2102\u2107\u210a-\u2113\u2115\u2119-\u211d\u2124\u2126\u2128\u212a-\u212d\u212f-\u2139\u213c-\u213f\u2145-\u2149\u214e\u2160-\u2188\u2c00-\u2c2e\u2c30-\u2c5e\u2c60-\u2ce4\u2ceb-\u2cee\u2cf2\u2cf3\u2d00-\u2d25\u2d27\u2d2d\u2d30-\u2d67\u2d6f\u2d80-\u2d96\u2da0-\u2da6\u2da8-\u2dae\u2db0-\u2db6\u2db8-\u2dbe\u2dc0-\u2dc6\u2dc8-\u2dce\u2dd0-\u2dd6\u2dd8-\u2dde\u2e2f\u3005-\u3007\u3021-\u3029\u3031-\u3035\u3038-\u303c\u3041-\u3096\u309d-\u309f\u30a1-\u30fa\u30fc-\u30ff\u3105-\u312d\u3131-\u318e\u31a0-\u31ba\u31f0-\u31ff\u3400-\u4db5\u4e00-\u9fcc\ua000-\ua48c\ua4d0-\ua4fd\ua500-\ua60c\ua610-\ua61f\ua62a\ua62b\ua640-\ua66e\ua67f-\ua697\ua6a0-\ua6ef\ua717-\ua71f\ua722-\ua788\ua78b-\ua78e\ua790-\ua793\ua7a0-\ua7aa\ua7f8-\ua801\ua803-\ua805\ua807-\ua80a\ua80c-\ua822\ua840-\ua873\ua882-\ua8b3\ua8f2-\ua8f7\ua8fb\ua90a-\ua925\ua930-\ua946\ua960-\ua97c\ua984-\ua9b2\ua9cf\uaa00-\uaa28\uaa40-\uaa42\uaa44-\uaa4b\uaa60-\uaa76\uaa7a\uaa80-\uaaaf\uaab1\uaab5\uaab6\uaab9-\uaabd\uaac0\uaac2\uaadb-\uaadd\uaae0-\uaaea\uaaf2-\uaaf4\uab01-\uab06\uab09-\uab0e\uab11-\uab16\uab20-\uab26\uab28-\uab2e\uabc0-\uabe2\uac00-\ud7a3\ud7b0-\ud7c6\ud7cb-\ud7fb\uf900-\ufa6d\ufa70-\ufad9\ufb00-\ufb06\ufb13-\ufb17\ufb1d\ufb1f-\ufb28\ufb2a-\ufb36\ufb38-\ufb3c\ufb3e\ufb40\ufb41\ufb43\ufb44\ufb46-\ufbb1\ufbd3-\ufd3d\ufd50-\ufd8f\ufd92-\ufdc7\ufdf0-\ufdfb\ufe70-\ufe74\ufe76-\ufefc\uff21-\uff3a\uff41-\uff5a\uff66-\uffbe\uffc2-\uffc7\uffca-\uffcf\uffd2-\uffd7\uffda-\uffdc][$A-Z\_a-z\xaa\xb5\xba\xc0-\xd6\xd8-\xf6\xf8-\u02c1\u02c6-\u02d1\u02e0-\u02e4\u02ec\u02ee\u0370-\u0374\u0376\u0377\u037a-\u037d\u0386\u0388-\u038a\u038c\u038e-\u03a1\u03a3-\u03f5\u03f7-\u0481\u048a-\u0527\u0531-\u0556\u0559\u0561-\u0587\u05d0-\u05ea\u05f0-\u05f2\u0620-\u064a\u066e\u066f\u0671-\u06d3\u06d5\u06e5\u06e6\u06ee\u06ef\u06fa-\u06fc\u06ff\u0710\u0712-\u072f\u074d-\u07a5\u07b1\u07ca-\u07ea\u07f4\u07f5\u07fa\u0800-\u0815\u081a\u0824\u0828\u0840-\u0858\u08a0\u08a2-\u08ac\u0904-\u0939\u093d\u0950\u0958-\u0961\u0971-\u0977\u0979-\u097f\u0985-\u098c\u098f\u0990\u0993-\u09a8\u09aa-\u09b0\u09b2\u09b6-\u09b9\u09bd\u09ce\u09dc\u09dd\u09df-\u09e1\u09f0\u09f1\u0a05-\u0a0a\u0a0f\u0a10\u0a13-\u0a28\u0a2a-\u0a30\u0a32\u0a33\u0a35\u0a36\u0a38\u0a39\u0a59-\u0a5c\u0a5e\u0a72-\u0a74\u0a85-\u0a8d\u0a8f-\u0a91\u0a93-\u0aa8\u0aaa-\u0ab0\u0ab2\u0ab3\u0ab5-\u0ab9\u0abd\u0ad0\u0ae0\u0ae1\u0b05-\u0b0c\u0b0f\u0b10\u0b13-\u0b28\u0b2a-\u0b30\u0b32\u0b33\u0b35-\u0b39\u0b3d\u0b5c\u0b5d\u0b5f-\u0b61\u0b71\u0b83\u0b85-\u0b8a\u0b8e-\u0b90\u0b92-\u0b95\u0b99\u0b9a\u0b9c\u0b9e\u0b9f\u0ba3\u0ba4\u0ba8-\u0baa\u0bae-\u0bb9\u0bd0\u0c05-\u0c0c\u0c0e-\u0c10\u0c12-\u0c28\u0c2a-\u0c33\u0c35-\u0c39\u0c3d\u0c58\u0c59\u0c60\u0c61\u0c85-\u0c8c\u0c8e-\u0c90\u0c92-\u0ca8\u0caa-\u0cb3\u0cb5-\u0cb9\u0cbd\u0cde\u0ce0\u0ce1\u0cf1\u0cf2\u0d05-\u0d0c\u0d0e-\u0d10\u0d12-\u0d3a\u0d3d\u0d4e\u0d60\u0d61\u0d7a-\u0d7f\u0d85-\u0d96\u0d9a-\u0db1\u0db3-\u0dbb\u0dbd\u0dc0-\u0dc6\u0e01-\u0e30\u0e32\u0e33\u0e40-\u0e46\u0e81\u0e82\u0e84\u0e87\u0e88\u0e8a\u0e8d\u0e94-\u0e97\u0e99-\u0e9f\u0ea1-\u0ea3\u0ea5\u0ea7\u0eaa\u0eab\u0ead-\u0eb0\u0eb2\u0eb3\u0ebd\u0ec0-\u0ec4\u0ec6\u0edc-\u0edf\u0f00\u0f40-\u0f47\u0f49-\u0f6c\u0f88-\u0f8c\u1000-\u102a\u103f\u1050-\u1055\u105a-\u105d\u1061\u1065\u1066\u106e-\u1070\u1075-\u1081\u108e\u10a0-\u10c5\u10c7\u10cd\u10d0-\u10fa\u10fc-\u1248\u124a-\u124d\u1250-\u1256\u1258\u125a-\u125d\u1260-\u1288\u128a-\u128d\u1290-\u12b0\u12b2-\u12b5\u12b8-\u12be\u12c0\u12c2-\u12c5\u12c8-\u12d6\u12d8-\u1310\u1312-\u1315\u1318-\u135a\u1380-\u138f\u13a0-\u13f4\u1401-\u166c\u166f-\u167f\u1681-\u169a\u16a0-\u16ea\u16ee-\u16f0\u1700-\u170c\u170e-\u1711\u1720-\u1731\u1740-\u1751\u1760-\u176c\u176e-\u1770\u1780-\u17b3\u17d7\u17dc\u1820-\u1877\u1880-\u18a8\u18aa\u18b0-\u18f5\u1900-\u191c\u1950-\u196d\u1970-\u1974\u1980-\u19ab\u19c1-\u19c7\u1a00-\u1a16\u1a20-\u1a54\u1aa7\u1b05-\u1b33\u1b45-\u1b4b\u1b83-\u1ba0\u1bae\u1baf\u1bba-\u1be5\u1c00-\u1c23\u1c4d-\u1c4f\u1c5a-\u1c7d\u1ce9-\u1cec\u1cee-\u1cf1\u1cf5\u1cf6\u1d00-\u1dbf\u1e00-\u1f15\u1f18-\u1f1d\u1f20-\u1f45\u1f48-\u1f4d\u1f50-\u1f57\u1f59\u1f5b\u1f5d\u1f5f-\u1f7d\u1f80-\u1fb4\u1fb6-\u1fbc\u1fbe\u1fc2-\u1fc4\u1fc6-\u1fcc\u1fd0-\u1fd3\u1fd6-\u1fdb\u1fe0-\u1fec\u1ff2-\u1ff4\u1ff6-\u1ffc\u2071\u207f\u2090-\u209c\u2102\u2107\u210a-\u2113\u2115\u2119-\u211d\u2124\u2126\u2128\u212a-\u212d\u212f-\u2139\u213c-\u213f\u2145-\u2149\u214e\u2160-\u2188\u2c00-\u2c2e\u2c30-\u2c5e\u2c60-\u2ce4\u2ceb-\u2cee\u2cf2\u2cf3\u2d00-\u2d25\u2d27\u2d2d\u2d30-\u2d67\u2d6f\u2d80-\u2d96\u2da0-\u2da6\u2da8-\u2dae\u2db0-\u2db6\u2db8-\u2dbe\u2dc0-\u2dc6\u2dc8-\u2dce\u2dd0-\u2dd6\u2dd8-\u2dde\u2e2f\u3005-\u3007\u3021-\u3029\u3031-\u3035\u3038-\u303c\u3041-\u3096\u309d-\u309f\u30a1-\u30fa\u30fc-\u30ff\u3105-\u312d\u3131-\u318e\u31a0-\u31ba\u31f0-\u31ff\u3400-\u4db5\u4e00-\u9fcc\ua000-\ua48c\ua4d0-\ua4fd\ua500-\ua60c\ua610-\ua61f\ua62a\ua62b\ua640-\ua66e\ua67f-\ua697\ua6a0-\ua6ef\ua717-\ua71f\ua722-\ua788\ua78b-\ua78e\ua790-\ua793\ua7a0-\ua7aa\ua7f8-\ua801\ua803-\ua805\ua807-\ua80a\ua80c-\ua822\ua840-\ua873\ua882-\ua8b3\ua8f2-\ua8f7\ua8fb\ua90a-\ua925\ua930-\ua946\ua960-\ua97c\ua984-\ua9b2\ua9cf\uaa00-\uaa28\uaa40-\uaa42\uaa44-\uaa4b\uaa60-\uaa76\uaa7a\uaa80-\uaaaf\uaab1\uaab5\uaab6\uaab9-\uaabd\uaac0\uaac2\uaadb-\uaadd\uaae0-\uaaea\uaaf2-\uaaf4\uab01-\uab06\uab09-\uab0e\uab11-\uab16\uab20-\uab26\uab28-\uab2e\uabc0-\uabe2\uac00-\ud7a3\ud7b0-\ud7c6\ud7cb-\ud7fb\uf900-\ufa6d\ufa70-\ufad9\ufb00-\ufb06\ufb13-\ufb17\ufb1d\ufb1f-\ufb28\ufb2a-\ufb36\ufb38-\ufb3c\ufb3e\ufb40\ufb41\ufb43\ufb44\ufb46-\ufbb1\ufbd3-\ufd3d\ufd50-\ufd8f\ufd92-\ufdc7\ufdf0-\ufdfb\ufe70-\ufe74\ufe76-\ufefc\uff21-\uff3a\uff41-\uff5a\uff66-\uffbe\uffc2-\uffc7\uffca-\uffcf\uffd2-\uffd7\uffda-\uffdc0-9\u0300-\u036f\u0483-\u0487\u0591-\u05bd\u05bf\u05c1\u05c2\u05c4\u05c5\u05c7\u0610-\u061a\u064b-\u0669\u0670\u06d6-\u06dc\u06df-\u06e4\u06e7\u06e8\u06ea-\u06ed\u06f0-\u06f9\u0711\u0730-\u074a\u07a6-\u07b0\u07c0-\u07c9\u07eb-\u07f3\u0816-\u0819\u081b-\u0823\u0825-\u0827\u0829-\u082d\u0859-\u085b\u08e4-\u08fe\u0900-\u0903\u093a-\u093c\u093e-\u094f\u0951-\u0957\u0962\u0963\u0966-\u096f\u0981-\u0983\u09bc\u09be-\u09c4\u09c7\u09c8\u09cb-\u09cd\u09d7\u09e2\u09e3\u09e6-\u09ef\u0a01-\u0a03\u0a3c\u0a3e-\u0a42\u0a47\u0a48\u0a4b-\u0a4d\u0a51\u0a66-\u0a71\u0a75\u0a81-\u0a83\u0abc\u0abe-\u0ac5\u0ac7-\u0ac9\u0acb-\u0acd\u0ae2\u0ae3\u0ae6-\u0aef\u0b01-\u0b03\u0b3c\u0b3e-\u0b44\u0b47\u0b48\u0b4b-\u0b4d\u0b56\u0b57\u0b62\u0b63\u0b66-\u0b6f\u0b82\u0bbe-\u0bc2\u0bc6-\u0bc8\u0bca-\u0bcd\u0bd7\u0be6-\u0bef\u0c01-\u0c03\u0c3e-\u0c44\u0c46-\u0c48\u0c4a-\u0c4d\u0c55\u0c56\u0c62\u0c63\u0c66-\u0c6f\u0c82\u0c83\u0cbc\u0cbe-\u0cc4\u0cc6-\u0cc8\u0cca-\u0ccd\u0cd5\u0cd6\u0ce2\u0ce3\u0ce6-\u0cef\u0d02\u0d03\u0d3e-\u0d44\u0d46-\u0d48\u0d4a-\u0d4d\u0d57\u0d62\u0d63\u0d66-\u0d6f\u0d82\u0d83\u0dca\u0dcf-\u0dd4\u0dd6\u0dd8-\u0ddf\u0df2\u0df3\u0e31\u0e34-\u0e3a\u0e47-\u0e4e\u0e50-\u0e59\u0eb1\u0eb4-\u0eb9\u0ebb\u0ebc\u0ec8-\u0ecd\u0ed0-\u0ed9\u0f18\u0f19\u0f20-\u0f29\u0f35\u0f37\u0f39\u0f3e\u0f3f\u0f71-\u0f84\u0f86\u0f87\u0f8d-\u0f97\u0f99-\u0fbc\u0fc6\u102b-\u103e\u1040-\u1049\u1056-\u1059\u105e-\u1060\u1062-\u1064\u1067-\u106d\u1071-\u1074\u1082-\u108d\u108f-\u109d\u135d-\u135f\u1712-\u1714\u1732-\u1734\u1752\u1753\u1772\u1773\u17b4-\u17d3\u17dd\u17e0-\u17e9\u180b-\u180d\u1810-\u1819\u18a9\u1920-\u192b\u1930-\u193b\u1946-\u194f\u19b0-\u19c0\u19c8\u19c9\u19d0-\u19d9\u1a17-\u1a1b\u1a55-\u1a5e\u1a60-\u1a7c\u1a7f-\u1a89\u1a90-\u1a99\u1b00-\u1b04\u1b34-\u1b44\u1b50-\u1b59\u1b6b-\u1b73\u1b80-\u1b82\u1ba1-\u1bad\u1bb0-\u1bb9\u1be6-\u1bf3\u1c24-\u1c37\u1c40-\u1c49\u1c50-\u1c59\u1cd0-\u1cd2\u1cd4-\u1ce8\u1ced\u1cf2-\u1cf4\u1dc0-\u1de6\u1dfc-\u1dff\u200c\u200d\u203f\u2040\u2054\u20d0-\u20dc\u20e1\u20e5-\u20f0\u2cef-\u2cf1\u2d7f\u2de0-\u2dff\u302a-\u302f\u3099\u309a\ua620-\ua629\ua66f\ua674-\ua67d\ua69f\ua6f0\ua6f1\ua802\ua806\ua80b\ua823-\ua827\ua880\ua881\ua8b4-\ua8c4\ua8d0-\ua8d9\ua8e0-\ua8f1\ua900-\ua909\ua926-\ua92d\ua947-\ua953\ua980-\ua983\ua9b3-\ua9c0\ua9d0-\ua9d9\uaa29-\uaa36\uaa43\uaa4c\uaa4d\uaa50-\uaa59\uaa7b\uaab0\uaab2-\uaab4\uaab7\uaab8\uaabe\uaabf\uaac1\uaaeb-\uaaef\uaaf5\uaaf6\uabe3-\uabea\uabec\uabed\uabf0-\uabf9\ufb1e\ufe00-\ufe0f\ufe20-\ufe26\ufe33\ufe34\ufe4d-\ufe4f\uff10-\uff19\uff3f]*$/.test(str);
@@ -15807,9 +14712,9 @@ var require_is_property = __commonJS({
   }
 });
 
-// node_modules/.pnpm/generate-function@2.3.1/node_modules/generate-function/index.js
+// node_modules/generate-function/index.js
 var require_generate_function = __commonJS({
-  "node_modules/.pnpm/generate-function@2.3.1/node_modules/generate-function/index.js"(exports2, module2) {
+  "node_modules/generate-function/index.js"(exports2, module2) {
     var util = require("util");
     var isProperty = require_is_property();
     var INDENT_START = /[\{\[]/;
@@ -15875,15 +14780,15 @@ var require_generate_function = __commonJS({
       return isProperty(name) && !RESERVED_MAP.hasOwnProperty(name);
     }, "isVariable");
     var formats = {
-      s: function(s2) {
+      s: /* @__PURE__ */ __name(function(s2) {
         return "" + s2;
-      },
-      d: function(d) {
+      }, "s"),
+      d: /* @__PURE__ */ __name(function(d) {
         return "" + Number(d);
-      },
-      o: function(o) {
+      }, "d"),
+      o: /* @__PURE__ */ __name(function(o) {
         return JSON.stringify(o);
-      }
+      }, "o")
     };
     var genfun = /* @__PURE__ */ __name(function() {
       var lines = [];
@@ -15891,8 +14796,7 @@ var require_generate_function = __commonJS({
       var vars = {};
       var push = /* @__PURE__ */ __name(function(str) {
         var spaces = "";
-        while (spaces.length < indent * 2)
-          spaces += "  ";
+        while (spaces.length < indent * 2) spaces += "  ";
         lines.push(spaces + str);
       }, "push");
       var pushLine = /* @__PURE__ */ __name(function(line2) {
@@ -15915,8 +14819,7 @@ var require_generate_function = __commonJS({
         push(line2);
       }, "pushLine");
       var line = /* @__PURE__ */ __name(function(fmt) {
-        if (!fmt)
-          return line;
+        if (!fmt) return line;
         if (arguments.length === 1 && fmt.indexOf("\n") > -1) {
           var lines2 = fmt.trim().split("\n");
           for (var i3 = 0; i3 < lines2.length; i3++) {
@@ -15930,10 +14833,8 @@ var require_generate_function = __commonJS({
       line.scope = {};
       line.formats = formats;
       line.sym = function(name) {
-        if (!name || !isVariable(name))
-          name = "tmp";
-        if (!vars[name])
-          vars[name] = 0;
+        if (!name || !isVariable(name)) name = "tmp";
+        if (!vars[name]) vars[name] = 0;
         return name + (vars[name]++ || "");
       };
       line.property = function(obj, name) {
@@ -15942,20 +14843,17 @@ var require_generate_function = __commonJS({
           obj = "";
         }
         name = name + "";
-        if (isProperty(name))
-          return obj ? obj + "." + name : name;
+        if (isProperty(name)) return obj ? obj + "." + name : name;
         return obj ? obj + "[" + JSON.stringify(name) + "]" : JSON.stringify(name);
       };
       line.toString = function() {
         return lines.join("\n");
       };
       line.toFunction = function(scope) {
-        if (!scope)
-          scope = {};
+        if (!scope) scope = {};
         var src = "return (" + line.toString() + ")";
         Object.keys(line.scope).forEach(function(key) {
-          if (!scope[key])
-            scope[key] = line.scope[key];
+          if (!scope[key]) scope[key] = line.scope[key];
         });
         var keys = Object.keys(scope).map(function(key) {
           return key;
@@ -15965,8 +14863,7 @@ var require_generate_function = __commonJS({
         });
         return Function.apply(null, keys.concat(src)).apply(null, vals);
       };
-      if (arguments.length)
-        line.apply(null, arguments);
+      if (arguments.length) line.apply(null, arguments);
       return line;
     }, "genfun");
     genfun.formats = formats;
@@ -15974,53 +14871,9 @@ var require_generate_function = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/parsers/parser_cache.js
-var require_parser_cache = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/parsers/parser_cache.js"(exports2, module2) {
-    "use strict";
-    var LRU = require_index_cjs().default;
-    var parserCache = new LRU({
-      max: 15e3
-    });
-    function keyFromFields(type, fields, options, config) {
-      let res = `${type}/${typeof options.nestTables}/${options.nestTables}/${options.rowsAsArray}/${options.supportBigNumbers || config.supportBigNumbers}/${options.bigNumberStrings || config.bigNumberStrings}/${typeof options.typeCast}/${options.timezone || config.timezone}/${options.decimalNumbers}/${options.dateStrings}`;
-      for (let i2 = 0; i2 < fields.length; ++i2) {
-        const field = fields[i2];
-        res += `/${field.name}:${field.columnType}:${field.length}:${field.schema}:${field.table}:${field.flags}:${field.characterSet}`;
-      }
-      return res;
-    }
-    __name(keyFromFields, "keyFromFields");
-    function getParser(type, fields, options, config, compiler) {
-      const key = keyFromFields(type, fields, options, config);
-      let parser = parserCache.get(key);
-      if (parser) {
-        return parser;
-      }
-      parser = compiler(fields, options, config);
-      parserCache.set(key, parser);
-      return parser;
-    }
-    __name(getParser, "getParser");
-    function setMaxCache(max) {
-      parserCache.max = max;
-    }
-    __name(setMaxCache, "setMaxCache");
-    function clearCache() {
-      parserCache.clear();
-    }
-    __name(clearCache, "clearCache");
-    module2.exports = {
-      getParser,
-      setMaxCache,
-      clearCache
-    };
-  }
-});
-
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/parsers/text_parser.js
+// node_modules/mysql2/lib/parsers/text_parser.js
 var require_text_parser = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/parsers/text_parser.js"(exports2, module2) {
+  "node_modules/mysql2/lib/parsers/text_parser.js"(exports2, module2) {
     "use strict";
     var Types = require_types();
     var Charsets = require_charsets();
@@ -16032,8 +14885,12 @@ var require_text_parser = __commonJS({
       typeNames[Types[t2]] = t2;
     }
     function readCodeFor(type, charset, encodingExpr, config, options) {
-      const supportBigNumbers = options.supportBigNumbers || config.supportBigNumbers;
-      const bigNumberStrings = options.bigNumberStrings || config.bigNumberStrings;
+      const supportBigNumbers = Boolean(
+        options.supportBigNumbers || config.supportBigNumbers
+      );
+      const bigNumberStrings = Boolean(
+        options.bigNumberStrings || config.bigNumberStrings
+      );
       const timezone = options.timezone || config.timezone;
       const dateStrings = options.dateStrings || config.dateStrings;
       switch (type) {
@@ -16063,19 +14920,21 @@ var require_text_parser = __commonJS({
           if (helpers.typeMatch(type, dateStrings, Types)) {
             return 'packet.readLengthCodedString("ascii")';
           }
-          return `packet.parseDate('${timezone}')`;
+          return `packet.parseDate(${helpers.srcEscape(timezone)})`;
         case Types.DATETIME:
         case Types.TIMESTAMP:
           if (helpers.typeMatch(type, dateStrings, Types)) {
             return 'packet.readLengthCodedString("ascii")';
           }
-          return `packet.parseDateTime('${timezone}')`;
+          return `packet.parseDateTime(${helpers.srcEscape(timezone)})`;
         case Types.TIME:
           return 'packet.readLengthCodedString("ascii")';
         case Types.GEOMETRY:
           return "packet.parseGeometryValue()";
+        case Types.VECTOR:
+          return "packet.parseVector()";
         case Types.JSON:
-          return 'JSON.parse(packet.readLengthCodedString("utf8"))';
+          return config.jsonStrings ? 'packet.readLengthCodedString("utf8")' : 'JSON.parse(packet.readLengthCodedString("utf8"))';
         default:
           if (charset === Charsets.BINARY) {
             return "packet.readLengthCodedBuffer()";
@@ -16096,25 +14955,25 @@ var require_text_parser = __commonJS({
           table: field.table,
           name: field.name,
           charset: field.characterSet,
-          string: function(encoding = field.encoding) {
+          string: /* @__PURE__ */ __name(function(encoding = field.encoding) {
             if (field.columnType === Types.JSON && encoding === field.encoding) {
-              console.warn(`typeCast: JSON column "${field.name}" is interpreted as BINARY by default, recommended to manually set utf8 encoding: \`field.string("utf8")\``);
+              console.warn(
+                `typeCast: JSON column "${field.name}" is interpreted as BINARY by default, recommended to manually set utf8 encoding: \`field.string("utf8")\``
+              );
             }
             return _this.packet.readLengthCodedString(encoding);
-          },
-          buffer: function() {
+          }, "string"),
+          buffer: /* @__PURE__ */ __name(function() {
             return _this.packet.readLengthCodedBuffer();
-          },
-          geometry: function() {
+          }, "buffer"),
+          geometry: /* @__PURE__ */ __name(function() {
             return _this.packet.parseGeometryValue();
-          }
+          }, "geometry")
         };
       }
       __name(wrap, "wrap");
       const parserFn = genFunc();
-      parserFn("(function () {")(
-        "return class TextRow {"
-      );
+      parserFn("(function () {")("return class TextRow {");
       parserFn("constructor(fields) {");
       if (typeof options.typeCast === "function") {
         parserFn("const _this = this;");
@@ -16138,20 +14997,20 @@ var require_text_parser = __commonJS({
         }
         resultTablesArray = Object.keys(resultTables);
         for (let i2 = 0; i2 < resultTablesArray.length; i2++) {
-          parserFn(`result[${helpers.srcEscape(resultTablesArray[i2])}] = {};`);
+          parserFn(`result[${helpers.fieldEscape(resultTablesArray[i2])}] = {};`);
         }
       }
       let lvalue = "";
       let fieldName = "";
+      let tableName = "";
       for (let i2 = 0; i2 < fields.length; i2++) {
-        fieldName = helpers.srcEscape(fields[i2].name);
-        parserFn(`// ${fieldName}: ${typeNames[fields[i2].columnType]}`);
+        fieldName = helpers.fieldEscape(fields[i2].name);
         if (typeof options.nestTables === "string") {
-          lvalue = `result[${helpers.srcEscape(
-            fields[i2].table + options.nestTables + fields[i2].name
-          )}]`;
+          lvalue = `result[${helpers.fieldEscape(fields[i2].table + options.nestTables + fields[i2].name)}]`;
         } else if (options.nestTables === true) {
-          lvalue = `result[${helpers.srcEscape(fields[i2].table)}][${fieldName}]`;
+          tableName = helpers.fieldEscape(fields[i2].table);
+          parserFn(`if (!result[${tableName}]) result[${tableName}] = {};`);
+          lvalue = `result[${tableName}][${fieldName}]`;
         } else if (options.rowsAsArray) {
           lvalue = `result[${i2.toString(10)}]`;
         } else {
@@ -16169,7 +15028,9 @@ var require_text_parser = __commonJS({
             options
           );
           if (typeof options.typeCast === "function") {
-            parserFn(`${lvalue} = options.typeCast(this.wrap${i2}, function() { return ${readCode} });`);
+            parserFn(
+              `${lvalue} = options.typeCast(this.wrap${i2}, function() { return ${readCode} });`
+            );
           } else {
             parserFn(`${lvalue} = ${readCode};`);
           }
@@ -16198,9 +15059,148 @@ var require_text_parser = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/commands/query.js
+// node_modules/mysql2/lib/parsers/static_text_parser.js
+var require_static_text_parser = __commonJS({
+  "node_modules/mysql2/lib/parsers/static_text_parser.js"(exports2, module2) {
+    "use strict";
+    var Types = require_types();
+    var Charsets = require_charsets();
+    var helpers = require_helpers();
+    var typeNames = [];
+    for (const t2 in Types) {
+      typeNames[Types[t2]] = t2;
+    }
+    function readField({ packet, type, charset, encoding, config, options }) {
+      const supportBigNumbers = Boolean(
+        options.supportBigNumbers || config.supportBigNumbers
+      );
+      const bigNumberStrings = Boolean(
+        options.bigNumberStrings || config.bigNumberStrings
+      );
+      const timezone = options.timezone || config.timezone;
+      const dateStrings = options.dateStrings || config.dateStrings;
+      switch (type) {
+        case Types.TINY:
+        case Types.SHORT:
+        case Types.LONG:
+        case Types.INT24:
+        case Types.YEAR:
+          return packet.parseLengthCodedIntNoBigCheck();
+        case Types.LONGLONG:
+          if (supportBigNumbers && bigNumberStrings) {
+            return packet.parseLengthCodedIntString();
+          }
+          return packet.parseLengthCodedInt(supportBigNumbers);
+        case Types.FLOAT:
+        case Types.DOUBLE:
+          return packet.parseLengthCodedFloat();
+        case Types.NULL:
+        case Types.DECIMAL:
+        case Types.NEWDECIMAL:
+          if (config.decimalNumbers) {
+            return packet.parseLengthCodedFloat();
+          }
+          return packet.readLengthCodedString("ascii");
+        case Types.DATE:
+          if (helpers.typeMatch(type, dateStrings, Types)) {
+            return packet.readLengthCodedString("ascii");
+          }
+          return packet.parseDate(timezone);
+        case Types.DATETIME:
+        case Types.TIMESTAMP:
+          if (helpers.typeMatch(type, dateStrings, Types)) {
+            return packet.readLengthCodedString("ascii");
+          }
+          return packet.parseDateTime(timezone);
+        case Types.TIME:
+          return packet.readLengthCodedString("ascii");
+        case Types.GEOMETRY:
+          return packet.parseGeometryValue();
+        case Types.VECTOR:
+          return packet.parseVector();
+        case Types.JSON:
+          return config.jsonStrings ? packet.readLengthCodedString("utf8") : JSON.parse(packet.readLengthCodedString("utf8"));
+        default:
+          if (charset === Charsets.BINARY) {
+            return packet.readLengthCodedBuffer();
+          }
+          return packet.readLengthCodedString(encoding);
+      }
+    }
+    __name(readField, "readField");
+    function createTypecastField(field, packet) {
+      return {
+        type: typeNames[field.columnType],
+        length: field.columnLength,
+        db: field.schema,
+        table: field.table,
+        name: field.name,
+        string: /* @__PURE__ */ __name(function(encoding = field.encoding) {
+          if (field.columnType === Types.JSON && encoding === field.encoding) {
+            console.warn(
+              `typeCast: JSON column "${field.name}" is interpreted as BINARY by default, recommended to manually set utf8 encoding: \`field.string("utf8")\``
+            );
+          }
+          return packet.readLengthCodedString(encoding);
+        }, "string"),
+        buffer: /* @__PURE__ */ __name(function() {
+          return packet.readLengthCodedBuffer();
+        }, "buffer"),
+        geometry: /* @__PURE__ */ __name(function() {
+          return packet.parseGeometryValue();
+        }, "geometry")
+      };
+    }
+    __name(createTypecastField, "createTypecastField");
+    function getTextParser(_fields, _options, config) {
+      return {
+        next(packet, fields, options) {
+          const result = options.rowsAsArray ? [] : {};
+          for (let i2 = 0; i2 < fields.length; i2++) {
+            const field = fields[i2];
+            const typeCast2 = options.typeCast ? options.typeCast : config.typeCast;
+            const next = /* @__PURE__ */ __name(() => readField({
+              packet,
+              type: field.columnType,
+              encoding: field.encoding,
+              charset: field.characterSet,
+              config,
+              options
+            }), "next");
+            let value;
+            if (options.typeCast === false) {
+              value = packet.readLengthCodedBuffer();
+            } else if (typeof typeCast2 === "function") {
+              value = typeCast2(createTypecastField(field, packet), next);
+            } else {
+              value = next();
+            }
+            if (options.rowsAsArray) {
+              result.push(value);
+            } else if (typeof options.nestTables === "string") {
+              result[`${helpers.fieldEscape(field.table, false)}${options.nestTables}${helpers.fieldEscape(field.name, false)}`] = value;
+            } else if (options.nestTables) {
+              const tableName = helpers.fieldEscape(field.table, false);
+              if (!result[tableName]) {
+                result[tableName] = {};
+              }
+              result[tableName][helpers.fieldEscape(field.name, false)] = value;
+            } else {
+              result[helpers.fieldEscape(field.name, false)] = value;
+            }
+          }
+          return result;
+        }
+      };
+    }
+    __name(getTextParser, "getTextParser");
+    module2.exports = getTextParser;
+  }
+});
+
+// node_modules/mysql2/lib/commands/query.js
 var require_query2 = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/commands/query.js"(exports2, module2) {
+  "node_modules/mysql2/lib/commands/query.js"(exports2, module2) {
     "use strict";
     var process2 = require("process");
     var Timers = require("timers");
@@ -16208,9 +15208,13 @@ var require_query2 = __commonJS({
     var Command = require_command();
     var Packets = require_packets();
     var getTextParser = require_text_parser();
+    var staticParser = require_static_text_parser();
     var ServerStatus = require_server_status();
     var EmptyPacket = new Packets.Packet(0, Buffer.allocUnsafe(4), 0, 4);
-    var _Query = class _Query extends Command {
+    var Query = class _Query extends Command {
+      static {
+        __name(this, "Query");
+      }
       constructor(options, callback) {
         super();
         this.sql = options.sql;
@@ -16233,7 +15237,7 @@ var require_query2 = __commonJS({
         this._connection = null;
       }
       then() {
-        const err = "You have tried to call .then(), .catch(), or invoked await on the result of query that is not a promise, which is a programming error. Try calling con.promise().query(), or require('mysql2/promise') instead of 'mysql2' for a promise-compatible version of the query interface. To learn how to use async/await or Promises check out documentation at https://www.npmjs.com/package/mysql2#using-promise-wrapper, or the mysql2 documentation at https://github.com/sidorares/node-mysql2/tree/master/documentation/en/Promise-Wrapper.md";
+        const err = "You have tried to call .then(), .catch(), or invoked await on the result of query that is not a promise, which is a programming error. Try calling con.promise().query(), or require('mysql2/promise') instead of 'mysql2' for a promise-compatible version of the query interface. To learn how to use async/await or Promises check out documentation at https://sidorares.github.io/node-mysql2/docs#using-promise-wrapper, or the mysql2 documentation at https://sidorares.github.io/node-mysql2/docs/documentation/promise-wrapper";
         console.log(err);
         throw new Error(err);
       }
@@ -16245,9 +15249,12 @@ var require_query2 = __commonJS({
         this._connection = connection;
         this.options = Object.assign({}, connection.config, this._queryOptions);
         this._setTimeout();
+        const clientFlags = connection.config.clientFlags & (connection.serverCapabilityFlags || 0);
         const cmdPacket = new Packets.Query(
           this.sql,
-          connection.config.charsetNumber
+          connection.config.charsetNumber,
+          this._queryOptions.attributes,
+          clientFlags
         );
         connection.writePacket(cmdPacket.toPacket(1));
         return _Query.prototype.resultsetHeader;
@@ -16388,7 +15395,15 @@ var require_query2 = __commonJS({
         if (this._receivedFieldsCount === this._fieldCount) {
           const fields = this._fields[this._resultIndex];
           this.emit("fields", fields);
-          this._rowParser = new (getTextParser(fields, this.options, connection.config))(fields);
+          if (this.options.disableEval) {
+            this._rowParser = staticParser(fields, this.options, connection.config);
+          } else {
+            this._rowParser = new (getTextParser(
+              fields,
+              this.options,
+              connection.config
+            ))(fields);
+          }
           return _Query.prototype.fieldsEOF;
         }
         return _Query.prototype.readField;
@@ -16399,7 +15414,6 @@ var require_query2 = __commonJS({
         }
         return this.row;
       }
-      /* eslint no-unused-vars: ["error", { "argsIgnorePattern": "^_" }] */
       row(packet, _connection) {
         if (packet.isEOF()) {
           const status = packet.eofStatusFlags();
@@ -16424,7 +15438,7 @@ var require_query2 = __commonJS({
         if (this.onResult) {
           this._rows[this._resultIndex].push(row);
         } else {
-          this.emit("result", row);
+          this.emit("result", row, this._resultIndex);
         }
         return _Query.prototype.row;
       }
@@ -16433,37 +15447,57 @@ var require_query2 = __commonJS({
         return this.doneInsert(rs);
       }
       stream(options) {
-        options = options || {};
+        options = options || /* @__PURE__ */ Object.create(null);
         options.objectMode = true;
-        const stream = new Readable(options);
-        stream._read = () => {
-          this._connection && this._connection.resume();
-        };
-        this.on("result", (row) => {
-          if (!stream.push(row)) {
-            this._connection.pause();
+        const stream = new Readable({
+          ...options,
+          emitClose: true,
+          autoDestroy: true,
+          read: /* @__PURE__ */ __name(() => {
+            this._connection && this._connection.resume();
+          }, "read")
+        });
+        stream.once("close", () => {
+          if (!stream.readableEnded) {
+            stream.emit("end");
           }
-          stream.emit("result", row);
         });
-        this.on("error", (err) => {
-          stream.emit("error", err);
-        });
-        this.on("end", () => {
-          stream.push(null);
-          stream.emit("close");
-        });
-        this.on("fields", (fields) => {
+        const onResult = /* @__PURE__ */ __name((row, index) => {
+          if (stream.destroyed) return;
+          if (!stream.push(row)) {
+            this._connection && this._connection.pause();
+          }
+          stream.emit("result", row, index);
+        }, "onResult");
+        const onFields = /* @__PURE__ */ __name((fields) => {
+          if (stream.destroyed) return;
           stream.emit("fields", fields);
-        });
+        }, "onFields");
+        const onEnd = /* @__PURE__ */ __name(() => {
+          if (stream.destroyed) return;
+          stream.push(null);
+        }, "onEnd");
+        const onError = /* @__PURE__ */ __name((err) => {
+          stream.destroy(err);
+        }, "onError");
+        stream._destroy = (err, cb) => {
+          this._connection && this._connection.resume();
+          this.removeListener("result", onResult);
+          this.removeListener("fields", onFields);
+          this.removeListener("end", onEnd);
+          this.removeListener("error", onError);
+          cb(err);
+        };
+        this.on("result", onResult);
+        this.on("fields", onFields);
+        this.on("end", onEnd);
+        this.on("error", onError);
         return stream;
       }
       _setTimeout() {
         if (this.timeout) {
           const timeoutHandler = this._handleTimeoutError.bind(this);
-          this.queryTimeout = Timers.setTimeout(
-            timeoutHandler,
-            this.timeout
-          );
+          this.queryTimeout = Timers.setTimeout(timeoutHandler, this.timeout);
         }
       }
       _handleTimeoutError() {
@@ -16482,20 +15516,21 @@ var require_query2 = __commonJS({
         }
       }
     };
-    __name(_Query, "Query");
-    var Query = _Query;
     Query.prototype.catch = Query.prototype.then;
     module2.exports = Query;
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/commands/close_statement.js
+// node_modules/mysql2/lib/commands/close_statement.js
 var require_close_statement2 = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/commands/close_statement.js"(exports2, module2) {
+  "node_modules/mysql2/lib/commands/close_statement.js"(exports2, module2) {
     "use strict";
     var Command = require_command();
     var Packets = require_packets();
-    var _CloseStatement = class _CloseStatement extends Command {
+    var CloseStatement = class extends Command {
+      static {
+        __name(this, "CloseStatement");
+      }
       constructor(id) {
         super();
         this.id = id;
@@ -16505,15 +15540,13 @@ var require_close_statement2 = __commonJS({
         return null;
       }
     };
-    __name(_CloseStatement, "CloseStatement");
-    var CloseStatement = _CloseStatement;
     module2.exports = CloseStatement;
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/parsers/binary_parser.js
+// node_modules/mysql2/lib/parsers/binary_parser.js
 var require_binary_parser = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/parsers/binary_parser.js"(exports2, module2) {
+  "node_modules/mysql2/lib/parsers/binary_parser.js"(exports2, module2) {
     "use strict";
     var FieldFlags = require_field_flags();
     var Charsets = require_charsets();
@@ -16526,8 +15559,12 @@ var require_binary_parser = __commonJS({
       typeNames[Types[t2]] = t2;
     }
     function readCodeFor(field, config, options, fieldNum) {
-      const supportBigNumbers = options.supportBigNumbers || config.supportBigNumbers;
-      const bigNumberStrings = options.bigNumberStrings || config.bigNumberStrings;
+      const supportBigNumbers = Boolean(
+        options.supportBigNumbers || config.supportBigNumbers
+      );
+      const bigNumberStrings = Boolean(
+        options.bigNumberStrings || config.bigNumberStrings
+      );
       const timezone = options.timezone || config.timezone;
       const dateStrings = options.dateStrings || config.dateStrings;
       const unsigned = field.flags & FieldFlags.UNSIGNED;
@@ -16552,9 +15589,9 @@ var require_binary_parser = __commonJS({
         case Types.TIMESTAMP:
         case Types.NEWDATE:
           if (helpers.typeMatch(field.columnType, dateStrings, Types)) {
-            return `packet.readDateTimeString(${field.decimals});`;
+            return `packet.readDateTimeString(${parseInt(field.decimals, 10)}, ${null}, ${field.columnType});`;
           }
-          return `packet.readDateTime('${timezone}');`;
+          return `packet.readDateTime(${helpers.srcEscape(timezone)});`;
         case Types.TIME:
           return "packet.readTimeString()";
         case Types.DECIMAL:
@@ -16565,8 +15602,10 @@ var require_binary_parser = __commonJS({
           return 'packet.readLengthCodedString("ascii");';
         case Types.GEOMETRY:
           return "packet.parseGeometryValue();";
+        case Types.VECTOR:
+          return "packet.parseVector()";
         case Types.JSON:
-          return 'JSON.parse(packet.readLengthCodedString("utf8"));';
+          return config.jsonStrings ? 'packet.readLengthCodedString("utf8")' : 'JSON.parse(packet.readLengthCodedString("utf8"));';
         case Types.LONGLONG:
           if (!supportBigNumbers) {
             return unsigned ? "packet.readInt64JSNumber();" : "packet.readSInt64JSNumber();";
@@ -16585,8 +15624,48 @@ var require_binary_parser = __commonJS({
     __name(readCodeFor, "readCodeFor");
     function compile(fields, options, config) {
       const parserFn = genFunc();
-      let i2 = 0;
       const nullBitmapLength = Math.floor((fields.length + 7 + 2) / 8);
+      function wrap(field, packet) {
+        return {
+          type: typeNames[field.columnType],
+          length: field.columnLength,
+          db: field.schema,
+          table: field.table,
+          name: field.name,
+          charset: field.characterSet,
+          string: /* @__PURE__ */ __name(function(encoding = field.encoding) {
+            if (field.columnType === Types.JSON && encoding === field.encoding) {
+              console.warn(
+                `typeCast: JSON column "${field.name}" is interpreted as BINARY by default, recommended to manually set utf8 encoding: \`field.string("utf8")\``
+              );
+            }
+            if ([Types.DATETIME, Types.NEWDATE, Types.TIMESTAMP, Types.DATE].includes(
+              field.columnType
+            )) {
+              return packet.readDateTimeString(
+                parseInt(field.decimals, 10),
+                " ",
+                field.columnType
+              );
+            }
+            if (field.columnType === Types.TINY) {
+              const unsigned = field.flags & FieldFlags.UNSIGNED;
+              return String(unsigned ? packet.readInt8() : packet.readSInt8());
+            }
+            if (field.columnType === Types.TIME) {
+              return packet.readTimeString();
+            }
+            return packet.readLengthCodedString(encoding);
+          }, "string"),
+          buffer: /* @__PURE__ */ __name(function() {
+            return packet.readLengthCodedBuffer();
+          }, "buffer"),
+          geometry: /* @__PURE__ */ __name(function() {
+            return packet.parseGeometryValue();
+          }, "geometry")
+        };
+      }
+      __name(wrap, "wrap");
       parserFn("(function(){");
       parserFn("return class BinaryRow {");
       parserFn("constructor() {");
@@ -16597,19 +15676,11 @@ var require_binary_parser = __commonJS({
       } else {
         parserFn("const result = {};");
       }
-      const resultTables = {};
-      let resultTablesArray = [];
-      if (options.nestTables === true) {
-        for (i2 = 0; i2 < fields.length; i2++) {
-          resultTables[fields[i2].table] = 1;
-        }
-        resultTablesArray = Object.keys(resultTables);
-        for (i2 = 0; i2 < resultTablesArray.length; i2++) {
-          parserFn(`result[${helpers.srcEscape(resultTablesArray[i2])}] = {};`);
-        }
+      if (typeof config.typeCast === "function" && typeof options.typeCast !== "function") {
+        options.typeCast = config.typeCast;
       }
       parserFn("packet.readInt8();");
-      for (i2 = 0; i2 < nullBitmapLength; ++i2) {
+      for (let i2 = 0; i2 < nullBitmapLength; ++i2) {
         parserFn(`const nullBitmaskByte${i2} = packet.readInt8();`);
       }
       let lvalue = "";
@@ -16617,26 +15688,37 @@ var require_binary_parser = __commonJS({
       let nullByteIndex = 0;
       let fieldName = "";
       let tableName = "";
-      for (i2 = 0; i2 < fields.length; i2++) {
-        fieldName = helpers.srcEscape(fields[i2].name);
-        parserFn(`// ${fieldName}: ${typeNames[fields[i2].columnType]}`);
+      for (let i2 = 0; i2 < fields.length; i2++) {
+        fieldName = helpers.fieldEscape(fields[i2].name);
         if (typeof options.nestTables === "string") {
-          tableName = helpers.srcEscape(fields[i2].table);
-          lvalue = `result[${helpers.srcEscape(
-            fields[i2].table + options.nestTables + fields[i2].name
-          )}]`;
+          lvalue = `result[${helpers.fieldEscape(fields[i2].table + options.nestTables + fields[i2].name)}]`;
         } else if (options.nestTables === true) {
-          tableName = helpers.srcEscape(fields[i2].table);
+          tableName = helpers.fieldEscape(fields[i2].table);
+          parserFn(`if (!result[${tableName}]) result[${tableName}] = {};`);
           lvalue = `result[${tableName}][${fieldName}]`;
         } else if (options.rowsAsArray) {
           lvalue = `result[${i2.toString(10)}]`;
         } else {
-          lvalue = `result[${helpers.srcEscape(fields[i2].name)}]`;
+          lvalue = `result[${fieldName}]`;
         }
-        parserFn(`if (nullBitmaskByte${nullByteIndex} & ${currentFieldNullBit})`);
+        parserFn(`if (nullBitmaskByte${nullByteIndex} & ${currentFieldNullBit}) `);
         parserFn(`${lvalue} = null;`);
-        parserFn("else");
-        parserFn(`${lvalue} = ${readCodeFor(fields[i2], config, options, i2)}`);
+        parserFn("else {");
+        if (options.typeCast === false) {
+          parserFn(`${lvalue} = packet.readLengthCodedBuffer();`);
+        } else {
+          const fieldWrapperVar = `fieldWrapper${i2}`;
+          parserFn(`const ${fieldWrapperVar} = wrap(fields[${i2}], packet);`);
+          const readCode = readCodeFor(fields[i2], config, options, i2);
+          if (typeof options.typeCast === "function") {
+            parserFn(
+              `${lvalue} = options.typeCast(${fieldWrapperVar}, function() { return ${readCode} });`
+            );
+          } else {
+            parserFn(`${lvalue} = ${readCode};`);
+          }
+        }
+        parserFn("}");
         currentFieldNullBit *= 2;
         if (currentFieldNullBit === 256) {
           currentFieldNullBit = 1;
@@ -16652,7 +15734,7 @@ var require_binary_parser = __commonJS({
           parserFn.toString()
         );
       }
-      return parserFn.toFunction();
+      return parserFn.toFunction({ wrap });
     }
     __name(compile, "compile");
     function getBinaryParser(fields, options, config) {
@@ -16663,15 +15745,193 @@ var require_binary_parser = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/commands/execute.js
+// node_modules/mysql2/lib/parsers/static_binary_parser.js
+var require_static_binary_parser = __commonJS({
+  "node_modules/mysql2/lib/parsers/static_binary_parser.js"(exports2, module2) {
+    "use strict";
+    var FieldFlags = require_field_flags();
+    var Charsets = require_charsets();
+    var Types = require_types();
+    var helpers = require_helpers();
+    var typeNames = [];
+    for (const t2 in Types) {
+      typeNames[Types[t2]] = t2;
+    }
+    function getBinaryParser(fields, _options, config) {
+      function readCode(field, config2, options, fieldNum, packet) {
+        const supportBigNumbers = Boolean(
+          options.supportBigNumbers || config2.supportBigNumbers
+        );
+        const bigNumberStrings = Boolean(
+          options.bigNumberStrings || config2.bigNumberStrings
+        );
+        const timezone = options.timezone || config2.timezone;
+        const dateStrings = options.dateStrings || config2.dateStrings;
+        const unsigned = field.flags & FieldFlags.UNSIGNED;
+        switch (field.columnType) {
+          case Types.TINY:
+            return unsigned ? packet.readInt8() : packet.readSInt8();
+          case Types.SHORT:
+            return unsigned ? packet.readInt16() : packet.readSInt16();
+          case Types.LONG:
+          case Types.INT24:
+            return unsigned ? packet.readInt32() : packet.readSInt32();
+          case Types.YEAR:
+            return packet.readInt16();
+          case Types.FLOAT:
+            return packet.readFloat();
+          case Types.DOUBLE:
+            return packet.readDouble();
+          case Types.NULL:
+            return null;
+          case Types.DATE:
+          case Types.DATETIME:
+          case Types.TIMESTAMP:
+          case Types.NEWDATE:
+            return helpers.typeMatch(field.columnType, dateStrings, Types) ? packet.readDateTimeString(
+              parseInt(field.decimals, 10),
+              null,
+              field.columnType
+            ) : packet.readDateTime(timezone);
+          case Types.TIME:
+            return packet.readTimeString();
+          case Types.DECIMAL:
+          case Types.NEWDECIMAL:
+            return config2.decimalNumbers ? packet.parseLengthCodedFloat() : packet.readLengthCodedString("ascii");
+          case Types.GEOMETRY:
+            return packet.parseGeometryValue();
+          case Types.VECTOR:
+            return packet.parseVector();
+          case Types.JSON:
+            return config2.jsonStrings ? packet.readLengthCodedString("utf8") : JSON.parse(packet.readLengthCodedString("utf8"));
+          case Types.LONGLONG:
+            if (!supportBigNumbers)
+              return unsigned ? packet.readInt64JSNumber() : packet.readSInt64JSNumber();
+            return bigNumberStrings ? unsigned ? packet.readInt64String() : packet.readSInt64String() : unsigned ? packet.readInt64() : packet.readSInt64();
+          default:
+            return field.characterSet === Charsets.BINARY ? packet.readLengthCodedBuffer() : packet.readLengthCodedString(fields[fieldNum].encoding);
+        }
+      }
+      __name(readCode, "readCode");
+      return class BinaryRow {
+        static {
+          __name(this, "BinaryRow");
+        }
+        constructor() {
+        }
+        next(packet, fields2, options) {
+          packet.readInt8();
+          const nullBitmapLength = Math.floor((fields2.length + 7 + 2) / 8);
+          const nullBitmaskBytes = new Array(nullBitmapLength);
+          for (let i2 = 0; i2 < nullBitmapLength; i2++) {
+            nullBitmaskBytes[i2] = packet.readInt8();
+          }
+          const result = options.rowsAsArray ? new Array(fields2.length) : {};
+          let currentFieldNullBit = 4;
+          let nullByteIndex = 0;
+          for (let i2 = 0; i2 < fields2.length; i2++) {
+            const field = fields2[i2];
+            const typeCast2 = options.typeCast !== void 0 ? options.typeCast : config.typeCast;
+            let value;
+            if (nullBitmaskBytes[nullByteIndex] & currentFieldNullBit) {
+              value = null;
+            } else if (options.typeCast === false) {
+              value = packet.readLengthCodedBuffer();
+            } else {
+              const next = /* @__PURE__ */ __name(() => readCode(field, config, options, i2, packet), "next");
+              value = typeof typeCast2 === "function" ? typeCast2(
+                {
+                  type: typeNames[field.columnType],
+                  length: field.columnLength,
+                  db: field.schema,
+                  table: field.table,
+                  name: field.name,
+                  string: /* @__PURE__ */ __name(function(encoding = field.encoding) {
+                    if (field.columnType === Types.JSON && encoding === field.encoding) {
+                      console.warn(
+                        `typeCast: JSON column "${field.name}" is interpreted as BINARY by default, recommended to manually set utf8 encoding: \`field.string("utf8")\``
+                      );
+                    }
+                    if ([
+                      Types.DATETIME,
+                      Types.NEWDATE,
+                      Types.TIMESTAMP,
+                      Types.DATE
+                    ].includes(field.columnType)) {
+                      return packet.readDateTimeString(
+                        parseInt(field.decimals, 10),
+                        " ",
+                        field.columnType
+                      );
+                    }
+                    if (field.columnType === Types.TINY) {
+                      const unsigned = field.flags & FieldFlags.UNSIGNED;
+                      return String(
+                        unsigned ? packet.readInt8() : packet.readSInt8()
+                      );
+                    }
+                    if (field.columnType === Types.TIME) {
+                      return packet.readTimeString();
+                    }
+                    return packet.readLengthCodedString(encoding);
+                  }, "string"),
+                  buffer: /* @__PURE__ */ __name(function() {
+                    return packet.readLengthCodedBuffer();
+                  }, "buffer"),
+                  geometry: /* @__PURE__ */ __name(function() {
+                    return packet.parseGeometryValue();
+                  }, "geometry")
+                },
+                next
+              ) : next();
+            }
+            if (options.rowsAsArray) {
+              result[i2] = value;
+            } else if (typeof options.nestTables === "string") {
+              const key = helpers.fieldEscape(
+                field.table + options.nestTables + field.name,
+                false
+              );
+              result[key] = value;
+            } else if (options.nestTables === true) {
+              const tableName = helpers.fieldEscape(field.table, false);
+              if (!result[tableName]) {
+                result[tableName] = {};
+              }
+              const fieldName = helpers.fieldEscape(field.name, false);
+              result[tableName][fieldName] = value;
+            } else {
+              const key = helpers.fieldEscape(field.name, false);
+              result[key] = value;
+            }
+            currentFieldNullBit *= 2;
+            if (currentFieldNullBit === 256) {
+              currentFieldNullBit = 1;
+              nullByteIndex++;
+            }
+          }
+          return result;
+        }
+      };
+    }
+    __name(getBinaryParser, "getBinaryParser");
+    module2.exports = getBinaryParser;
+  }
+});
+
+// node_modules/mysql2/lib/commands/execute.js
 var require_execute2 = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/commands/execute.js"(exports2, module2) {
+  "node_modules/mysql2/lib/commands/execute.js"(exports2, module2) {
     "use strict";
     var Command = require_command();
     var Query = require_query2();
     var Packets = require_packets();
     var getBinaryParser = require_binary_parser();
-    var _Execute = class _Execute extends Command {
+    var getStaticBinaryParser = require_static_binary_parser();
+    var Execute = class _Execute extends Command {
+      static {
+        __name(this, "Execute");
+      }
       constructor(options, callback) {
         super();
         this.statement = options.statement;
@@ -16696,17 +15956,23 @@ var require_execute2 = __commonJS({
         this._connection = null;
       }
       buildParserFromFields(fields, connection) {
+        if (this.options.disableEval) {
+          return getStaticBinaryParser(fields, this.options, connection.config);
+        }
         return getBinaryParser(fields, this.options, connection.config);
       }
       start(packet, connection) {
         this._connection = connection;
         this.options = Object.assign({}, connection.config, this._executeOptions);
         this._setTimeout();
+        const clientFlags = connection.config.clientFlags & (connection.serverCapabilityFlags || 0);
         const executePacket = new Packets.Execute(
           this.statement.id,
           this.parameters,
           connection.config.charsetNumber,
-          connection.config.timezone
+          connection.config.timezone,
+          this._executeOptions.attributes,
+          clientFlags
         );
         try {
           connection.writePacket(executePacket.toPacket(1));
@@ -16741,8 +16007,6 @@ var require_execute2 = __commonJS({
         return _Execute.prototype.row;
       }
     };
-    __name(_Execute, "Execute");
-    var Execute = _Execute;
     Execute.prototype.done = Query.prototype.done;
     Execute.prototype.doneInsert = Query.prototype.doneInsert;
     Execute.prototype.resultsetHeader = Query.prototype.resultsetHeader;
@@ -16756,15 +16020,18 @@ var require_execute2 = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/commands/prepare.js
+// node_modules/mysql2/lib/commands/prepare.js
 var require_prepare = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/commands/prepare.js"(exports2, module2) {
+  "node_modules/mysql2/lib/commands/prepare.js"(exports2, module2) {
     "use strict";
     var Packets = require_packets();
     var Command = require_command();
     var CloseStatement = require_close_statement2();
     var Execute = require_execute2();
-    var _PreparedStatementInfo = class _PreparedStatementInfo {
+    var PreparedStatementInfo = class {
+      static {
+        __name(this, "PreparedStatementInfo");
+      }
       constructor(query, id, columns, parameters, connection) {
         this.query = query;
         this.id = id;
@@ -16786,9 +16053,10 @@ var require_prepare = __commonJS({
         );
       }
     };
-    __name(_PreparedStatementInfo, "PreparedStatementInfo");
-    var PreparedStatementInfo = _PreparedStatementInfo;
-    var _Prepare = class _Prepare extends Command {
+    var Prepare = class _Prepare extends Command {
+      static {
+        __name(this, "Prepare");
+      }
       constructor(options, callback) {
         super();
         this.query = options.sql;
@@ -16886,20 +16154,21 @@ var require_prepare = __commonJS({
         return null;
       }
     };
-    __name(_Prepare, "Prepare");
-    var Prepare = _Prepare;
     module2.exports = Prepare;
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/commands/ping.js
+// node_modules/mysql2/lib/commands/ping.js
 var require_ping = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/commands/ping.js"(exports2, module2) {
+  "node_modules/mysql2/lib/commands/ping.js"(exports2, module2) {
     "use strict";
     var Command = require_command();
     var CommandCode = require_commands();
     var Packet = require_packet();
-    var _Ping = class _Ping extends Command {
+    var Ping = class _Ping extends Command {
+      static {
+        __name(this, "Ping");
+      }
       constructor(callback) {
         super();
         this.onResult = callback;
@@ -16921,19 +16190,20 @@ var require_ping = __commonJS({
         return null;
       }
     };
-    __name(_Ping, "Ping");
-    var Ping = _Ping;
     module2.exports = Ping;
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/commands/register_slave.js
+// node_modules/mysql2/lib/commands/register_slave.js
 var require_register_slave2 = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/commands/register_slave.js"(exports2, module2) {
+  "node_modules/mysql2/lib/commands/register_slave.js"(exports2, module2) {
     "use strict";
     var Command = require_command();
     var Packets = require_packets();
-    var _RegisterSlave = class _RegisterSlave extends Command {
+    var RegisterSlave = class _RegisterSlave extends Command {
+      static {
+        __name(this, "RegisterSlave");
+      }
       constructor(opts, callback) {
         super();
         this.onResult = callback;
@@ -16951,15 +16221,13 @@ var require_register_slave2 = __commonJS({
         return null;
       }
     };
-    __name(_RegisterSlave, "RegisterSlave");
-    var RegisterSlave = _RegisterSlave;
     module2.exports = RegisterSlave;
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/packets/binlog_query_statusvars.js
+// node_modules/mysql2/lib/packets/binlog_query_statusvars.js
 var require_binlog_query_statusvars = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/packets/binlog_query_statusvars.js"(exports2, module2) {
+  "node_modules/mysql2/lib/packets/binlog_query_statusvars.js"(exports2, module2) {
     "use strict";
     var keys = {
       FLAGS2: 0,
@@ -17069,14 +16337,17 @@ var require_binlog_query_statusvars = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/commands/binlog_dump.js
+// node_modules/mysql2/lib/commands/binlog_dump.js
 var require_binlog_dump2 = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/commands/binlog_dump.js"(exports2, module2) {
+  "node_modules/mysql2/lib/commands/binlog_dump.js"(exports2, module2) {
     "use strict";
     var Command = require_command();
     var Packets = require_packets();
     var eventParsers = [];
-    var _BinlogEventHeader = class _BinlogEventHeader {
+    var BinlogEventHeader = class {
+      static {
+        __name(this, "BinlogEventHeader");
+      }
       constructor(packet) {
         this.timestamp = packet.readInt32();
         this.eventType = packet.readInt8();
@@ -17086,9 +16357,10 @@ var require_binlog_dump2 = __commonJS({
         this.flags = packet.readInt16();
       }
     };
-    __name(_BinlogEventHeader, "BinlogEventHeader");
-    var BinlogEventHeader = _BinlogEventHeader;
-    var _BinlogDump = class _BinlogDump extends Command {
+    var BinlogDump = class _BinlogDump extends Command {
+      static {
+        __name(this, "BinlogDump");
+      }
       constructor(opts) {
         super();
         this.opts = opts;
@@ -17119,9 +16391,10 @@ var require_binlog_dump2 = __commonJS({
         return _BinlogDump.prototype.binlogData;
       }
     };
-    __name(_BinlogDump, "BinlogDump");
-    var BinlogDump = _BinlogDump;
-    var _RotateEvent = class _RotateEvent {
+    var RotateEvent = class {
+      static {
+        __name(this, "RotateEvent");
+      }
       constructor(packet) {
         this.pposition = packet.readInt32();
         packet.readInt32();
@@ -17129,9 +16402,10 @@ var require_binlog_dump2 = __commonJS({
         this.name = "RotateEvent";
       }
     };
-    __name(_RotateEvent, "RotateEvent");
-    var RotateEvent = _RotateEvent;
-    var _FormatDescriptionEvent = class _FormatDescriptionEvent {
+    var FormatDescriptionEvent = class {
+      static {
+        __name(this, "FormatDescriptionEvent");
+      }
       constructor(packet) {
         this.binlogVersion = packet.readInt16();
         this.serverVersion = packet.readString(50).replace(/\u0000.*/, "");
@@ -17141,9 +16415,10 @@ var require_binlog_dump2 = __commonJS({
         this.name = "FormatDescriptionEvent";
       }
     };
-    __name(_FormatDescriptionEvent, "FormatDescriptionEvent");
-    var FormatDescriptionEvent = _FormatDescriptionEvent;
-    var _QueryEvent = class _QueryEvent {
+    var QueryEvent = class {
+      static {
+        __name(this, "QueryEvent");
+      }
       constructor(packet) {
         const parseStatusVars = require_binlog_query_statusvars();
         this.slaveProxyId = packet.readInt32();
@@ -17159,17 +16434,16 @@ var require_binlog_dump2 = __commonJS({
         this.name = "QueryEvent";
       }
     };
-    __name(_QueryEvent, "QueryEvent");
-    var QueryEvent = _QueryEvent;
-    var _XidEvent = class _XidEvent {
+    var XidEvent = class {
+      static {
+        __name(this, "XidEvent");
+      }
       constructor(packet) {
         this.binlogVersion = packet.readInt16();
         this.xid = packet.readInt64();
         this.name = "XidEvent";
       }
     };
-    __name(_XidEvent, "XidEvent");
-    var XidEvent = _XidEvent;
     eventParsers[2] = QueryEvent;
     eventParsers[4] = RotateEvent;
     eventParsers[15] = FormatDescriptionEvent;
@@ -17178,16 +16452,19 @@ var require_binlog_dump2 = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/commands/change_user.js
+// node_modules/mysql2/lib/commands/change_user.js
 var require_change_user2 = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/commands/change_user.js"(exports2, module2) {
+  "node_modules/mysql2/lib/commands/change_user.js"(exports2, module2) {
     "use strict";
     var Command = require_command();
     var Packets = require_packets();
     var ClientConstants = require_client();
     var ClientHandshake = require_client_handshake();
     var CharsetToEncoding = require_charset_encodings();
-    var _ChangeUser = class _ChangeUser extends Command {
+    var ChangeUser = class _ChangeUser extends Command {
+      static {
+        __name(this, "ChangeUser");
+      }
       constructor(options, callback) {
         super();
         this.onResult = callback;
@@ -17227,22 +16504,56 @@ var require_change_user2 = __commonJS({
         return _ChangeUser.prototype.handshakeResult;
       }
     };
-    __name(_ChangeUser, "ChangeUser");
-    var ChangeUser = _ChangeUser;
     ChangeUser.prototype.handshakeResult = ClientHandshake.prototype.handshakeResult;
     ChangeUser.prototype.calculateNativePasswordAuthToken = ClientHandshake.prototype.calculateNativePasswordAuthToken;
     module2.exports = ChangeUser;
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/commands/quit.js
+// node_modules/mysql2/lib/commands/reset_connection.js
+var require_reset_connection2 = __commonJS({
+  "node_modules/mysql2/lib/commands/reset_connection.js"(exports2, module2) {
+    "use strict";
+    var Command = require_command();
+    var Packets = require_packets();
+    var ResetConnection = class _ResetConnection extends Command {
+      static {
+        __name(this, "ResetConnection");
+      }
+      constructor(callback) {
+        super();
+        this.onResult = callback;
+      }
+      start(packet, connection) {
+        const req = new Packets.ResetConnection();
+        connection.writePacket(req.toPacket());
+        return _ResetConnection.prototype.resetConnectionResponse;
+      }
+      resetConnectionResponse(packet, connection) {
+        if (connection._statements) {
+          connection._statements.clear();
+        }
+        if (this.onResult) {
+          process.nextTick(this.onResult.bind(this, null));
+        }
+        return null;
+      }
+    };
+    module2.exports = ResetConnection;
+  }
+});
+
+// node_modules/mysql2/lib/commands/quit.js
 var require_quit = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/commands/quit.js"(exports2, module2) {
+  "node_modules/mysql2/lib/commands/quit.js"(exports2, module2) {
     "use strict";
     var Command = require_command();
     var CommandCode = require_commands();
     var Packet = require_packet();
-    var _Quit = class _Quit extends Command {
+    var Quit = class extends Command {
+      static {
+        __name(this, "Quit");
+      }
       constructor(callback) {
         super();
         this.onResult = callback;
@@ -17262,15 +16573,13 @@ var require_quit = __commonJS({
         return null;
       }
     };
-    __name(_Quit, "Quit");
-    var Quit = _Quit;
     module2.exports = Quit;
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/commands/index.js
+// node_modules/mysql2/lib/commands/index.js
 var require_commands2 = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/commands/index.js"(exports2, module2) {
+  "node_modules/mysql2/lib/commands/index.js"(exports2, module2) {
     "use strict";
     var ClientHandshake = require_client_handshake();
     var ServerHandshake = require_server_handshake();
@@ -17282,6 +16591,7 @@ var require_commands2 = __commonJS({
     var RegisterSlave = require_register_slave2();
     var BinlogDump = require_binlog_dump2();
     var ChangeUser = require_change_user2();
+    var ResetConnection = require_reset_connection2();
     var Quit = require_quit();
     module2.exports = {
       ClientHandshake,
@@ -17294,48 +16604,45 @@ var require_commands2 = __commonJS({
       RegisterSlave,
       BinlogDump,
       ChangeUser,
+      ResetConnection,
       Quit
     };
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/package.json
+// node_modules/mysql2/package.json
 var require_package = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/package.json"(exports2, module2) {
+  "node_modules/mysql2/package.json"(exports2, module2) {
     module2.exports = {
       name: "mysql2",
-      version: "3.5.1",
+      version: "3.22.2",
       description: "fast mysql driver. Implements core protocol, prepared statements, ssl and compression in native JS",
       main: "index.js",
-      directories: {
-        example: "examples"
-      },
       typings: "typings/mysql/index",
+      type: "commonjs",
       scripts: {
-        lint: "npm run lint:docs && npm run lint:code",
-        "lint:code": 'eslint index.js promise.js index.d.ts promise.d.ts "typings/**/*.ts" "lib/**/*.js" "test/**/*.{js,ts}" "benchmarks/**/*.js"',
-        "lint:docs": 'eslint Contributing.md README.md "documentation/**/*.md" "examples/*.js"',
-        test: "node ./test/run.js",
-        "test:builtin-node-runner": "NODE_V8_COVERAGE=./coverage node --test --experimental-test-coverage test/builtin-runner",
-        "test:tsc-build": 'cd "test/tsc-build" && npx tsc -p "tsconfig.json"',
-        "coverage-test": "c8 -r cobertura -r lcov -r text node ./test/run.js",
+        lint: "eslint . && prettier --check .",
+        "lint:fix": "eslint . --fix && prettier --write .",
+        test: "poku",
+        "test:bun": "bun poku",
+        "test:deno": "deno run -A npm:poku",
+        "test:docker:up": "docker compose -f test/docker-compose.yml up --abort-on-container-exit --remove-orphans",
+        "test:docker:down": "docker compose -f test/docker-compose.yml down",
+        "test:docker:node": "npm run test:docker:up -- node && npm run test:docker:down",
+        "test:docker:bun": "npm run test:docker:up -- bun && npm run test:docker:down",
+        "test:docker:deno": "npm run test:docker:up -- deno && npm run test:docker:down",
+        "test:docker:coverage": "npm run test:docker:up -- coverage && npm run test:docker:down",
+        "test:coverage": "c8 npm test",
+        "test:build": "rollup -c",
+        typecheck: 'cd "test/tsc-build" && tsc -p "tsconfig.json" && cd .. && tsc -p "tsconfig.json" --noEmit',
         benchmark: "node ./benchmarks/benchmark.js",
-        prettier: 'prettier --single-quote --trailing-comma none --write "{lib,examples,test}/**/*.js"',
-        "prettier:docs": "prettier --single-quote --trailing-comma none --write README.md documentation/*",
-        precommit: "lint-staged",
-        "eslint-check": "eslint --print-config .eslintrc | eslint-config-prettier-check",
         "wait-port": "wait-on"
-      },
-      "lint-staged": {
-        "*.js": [
-          "prettier --single-quote --trailing-comma none --write",
-          "git add"
-        ]
       },
       repository: {
         type: "git",
-        url: "https://github.com/sidorares/node-mysql2"
+        url: "git+https://github.com/sidorares/node-mysql2.git"
       },
+      homepage: "https://sidorares.github.io/node-mysql2/docs",
       keywords: [
         "mysql",
         "client",
@@ -17361,111 +16668,224 @@ var require_package = __commonJS({
       author: "Andrey Sidorov <andrey.sidorov@gmail.com>",
       license: "MIT",
       dependencies: {
+        "aws-ssl-profiles": "^1.1.2",
         denque: "^2.1.0",
         "generate-function": "^2.3.1",
-        "iconv-lite": "^0.6.3",
-        long: "^5.2.1",
-        "lru-cache": "^8.0.0",
-        "named-placeholders": "^1.1.3",
-        "seq-queue": "^0.0.5",
-        sqlstring: "^2.3.2"
+        "iconv-lite": "^0.7.2",
+        long: "^5.3.2",
+        "lru.min": "^1.1.4",
+        "named-placeholders": "^1.1.6",
+        "sql-escaper": "^1.3.3"
+      },
+      peerDependencies: {
+        "@types/node": ">= 8"
       },
       devDependencies: {
-        "@types/node": "^20.0.0",
-        "@typescript-eslint/eslint-plugin": "^5.42.1",
-        "@typescript-eslint/parser": "^5.42.1",
-        "assert-diff": "^3.0.2",
+        "@eslint/eslintrc": "^3.3.3",
+        "@eslint/js": "^9.39.2",
+        "@eslint/markdown": "^8.0.1",
+        "@ianvs/prettier-plugin-sort-imports": "^4.7.1",
+        "@pokujs/multi-suite": "^1.0.0",
+        "@rollup/plugin-commonjs": "^29.0.2",
+        "@rollup/plugin-json": "^6.1.0",
+        "@rollup/plugin-node-resolve": "^16.0.3",
+        "@types/node": "^25.3.0",
+        "@typescript-eslint/eslint-plugin": "^8.56.0",
+        "@typescript-eslint/parser": "^8.56.0",
+        "assert-diff": "^3.0.4",
         benchmark: "^2.1.4",
-        c8: "^8.0.0",
-        "error-stack-parser": "^2.0.3",
-        eslint: "^8.27.0",
-        "eslint-config-prettier": "^8.5.0",
-        "eslint-plugin-async-await": "0.0.0",
-        "eslint-plugin-markdown": "^3.0.0",
-        husky: "^8.0.2",
-        "lint-staged": "^13.0.3",
-        portfinder: "^1.0.28",
-        prettier: "^3.0.0",
-        progress: "^2.0.3",
-        typescript: "^5.0.2",
-        urun: "0.0.8",
-        utest: "0.0.8"
+        c8: "^11.0.0",
+        "error-stack-parser": "^2.1.4",
+        "eslint-config-prettier": "^10.1.8",
+        "eslint-plugin-async-await": "^0.0.0",
+        "eslint-plugin-prettier": "^5.5.5",
+        globals: "^17.3.0",
+        poku: "^4.1.0",
+        portfinder: "^1.0.38",
+        prettier: "^3.8.1",
+        rollup: "^4.59.0",
+        tsx: "^4.21.0",
+        typescript: "^5.9.3"
       }
     };
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/constants/ssl_profiles.js
-var require_ssl_profiles = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/constants/ssl_profiles.js"(exports2) {
+// node_modules/aws-ssl-profiles/lib/profiles/ca/defaults.js
+var require_defaults = __commonJS({
+  "node_modules/aws-ssl-profiles/lib/profiles/ca/defaults.js"(exports2) {
     "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.defaults = void 0;
+    exports2.defaults = [
+      "-----BEGIN CERTIFICATE-----\nMIIEEjCCAvqgAwIBAgIJAM2ZN/+nPi27MA0GCSqGSIb3DQEBCwUAMIGVMQswCQYD\nVQQGEwJVUzEQMA4GA1UEBwwHU2VhdHRsZTETMBEGA1UECAwKV2FzaGluZ3RvbjEi\nMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1h\nem9uIFJEUzEmMCQGA1UEAwwdQW1hem9uIFJEUyBhZi1zb3V0aC0xIFJvb3QgQ0Ew\nHhcNMTkxMDI4MTgwNTU4WhcNMjQxMDI2MTgwNTU4WjCBlTELMAkGA1UEBhMCVVMx\nEDAOBgNVBAcMB1NlYXR0bGUxEzARBgNVBAgMCldhc2hpbmd0b24xIjAgBgNVBAoM\nGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMx\nJjAkBgNVBAMMHUFtYXpvbiBSRFMgYWYtc291dGgtMSBSb290IENBMIIBIjANBgkq\nhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwR2351uPMZaJk2gMGT+1sk8HE9MQh2rc\n/sCnbxGn2p1c7Oi9aBbd/GiFijeJb2BXvHU+TOq3d3Jjqepq8tapXVt4ojbTJNyC\nJ5E7r7KjTktKdLxtBE1MK25aY+IRJjtdU6vG3KiPKUT1naO3xs3yt0F76WVuFivd\n9OHv2a+KHvPkRUWIxpmAHuMY9SIIMmEZtVE7YZGx5ah0iO4JzItHcbVR0y0PBH55\narpFBddpIVHCacp1FUPxSEWkOpI7q0AaU4xfX0fe1BV5HZYRKpBOIp1TtZWvJD+X\njGUtL1BEsT5vN5g9MkqdtYrC+3SNpAk4VtpvJrdjraI/hhvfeXNnAwIDAQABo2Mw\nYTAOBgNVHQ8BAf8EBAMCAQYwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQUEEi/\nWWMcBJsoGXg+EZwkQ0MscZQwHwYDVR0jBBgwFoAUEEi/WWMcBJsoGXg+EZwkQ0Ms\ncZQwDQYJKoZIhvcNAQELBQADggEBAGDZ5js5Pc/gC58LJrwMPXFhJDBS8QuDm23C\nFFUdlqucskwOS3907ErK1ZkmVJCIqFLArHqskFXMAkRZ2PNR7RjWLqBs+0znG5yH\nhRKb4DXzhUFQ18UBRcvT6V6zN97HTRsEEaNhM/7k8YLe7P8vfNZ28VIoJIGGgv9D\nwQBBvkxQ71oOmAG0AwaGD0ORGUfbYry9Dz4a4IcUsZyRWRMADixgrFv6VuETp26s\n/+z+iqNaGWlELBKh3iQCT6Y/1UnkPLO42bxrCSyOvshdkYN58Q2gMTE1SVTqyo8G\nLw8lLAz9bnvUSgHzB3jRrSx6ggF/WRMRYlR++y6LXP4SAsSAaC0=\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIEEjCCAvqgAwIBAgIJAJYM4LxvTZA6MA0GCSqGSIb3DQEBCwUAMIGVMQswCQYD\nVQQGEwJVUzEQMA4GA1UEBwwHU2VhdHRsZTETMBEGA1UECAwKV2FzaGluZ3RvbjEi\nMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1h\nem9uIFJEUzEmMCQGA1UEAwwdQW1hem9uIFJEUyBldS1zb3V0aC0xIFJvb3QgQ0Ew\nHhcNMTkxMDMwMjAyMDM2WhcNMjQxMDI4MjAyMDM2WjCBlTELMAkGA1UEBhMCVVMx\nEDAOBgNVBAcMB1NlYXR0bGUxEzARBgNVBAgMCldhc2hpbmd0b24xIjAgBgNVBAoM\nGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMx\nJjAkBgNVBAMMHUFtYXpvbiBSRFMgZXUtc291dGgtMSBSb290IENBMIIBIjANBgkq\nhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqM921jXCXeqpRNCS9CBPOe5N7gMaEt+D\ns5uR3riZbqzRlHGiF1jZihkXfHAIQewDwy+Yz+Oec1aEZCQMhUHxZJPusuX0cJfj\nb+UluFqHIijL2TfXJ3D0PVLLoNTQJZ8+GAPECyojAaNuoHbdVqxhOcznMsXIXVFq\nyVLKDGvyKkJjai/iSPDrQMXufg3kWt0ISjNLvsG5IFXgP4gttsM8i0yvRd4QcHoo\nDjvH7V3cS+CQqW5SnDrGnHToB0RLskE1ET+oNOfeN9PWOxQprMOX/zmJhnJQlTqD\nQP7jcf7SddxrKFjuziFiouskJJyNDsMjt1Lf60+oHZhed2ogTeifGwIDAQABo2Mw\nYTAOBgNVHQ8BAf8EBAMCAQYwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQUFBAF\ncgJe/BBuZiGeZ8STfpkgRYQwHwYDVR0jBBgwFoAUFBAFcgJe/BBuZiGeZ8STfpkg\nRYQwDQYJKoZIhvcNAQELBQADggEBAKAYUtlvDuX2UpZW9i1QgsjFuy/ErbW0dLHU\ne/IcFtju2z6RLZ+uF+5A8Kme7IKG1hgt8s+w9TRVQS/7ukQzoK3TaN6XKXRosjtc\no9Rm4gYWM8bmglzY1TPNaiI4HC7546hSwJhubjN0bXCuj/0sHD6w2DkiGuwKNAef\nyTu5vZhPkeNyXLykxkzz7bNp2/PtMBnzIp+WpS7uUDmWyScGPohKMq5PqvL59z+L\nZI3CYeMZrJ5VpXUg3fNNIz/83N3G0sk7wr0ohs/kHTP7xPOYB0zD7Ku4HA0Q9Swf\nWX0qr6UQgTPMjfYDLffI7aEId0gxKw1eGYc6Cq5JAZ3ipi/cBFc=\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIEEjCCAvqgAwIBAgIJANew34ehz5l8MA0GCSqGSIb3DQEBCwUAMIGVMQswCQYD\nVQQGEwJVUzEQMA4GA1UEBwwHU2VhdHRsZTETMBEGA1UECAwKV2FzaGluZ3RvbjEi\nMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1h\nem9uIFJEUzEmMCQGA1UEAwwdQW1hem9uIFJEUyBtZS1zb3V0aC0xIFJvb3QgQ0Ew\nHhcNMTkwNTEwMjE0ODI3WhcNMjQwNTA4MjE0ODI3WjCBlTELMAkGA1UEBhMCVVMx\nEDAOBgNVBAcMB1NlYXR0bGUxEzARBgNVBAgMCldhc2hpbmd0b24xIjAgBgNVBAoM\nGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMx\nJjAkBgNVBAMMHUFtYXpvbiBSRFMgbWUtc291dGgtMSBSb290IENBMIIBIjANBgkq\nhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAp7BYV88MukcY+rq0r79+C8UzkT30fEfT\naPXbx1d6M7uheGN4FMaoYmL+JE1NZPaMRIPTHhFtLSdPccInvenRDIatcXX+jgOk\nUA6lnHQ98pwN0pfDUyz/Vph4jBR9LcVkBbe0zdoKKp+HGbMPRU0N2yNrog9gM5O8\ngkU/3O2csJ/OFQNnj4c2NQloGMUpEmedwJMOyQQfcUyt9CvZDfIPNnheUS29jGSw\nERpJe/AENu8Pxyc72jaXQuD+FEi2Ck6lBkSlWYQFhTottAeGvVFNCzKszCntrtqd\nrdYUwurYsLTXDHv9nW2hfDUQa0mhXf9gNDOBIVAZugR9NqNRNyYLHQIDAQABo2Mw\nYTAOBgNVHQ8BAf8EBAMCAQYwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQU54cf\nDjgwBx4ycBH8+/r8WXdaiqYwHwYDVR0jBBgwFoAU54cfDjgwBx4ycBH8+/r8WXda\niqYwDQYJKoZIhvcNAQELBQADggEBAIIMTSPx/dR7jlcxggr+O6OyY49Rlap2laKA\neC/XI4ySP3vQkIFlP822U9Kh8a9s46eR0uiwV4AGLabcu0iKYfXjPkIprVCqeXV7\nny9oDtrbflyj7NcGdZLvuzSwgl9SYTJp7PVCZtZutsPYlbJrBPHwFABvAkMvRtDB\nhitIg4AESDGPoCl94sYHpfDfjpUDMSrAMDUyO6DyBdZH5ryRMAs3lGtsmkkNUrso\naTW6R05681Z0mvkRdb+cdXtKOSuDZPoe2wJJIaz3IlNQNSrB5TImMYgmt6iAsFhv\n3vfTSTKrZDNTJn4ybG6pq1zWExoXsktZPylJly6R3RBwV6nwqBM=\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIEBjCCAu6gAwIBAgIJAMc0ZzaSUK51MA0GCSqGSIb3DQEBCwUAMIGPMQswCQYD\nVQQGEwJVUzEQMA4GA1UEBwwHU2VhdHRsZTETMBEGA1UECAwKV2FzaGluZ3RvbjEi\nMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1h\nem9uIFJEUzEgMB4GA1UEAwwXQW1hem9uIFJEUyBSb290IDIwMTkgQ0EwHhcNMTkw\nODIyMTcwODUwWhcNMjQwODIyMTcwODUwWjCBjzELMAkGA1UEBhMCVVMxEDAOBgNV\nBAcMB1NlYXR0bGUxEzARBgNVBAgMCldhc2hpbmd0b24xIjAgBgNVBAoMGUFtYXpv\nbiBXZWIgU2VydmljZXMsIEluYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMxIDAeBgNV\nBAMMF0FtYXpvbiBSRFMgUm9vdCAyMDE5IENBMIIBIjANBgkqhkiG9w0BAQEFAAOC\nAQ8AMIIBCgKCAQEArXnF/E6/Qh+ku3hQTSKPMhQQlCpoWvnIthzX6MK3p5a0eXKZ\noWIjYcNNG6UwJjp4fUXl6glp53Jobn+tWNX88dNH2n8DVbppSwScVE2LpuL+94vY\n0EYE/XxN7svKea8YvlrqkUBKyxLxTjh+U/KrGOaHxz9v0l6ZNlDbuaZw3qIWdD/I\n6aNbGeRUVtpM6P+bWIoxVl/caQylQS6CEYUk+CpVyJSkopwJlzXT07tMoDL5WgX9\nO08KVgDNz9qP/IGtAcRduRcNioH3E9v981QO1zt/Gpb2f8NqAjUUCUZzOnij6mx9\nMcZ+9cWX88CRzR0vQODWuZscgI08NvM69Fn2SQIDAQABo2MwYTAOBgNVHQ8BAf8E\nBAMCAQYwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQUc19g2LzLA5j0Kxc0LjZa\npmD/vB8wHwYDVR0jBBgwFoAUc19g2LzLA5j0Kxc0LjZapmD/vB8wDQYJKoZIhvcN\nAQELBQADggEBAHAG7WTmyjzPRIM85rVj+fWHsLIvqpw6DObIjMWokpliCeMINZFV\nynfgBKsf1ExwbvJNzYFXW6dihnguDG9VMPpi2up/ctQTN8tm9nDKOy08uNZoofMc\nNUZxKCEkVKZv+IL4oHoeayt8egtv3ujJM6V14AstMQ6SwvwvA93EP/Ug2e4WAXHu\ncbI1NAbUgVDqp+DRdfvZkgYKryjTWd/0+1fS8X1bBZVWzl7eirNVnHbSH2ZDpNuY\n0SBd8dj5F6ld3t58ydZbrTHze7JJOd8ijySAp4/kiu9UfZWuTPABzDa/DSdz9Dk/\nzPW4CXXvhLmE02TA9/HeCw3KEHIwicNuEfw=\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIEEDCCAvigAwIBAgIJAKFMXyltvuRdMA0GCSqGSIb3DQEBCwUAMIGUMQswCQYD\nVQQGEwJVUzEQMA4GA1UEBwwHU2VhdHRsZTETMBEGA1UECAwKV2FzaGluZ3RvbjEi\nMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1h\nem9uIFJEUzElMCMGA1UEAwwcQW1hem9uIFJEUyBCZXRhIFJvb3QgMjAxOSBDQTAe\nFw0xOTA4MTkxNzM4MjZaFw0yNDA4MTkxNzM4MjZaMIGUMQswCQYDVQQGEwJVUzEQ\nMA4GA1UEBwwHU2VhdHRsZTETMBEGA1UECAwKV2FzaGluZ3RvbjEiMCAGA1UECgwZ\nQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzEl\nMCMGA1UEAwwcQW1hem9uIFJEUyBCZXRhIFJvb3QgMjAxOSBDQTCCASIwDQYJKoZI\nhvcNAQEBBQADggEPADCCAQoCggEBAMkZdnIH9ndatGAcFo+DppGJ1HUt4x+zeO+0\nZZ29m0sfGetVulmTlv2d5b66e+QXZFWpcPQMouSxxYTW08TbrQiZngKr40JNXftA\natvzBqIImD4II0ZX5UEVj2h98qe/ypW5xaDN7fEa5e8FkYB1TEemPaWIbNXqchcL\ntV7IJPr3Cd7Z5gZJlmujIVDPpMuSiNaal9/6nT9oqN+JSM1fx5SzrU5ssg1Vp1vv\n5Xab64uOg7wCJRB9R2GC9XD04odX6VcxUAGrZo6LR64ZSifupo3l+R5sVOc5i8NH\nskdboTzU9H7+oSdqoAyhIU717PcqeDum23DYlPE2nGBWckE+eT8CAwEAAaNjMGEw\nDgYDVR0PAQH/BAQDAgEGMA8GA1UdEwEB/wQFMAMBAf8wHQYDVR0OBBYEFK2hDBWl\nsbHzt/EHd0QYOooqcFPhMB8GA1UdIwQYMBaAFK2hDBWlsbHzt/EHd0QYOooqcFPh\nMA0GCSqGSIb3DQEBCwUAA4IBAQAO/718k8EnOqJDx6wweUscGTGL/QdKXUzTVRAx\nJUsjNUv49mH2HQVEW7oxszfH6cPCaupNAddMhQc4C/af6GHX8HnqfPDk27/yBQI+\nyBBvIanGgxv9c9wBbmcIaCEWJcsLp3HzXSYHmjiqkViXwCpYfkoV3Ns2m8bp+KCO\ny9XmcCKRaXkt237qmoxoh2sGmBHk2UlQtOsMC0aUQ4d7teAJG0q6pbyZEiPyKZY1\nXR/UVxMJL0Q4iVpcRS1kaNCMfqS2smbLJeNdsan8pkw1dvPhcaVTb7CvjhJtjztF\nYfDzAI5794qMlWxwilKMmUvDlPPOTen8NNHkLwWvyFCH7Doh\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIEFjCCAv6gAwIBAgIJAMzYZJ+R9NBVMA0GCSqGSIb3DQEBCwUAMIGXMQswCQYD\nVQQGEwJVUzEQMA4GA1UEBwwHU2VhdHRsZTETMBEGA1UECAwKV2FzaGluZ3RvbjEi\nMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1h\nem9uIFJEUzEoMCYGA1UEAwwfQW1hem9uIFJEUyBQcmV2aWV3IFJvb3QgMjAxOSBD\nQTAeFw0xOTA4MjEyMjI5NDlaFw0yNDA4MjEyMjI5NDlaMIGXMQswCQYDVQQGEwJV\nUzEQMA4GA1UEBwwHU2VhdHRsZTETMBEGA1UECAwKV2FzaGluZ3RvbjEiMCAGA1UE\nCgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJE\nUzEoMCYGA1UEAwwfQW1hem9uIFJEUyBQcmV2aWV3IFJvb3QgMjAxOSBDQTCCASIw\nDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAM7kkS6vjgKKQTPynC2NjdN5aPPV\nO71G0JJS/2ARVBVJd93JLiGovVJilfWYfwZCs4gTRSSjrUD4D4HyqCd6A+eEEtJq\nM0DEC7i0dC+9WNTsPszuB206Jy2IUmxZMIKJAA1NHSbIMjB+b6/JhbSUi7nKdbR/\nbrj83bF+RoSA+ogrgX7mQbxhmFcoZN9OGaJgYKsKWUt5Wqv627KkGodUK8mDepgD\nS3ZfoRQRx3iceETpcmHJvaIge6+vyDX3d9Z22jmvQ4AKv3py2CmU2UwuhOltFDwB\n0ddtb39vgwrJxaGfiMRHpEP1DfNLWHAnA69/pgZPwIggidS+iBPUhgucMp8CAwEA\nAaNjMGEwDgYDVR0PAQH/BAQDAgEGMA8GA1UdEwEB/wQFMAMBAf8wHQYDVR0OBBYE\nFGnTGpQuQ2H/DZlXMQijZEhjs7TdMB8GA1UdIwQYMBaAFGnTGpQuQ2H/DZlXMQij\nZEhjs7TdMA0GCSqGSIb3DQEBCwUAA4IBAQC3xz1vQvcXAfpcZlngiRWeqU8zQAMQ\nLZPCFNv7PVk4pmqX+ZiIRo4f9Zy7TrOVcboCnqmP/b/mNq0gVF4O+88jwXJZD+f8\n/RnABMZcnGU+vK0YmxsAtYU6TIb1uhRFmbF8K80HHbj9vSjBGIQdPCbvmR2zY6VJ\nBYM+w9U9hp6H4DVMLKXPc1bFlKA5OBTgUtgkDibWJKFOEPW3UOYwp9uq6pFoN0AO\nxMTldqWFsOF3bJIlvOY0c/1EFZXu3Ns6/oCP//Ap9vumldYMUZWmbK+gK33FPOXV\n8BQ6jNC29icv7lLDpRPwjibJBXX+peDR5UK4FdYcswWEB1Tix5X8dYu6\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIECTCCAvGgAwIBAgICEAAwDQYJKoZIhvcNAQELBQAwgZUxCzAJBgNVBAYTAlVT\nMRAwDgYDVQQHDAdTZWF0dGxlMRMwEQYDVQQIDApXYXNoaW5ndG9uMSIwIAYDVQQK\nDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMuMRMwEQYDVQQLDApBbWF6b24gUkRT\nMSYwJAYDVQQDDB1BbWF6b24gUkRTIGFmLXNvdXRoLTEgUm9vdCBDQTAeFw0xOTEw\nMjgxODA2NTNaFw0yNDEwMjgxODA2NTNaMIGQMQswCQYDVQQGEwJVUzETMBEGA1UE\nCAwKV2FzaGluZ3RvbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9u\nIFdlYiBTZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzEhMB8GA1UE\nAwwYQW1hem9uIFJEUyBhZi1zb3V0aC0xIENBMIIBIjANBgkqhkiG9w0BAQEFAAOC\nAQ8AMIIBCgKCAQEAvtV1OqmFa8zCVQSKOvPUJERLVFtd4rZmDpImc5rIoeBk7w/P\n9lcKUJjO8R/w1a2lJXx3oQ81tiY0Piw6TpT62YWVRMWrOw8+Vxq1dNaDSFp9I8d0\nUHillSSbOk6FOrPDp+R6AwbGFqUDebbN5LFFoDKbhNmH1BVS0a6YNKpGigLRqhka\ncClPslWtPqtjbaP3Jbxl26zWzLo7OtZl98dR225pq8aApNBwmtgA7Gh60HK/cX0t\n32W94n8D+GKSg6R4MKredVFqRTi9hCCNUu0sxYPoELuM+mHiqB5NPjtm92EzCWs+\n+vgWhMc6GxG+82QSWx1Vj8sgLqtE/vLrWddf5QIDAQABo2YwZDAOBgNVHQ8BAf8E\nBAMCAQYwEgYDVR0TAQH/BAgwBgEB/wIBADAdBgNVHQ4EFgQUuLB4gYVJrSKJj/Gz\npqc6yeA+RcAwHwYDVR0jBBgwFoAUEEi/WWMcBJsoGXg+EZwkQ0MscZQwDQYJKoZI\nhvcNAQELBQADggEBABauYOZxUhe9/RhzGJ8MsWCz8eKcyDVd4FCnY6Qh+9wcmYNT\nLtnD88LACtJKb/b81qYzcB0Em6+zVJ3Z9jznfr6buItE6es9wAoja22Xgv44BTHL\nrimbgMwpTt3uEMXDffaS0Ww6YWb3pSE0XYI2ISMWz+xRERRf+QqktSaL39zuiaW5\ntfZMre+YhohRa/F0ZQl3RCd6yFcLx4UoSPqQsUl97WhYzwAxZZfwvLJXOc4ATt3u\nVlCUylNDkaZztDJc/yN5XQoK9W5nOt2cLu513MGYKbuarQr8f+gYU8S+qOyuSRSP\nNRITzwCRVnsJE+2JmcRInn/NcanB7uOGqTvJ9+c=\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIECTCCAvGgAwIBAgICEAAwDQYJKoZIhvcNAQELBQAwgZUxCzAJBgNVBAYTAlVT\nMRAwDgYDVQQHDAdTZWF0dGxlMRMwEQYDVQQIDApXYXNoaW5ndG9uMSIwIAYDVQQK\nDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMuMRMwEQYDVQQLDApBbWF6b24gUkRT\nMSYwJAYDVQQDDB1BbWF6b24gUkRTIGV1LXNvdXRoLTEgUm9vdCBDQTAeFw0xOTEw\nMzAyMDIxMzBaFw0yNDEwMzAyMDIxMzBaMIGQMQswCQYDVQQGEwJVUzETMBEGA1UE\nCAwKV2FzaGluZ3RvbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9u\nIFdlYiBTZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzEhMB8GA1UE\nAwwYQW1hem9uIFJEUyBldS1zb3V0aC0xIENBMIIBIjANBgkqhkiG9w0BAQEFAAOC\nAQ8AMIIBCgKCAQEAtEyjYcajx6xImJn8Vz1zjdmL4ANPgQXwF7+tF7xccmNAZETb\nbzb3I9i5fZlmrRaVznX+9biXVaGxYzIUIR3huQ3Q283KsDYnVuGa3mk690vhvJbB\nQIPgKa5mVwJppnuJm78KqaSpi0vxyCPe3h8h6LLFawVyWrYNZ4okli1/U582eef8\nRzJp/Ear3KgHOLIiCdPDF0rjOdCG1MOlDLixVnPn9IYOciqO+VivXBg+jtfc5J+L\nAaPm0/Yx4uELt1tkbWkm4BvTU/gBOODnYziITZM0l6Fgwvbwgq5duAtKW+h031lC\n37rEvrclqcp4wrsUYcLAWX79ZyKIlRxcAdvEhQIDAQABo2YwZDAOBgNVHQ8BAf8E\nBAMCAQYwEgYDVR0TAQH/BAgwBgEB/wIBADAdBgNVHQ4EFgQU7zPyc0azQxnBCe7D\nb9KAadH1QSEwHwYDVR0jBBgwFoAUFBAFcgJe/BBuZiGeZ8STfpkgRYQwDQYJKoZI\nhvcNAQELBQADggEBAFGaNiYxg7yC/xauXPlaqLCtwbm2dKyK9nIFbF/7be8mk7Q3\nMOA0of1vGHPLVQLr6bJJpD9MAbUcm4cPAwWaxwcNpxOjYOFDaq10PCK4eRAxZWwF\nNJRIRmGsl8NEsMNTMCy8X+Kyw5EzH4vWFl5Uf2bGKOeFg0zt43jWQVOX6C+aL3Cd\npRS5MhmYpxMG8irrNOxf4NVFE2zpJOCm3bn0STLhkDcV/ww4zMzObTJhiIb5wSWn\nEXKKWhUXuRt7A2y1KJtXpTbSRHQxE++69Go1tWhXtRiULCJtf7wF2Ksm0RR/AdXT\n1uR1vKyH5KBJPX3ppYkQDukoHTFR0CpB+G84NLo=\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIECTCCAvGgAwIBAgICEAAwDQYJKoZIhvcNAQELBQAwgZUxCzAJBgNVBAYTAlVT\nMRAwDgYDVQQHDAdTZWF0dGxlMRMwEQYDVQQIDApXYXNoaW5ndG9uMSIwIAYDVQQK\nDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMuMRMwEQYDVQQLDApBbWF6b24gUkRT\nMSYwJAYDVQQDDB1BbWF6b24gUkRTIG1lLXNvdXRoLTEgUm9vdCBDQTAeFw0xOTA1\nMTAyMTU4NDNaFw0yNTA2MDExMjAwMDBaMIGQMQswCQYDVQQGEwJVUzETMBEGA1UE\nCAwKV2FzaGluZ3RvbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9u\nIFdlYiBTZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzEhMB8GA1UE\nAwwYQW1hem9uIFJEUyBtZS1zb3V0aC0xIENBMIIBIjANBgkqhkiG9w0BAQEFAAOC\nAQ8AMIIBCgKCAQEAudOYPZH+ihJAo6hNYMB5izPVBe3TYhnZm8+X3IoaaYiKtsp1\nJJhkTT0CEejYIQ58Fh4QrMUyWvU8qsdK3diNyQRoYLbctsBPgxBR1u07eUJDv38/\nC1JlqgHmMnMi4y68Iy7ymv50QgAMuaBqgEBRI1R6Lfbyrb2YvH5txjJyTVMwuCfd\nYPAtZVouRz0JxmnfsHyxjE+So56uOKTDuw++Ho4HhZ7Qveej7XB8b+PIPuroknd3\nFQB5RVbXRvt5ZcVD4F2fbEdBniF7FAF4dEiofVCQGQ2nynT7dZdEIPfPdH3n7ZmE\nlAOmwHQ6G83OsiHRBLnbp+QZRgOsjkHJxT20bQIDAQABo2YwZDAOBgNVHQ8BAf8E\nBAMCAQYwEgYDVR0TAQH/BAgwBgEB/wIBADAdBgNVHQ4EFgQUOEVDM7VomRH4HVdA\nQvIMNq2tXOcwHwYDVR0jBBgwFoAU54cfDjgwBx4ycBH8+/r8WXdaiqYwDQYJKoZI\nhvcNAQELBQADggEBAHhvMssj+Th8IpNePU6RH0BiL6o9c437R3Q4IEJeFdYL+nZz\nPW/rELDPvLRUNMfKM+KzduLZ+l29HahxefejYPXtvXBlq/E/9czFDD4fWXg+zVou\nuDXhyrV4kNmP4S0eqsAP/jQHPOZAMFA4yVwO9hlqmePhyDnszCh9c1PfJSBh49+b\n4w7i/L3VBOMt8j3EKYvqz0gVfpeqhJwL4Hey8UbVfJRFJMJzfNHpePqtDRAY7yjV\nPYquRaV2ab/E+/7VFkWMM4tazYz/qsYA2jSH+4xDHvYk8LnsbcrF9iuidQmEc5sb\nFgcWaSKG4DJjcI5k7AJLWcXyTDt21Ci43LE+I9Q=\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIECDCCAvCgAwIBAgICVIYwDQYJKoZIhvcNAQELBQAwgY8xCzAJBgNVBAYTAlVT\nMRAwDgYDVQQHDAdTZWF0dGxlMRMwEQYDVQQIDApXYXNoaW5ndG9uMSIwIAYDVQQK\nDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMuMRMwEQYDVQQLDApBbWF6b24gUkRT\nMSAwHgYDVQQDDBdBbWF6b24gUkRTIFJvb3QgMjAxOSBDQTAeFw0xOTA5MDQxNzEz\nMDRaFw0yNDA4MjIxNzA4NTBaMIGVMQswCQYDVQQGEwJVUzETMBEGA1UECAwKV2Fz\naGluZ3RvbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9uIFdlYiBT\nZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzEmMCQGA1UEAwwdQW1h\nem9uIFJEUyBhcC1zb3V0aC0xIDIwMTkgQ0EwggEiMA0GCSqGSIb3DQEBAQUAA4IB\nDwAwggEKAoIBAQDUYOz1hGL42yUCrcsMSOoU8AeD/3KgZ4q7gP+vAz1WnY9K/kim\neWN/2Qqzlo3+mxSFQFyD4MyV3+CnCPnBl9Sh1G/F6kThNiJ7dEWSWBQGAB6HMDbC\nBaAsmUc1UIz8sLTL3fO+S9wYhA63Wun0Fbm/Rn2yk/4WnJAaMZcEtYf6e0KNa0LM\np/kN/70/8cD3iz3dDR8zOZFpHoCtf0ek80QqTich0A9n3JLxR6g6tpwoYviVg89e\nqCjQ4axxOkWWeusLeTJCcY6CkVyFvDAKvcUl1ytM5AiaUkXblE7zDFXRM4qMMRdt\nlPm8d3pFxh0fRYk8bIKnpmtOpz3RIctDrZZxAgMBAAGjZjBkMA4GA1UdDwEB/wQE\nAwIBBjASBgNVHRMBAf8ECDAGAQH/AgEAMB0GA1UdDgQWBBT99wKJftD3jb4sHoHG\ni3uGlH6W6TAfBgNVHSMEGDAWgBRzX2DYvMsDmPQrFzQuNlqmYP+8HzANBgkqhkiG\n9w0BAQsFAAOCAQEAZ17hhr3dII3hUfuHQ1hPWGrpJOX/G9dLzkprEIcCidkmRYl+\nhu1Pe3caRMh/17+qsoEErmnVq5jNY9X1GZL04IZH8YbHc7iRHw3HcWAdhN8633+K\njYEB2LbJ3vluCGnCejq9djDb6alOugdLMJzxOkHDhMZ6/gYbECOot+ph1tQuZXzD\ntZ7prRsrcuPBChHlPjmGy8M9z8u+kF196iNSUGC4lM8vLkHM7ycc1/ZOwRq9aaTe\niOghbQQyAEe03MWCyDGtSmDfr0qEk+CHN+6hPiaL8qKt4s+V9P7DeK4iW08ny8Ox\nAVS7u0OK/5+jKMAMrKwpYrBydOjTUTHScocyNw==\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIEBzCCAu+gAwIBAgICQ2QwDQYJKoZIhvcNAQELBQAwgY8xCzAJBgNVBAYTAlVT\nMRAwDgYDVQQHDAdTZWF0dGxlMRMwEQYDVQQIDApXYXNoaW5ndG9uMSIwIAYDVQQK\nDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMuMRMwEQYDVQQLDApBbWF6b24gUkRT\nMSAwHgYDVQQDDBdBbWF6b24gUkRTIFJvb3QgMjAxOSBDQTAeFw0xOTA5MDUxODQ2\nMjlaFw0yNDA4MjIxNzA4NTBaMIGUMQswCQYDVQQGEwJVUzETMBEGA1UECAwKV2Fz\naGluZ3RvbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9uIFdlYiBT\nZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzElMCMGA1UEAwwcQW1h\nem9uIFJEUyBzYS1lYXN0LTEgMjAxOSBDQTCCASIwDQYJKoZIhvcNAQEBBQADggEP\nADCCAQoCggEBAMMvR+ReRnOzqJzoaPipNTt1Z2VA968jlN1+SYKUrYM3No+Vpz0H\nM6Tn0oYB66ByVsXiGc28ulsqX1HbHsxqDPwvQTKvO7SrmDokoAkjJgLocOLUAeld\n5AwvUjxGRP6yY90NV7X786MpnYb2Il9DIIaV9HjCmPt+rjy2CZjS0UjPjCKNfB8J\nbFjgW6GGscjeyGb/zFwcom5p4j0rLydbNaOr9wOyQrtt3ZQWLYGY9Zees/b8pmcc\nJt+7jstZ2UMV32OO/kIsJ4rMUn2r/uxccPwAc1IDeRSSxOrnFKhW3Cu69iB3bHp7\nJbawY12g7zshE4I14sHjv3QoXASoXjx4xgMCAwEAAaNmMGQwDgYDVR0PAQH/BAQD\nAgEGMBIGA1UdEwEB/wQIMAYBAf8CAQAwHQYDVR0OBBYEFI1Fc/Ql2jx+oJPgBVYq\nccgP0pQ8MB8GA1UdIwQYMBaAFHNfYNi8ywOY9CsXNC42WqZg/7wfMA0GCSqGSIb3\nDQEBCwUAA4IBAQB4VVVabVp70myuYuZ3vltQIWqSUMhkaTzehMgGcHjMf9iLoZ/I\n93KiFUSGnek5cRePyS9wcpp0fcBT3FvkjpUdCjVtdttJgZFhBxgTd8y26ImdDDMR\n4+BUuhI5msvjL08f+Vkkpu1GQcGmyFVPFOy/UY8iefu+QyUuiBUnUuEDd49Hw0Fn\n/kIPII6Vj82a2mWV/Q8e+rgN8dIRksRjKI03DEoP8lhPlsOkhdwU6Uz9Vu6NOB2Q\nLs1kbcxAc7cFSyRVJEhh12Sz9d0q/CQSTFsVJKOjSNQBQfVnLz1GwO/IieUEAr4C\njkTntH0r1LX5b/GwN4R887LvjAEdTbg1his7\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIECDCCAvCgAwIBAgIDAIkHMA0GCSqGSIb3DQEBCwUAMIGPMQswCQYDVQQGEwJV\nUzEQMA4GA1UEBwwHU2VhdHRsZTETMBEGA1UECAwKV2FzaGluZ3RvbjEiMCAGA1UE\nCgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJE\nUzEgMB4GA1UEAwwXQW1hem9uIFJEUyBSb290IDIwMTkgQ0EwHhcNMTkwOTA2MTc0\nMDIxWhcNMjQwODIyMTcwODUwWjCBlDELMAkGA1UEBhMCVVMxEzARBgNVBAgMCldh\nc2hpbmd0b24xEDAOBgNVBAcMB1NlYXR0bGUxIjAgBgNVBAoMGUFtYXpvbiBXZWIg\nU2VydmljZXMsIEluYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMxJTAjBgNVBAMMHEFt\nYXpvbiBSRFMgdXMtd2VzdC0xIDIwMTkgQ0EwggEiMA0GCSqGSIb3DQEBAQUAA4IB\nDwAwggEKAoIBAQDD2yzbbAl77OofTghDMEf624OvU0eS9O+lsdO0QlbfUfWa1Kd6\n0WkgjkLZGfSRxEHMCnrv4UPBSK/Qwn6FTjkDLgemhqBtAnplN4VsoDL+BkRX4Wwq\n/dSQJE2b+0hm9w9UMVGFDEq1TMotGGTD2B71eh9HEKzKhGzqiNeGsiX4VV+LJzdH\nuM23eGisNqmd4iJV0zcAZ+Gbh2zK6fqTOCvXtm7Idccv8vZZnyk1FiWl3NR4WAgK\nAkvWTIoFU3Mt7dIXKKClVmvssG8WHCkd3Xcb4FHy/G756UZcq67gMMTX/9fOFM/v\nl5C0+CHl33Yig1vIDZd+fXV1KZD84dEJfEvHAgMBAAGjZjBkMA4GA1UdDwEB/wQE\nAwIBBjASBgNVHRMBAf8ECDAGAQH/AgEAMB0GA1UdDgQWBBR+ap20kO/6A7pPxo3+\nT3CfqZpQWjAfBgNVHSMEGDAWgBRzX2DYvMsDmPQrFzQuNlqmYP+8HzANBgkqhkiG\n9w0BAQsFAAOCAQEAHCJky2tPjPttlDM/RIqExupBkNrnSYnOK4kr9xJ3sl8UF2DA\nPAnYsjXp3rfcjN/k/FVOhxwzi3cXJF/2Tjj39Bm/OEfYTOJDNYtBwB0VVH4ffa/6\ntZl87jaIkrxJcreeeHqYMnIxeN0b/kliyA+a5L2Yb0VPjt9INq34QDc1v74FNZ17\n4z8nr1nzg4xsOWu0Dbjo966lm4nOYIGBRGOKEkHZRZ4mEiMgr3YLkv8gSmeitx57\nZ6dVemNtUic/LVo5Iqw4n3TBS0iF2C1Q1xT/s3h+0SXZlfOWttzSluDvoMv5PvCd\npFjNn+aXLAALoihL1MJSsxydtsLjOBro5eK0Vw==\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIEDDCCAvSgAwIBAgICOFAwDQYJKoZIhvcNAQELBQAwgY8xCzAJBgNVBAYTAlVT\nMRAwDgYDVQQHDAdTZWF0dGxlMRMwEQYDVQQIDApXYXNoaW5ndG9uMSIwIAYDVQQK\nDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMuMRMwEQYDVQQLDApBbWF6b24gUkRT\nMSAwHgYDVQQDDBdBbWF6b24gUkRTIFJvb3QgMjAxOSBDQTAeFw0xOTA5MTAxNzQ2\nMjFaFw0yNDA4MjIxNzA4NTBaMIGZMQswCQYDVQQGEwJVUzETMBEGA1UECAwKV2Fz\naGluZ3RvbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9uIFdlYiBT\nZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzEqMCgGA1UEAwwhQW1h\nem9uIFJEUyBhcC1ub3J0aGVhc3QtMiAyMDE5IENBMIIBIjANBgkqhkiG9w0BAQEF\nAAOCAQ8AMIIBCgKCAQEAzU72e6XbaJbi4HjJoRNjKxzUEuChKQIt7k3CWzNnmjc5\n8I1MjCpa2W1iw1BYVysXSNSsLOtUsfvBZxi/1uyMn5ZCaf9aeoA9UsSkFSZBjOCN\nDpKPCmfV1zcEOvJz26+1m8WDg+8Oa60QV0ou2AU1tYcw98fOQjcAES0JXXB80P2s\n3UfkNcnDz+l4k7j4SllhFPhH6BQ4lD2NiFAP4HwoG6FeJUn45EPjzrydxjq6v5Fc\ncQ8rGuHADVXotDbEhaYhNjIrsPL+puhjWfhJjheEw8c4whRZNp6gJ/b6WEes/ZhZ\nh32DwsDsZw0BfRDUMgUn8TdecNexHUw8vQWeC181hwIDAQABo2YwZDAOBgNVHQ8B\nAf8EBAMCAQYwEgYDVR0TAQH/BAgwBgEB/wIBADAdBgNVHQ4EFgQUwW9bWgkWkr0U\nlrOsq2kvIdrECDgwHwYDVR0jBBgwFoAUc19g2LzLA5j0Kxc0LjZapmD/vB8wDQYJ\nKoZIhvcNAQELBQADggEBAEugF0Gj7HVhX0ehPZoGRYRt3PBuI2YjfrrJRTZ9X5wc\n9T8oHmw07mHmNy1qqWvooNJg09bDGfB0k5goC2emDiIiGfc/kvMLI7u+eQOoMKj6\nmkfCncyRN3ty08Po45vTLBFZGUvtQmjM6yKewc4sXiASSBmQUpsMbiHRCL72M5qV\nobcJOjGcIdDTmV1BHdWT+XcjynsGjUqOvQWWhhLPrn4jWe6Xuxll75qlrpn3IrIx\nCRBv/5r7qbcQJPOgwQsyK4kv9Ly8g7YT1/vYBlR3cRsYQjccw5ceWUj2DrMVWhJ4\nprf+E3Aa4vYmLLOUUvKnDQ1k3RGNu56V0tonsQbfsaM=\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIECjCCAvKgAwIBAgICEzUwDQYJKoZIhvcNAQELBQAwgY8xCzAJBgNVBAYTAlVT\nMRAwDgYDVQQHDAdTZWF0dGxlMRMwEQYDVQQIDApXYXNoaW5ndG9uMSIwIAYDVQQK\nDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMuMRMwEQYDVQQLDApBbWF6b24gUkRT\nMSAwHgYDVQQDDBdBbWF6b24gUkRTIFJvb3QgMjAxOSBDQTAeFw0xOTA5MTAyMDUy\nMjVaFw0yNDA4MjIxNzA4NTBaMIGXMQswCQYDVQQGEwJVUzETMBEGA1UECAwKV2Fz\naGluZ3RvbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9uIFdlYiBT\nZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzEoMCYGA1UEAwwfQW1h\nem9uIFJEUyBjYS1jZW50cmFsLTEgMjAxOSBDQTCCASIwDQYJKoZIhvcNAQEBBQAD\nggEPADCCAQoCggEBAOxHqdcPSA2uBjsCP4DLSlqSoPuQ/X1kkJLusVRKiQE2zayB\nviuCBt4VB9Qsh2rW3iYGM+usDjltGnI1iUWA5KHcvHszSMkWAOYWLiMNKTlg6LCp\nXnE89tvj5dIH6U8WlDvXLdjB/h30gW9JEX7S8supsBSci2GxEzb5mRdKaDuuF/0O\nqvz4YE04pua3iZ9QwmMFuTAOYzD1M72aOpj+7Ac+YLMM61qOtU+AU6MndnQkKoQi\nqmUN2A9IFaqHFzRlSdXwKCKUA4otzmz+/N3vFwjb5F4DSsbsrMfjeHMo6o/nb6Nh\nYDb0VJxxPee6TxSuN7CQJ2FxMlFUezcoXqwqXD0CAwEAAaNmMGQwDgYDVR0PAQH/\nBAQDAgEGMBIGA1UdEwEB/wQIMAYBAf8CAQAwHQYDVR0OBBYEFDGGpon9WfIpsggE\nCxHq8hZ7E2ESMB8GA1UdIwQYMBaAFHNfYNi8ywOY9CsXNC42WqZg/7wfMA0GCSqG\nSIb3DQEBCwUAA4IBAQAvpeQYEGZvoTVLgV9rd2+StPYykMsmFjWQcyn3dBTZRXC2\nlKq7QhQczMAOhEaaN29ZprjQzsA2X/UauKzLR2Uyqc2qOeO9/YOl0H3qauo8C/W9\nr8xqPbOCDLEXlOQ19fidXyyEPHEq5WFp8j+fTh+s8WOx2M7IuC0ANEetIZURYhSp\nxl9XOPRCJxOhj7JdelhpweX0BJDNHeUFi0ClnFOws8oKQ7sQEv66d5ddxqqZ3NVv\nRbCvCtEutQMOUMIuaygDlMn1anSM8N7Wndx8G6+Uy67AnhjGx7jw/0YPPxopEj6x\nJXP8j0sJbcT9K/9/fPVLNT25RvQ/93T2+IQL4Ca2\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIEBzCCAu+gAwIBAgICYpgwDQYJKoZIhvcNAQELBQAwgY8xCzAJBgNVBAYTAlVT\nMRAwDgYDVQQHDAdTZWF0dGxlMRMwEQYDVQQIDApXYXNoaW5ndG9uMSIwIAYDVQQK\nDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMuMRMwEQYDVQQLDApBbWF6b24gUkRT\nMSAwHgYDVQQDDBdBbWF6b24gUkRTIFJvb3QgMjAxOSBDQTAeFw0xOTA5MTExNzMx\nNDhaFw0yNDA4MjIxNzA4NTBaMIGUMQswCQYDVQQGEwJVUzETMBEGA1UECAwKV2Fz\naGluZ3RvbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9uIFdlYiBT\nZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzElMCMGA1UEAwwcQW1h\nem9uIFJEUyBldS13ZXN0LTEgMjAxOSBDQTCCASIwDQYJKoZIhvcNAQEBBQADggEP\nADCCAQoCggEBAMk3YdSZ64iAYp6MyyKtYJtNzv7zFSnnNf6vv0FB4VnfITTMmOyZ\nLXqKAT2ahZ00hXi34ewqJElgU6eUZT/QlzdIu359TEZyLVPwURflL6SWgdG01Q5X\nO++7fSGcBRyIeuQWs9FJNIIqK8daF6qw0Rl5TXfu7P9dBc3zkgDXZm2DHmxGDD69\n7liQUiXzoE1q2Z9cA8+jirDioJxN9av8hQt12pskLQumhlArsMIhjhHRgF03HOh5\ntvi+RCfihVOxELyIRTRpTNiIwAqfZxxTWFTgfn+gijTmd0/1DseAe82aYic8JbuS\nEMbrDduAWsqrnJ4GPzxHKLXX0JasCUcWyMECAwEAAaNmMGQwDgYDVR0PAQH/BAQD\nAgEGMBIGA1UdEwEB/wQIMAYBAf8CAQAwHQYDVR0OBBYEFPLtsq1NrwJXO13C9eHt\nsLY11AGwMB8GA1UdIwQYMBaAFHNfYNi8ywOY9CsXNC42WqZg/7wfMA0GCSqGSIb3\nDQEBCwUAA4IBAQAnWBKj5xV1A1mYd0kIgDdkjCwQkiKF5bjIbGkT3YEFFbXoJlSP\n0lZZ/hDaOHI8wbLT44SzOvPEEmWF9EE7SJzkvSdQrUAWR9FwDLaU427ALI3ngNHy\nlGJ2hse1fvSRNbmg8Sc9GBv8oqNIBPVuw+AJzHTacZ1OkyLZrz1c1QvwvwN2a+Jd\nvH0V0YIhv66llKcYDMUQJAQi4+8nbRxXWv6Gq3pvrFoorzsnkr42V3JpbhnYiK+9\nnRKd4uWl62KRZjGkfMbmsqZpj2fdSWMY1UGyN1k+kDmCSWYdrTRDP0xjtIocwg+A\nJ116n4hV/5mbA0BaPiS2krtv17YAeHABZcvz\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIECjCCAvKgAwIBAgICV2YwDQYJKoZIhvcNAQELBQAwgY8xCzAJBgNVBAYTAlVT\nMRAwDgYDVQQHDAdTZWF0dGxlMRMwEQYDVQQIDApXYXNoaW5ndG9uMSIwIAYDVQQK\nDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMuMRMwEQYDVQQLDApBbWF6b24gUkRT\nMSAwHgYDVQQDDBdBbWF6b24gUkRTIFJvb3QgMjAxOSBDQTAeFw0xOTA5MTExOTM2\nMjBaFw0yNDA4MjIxNzA4NTBaMIGXMQswCQYDVQQGEwJVUzETMBEGA1UECAwKV2Fz\naGluZ3RvbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9uIFdlYiBT\nZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzEoMCYGA1UEAwwfQW1h\nem9uIFJEUyBldS1jZW50cmFsLTEgMjAxOSBDQTCCASIwDQYJKoZIhvcNAQEBBQAD\nggEPADCCAQoCggEBAMEx54X2pHVv86APA0RWqxxRNmdkhAyp2R1cFWumKQRofoFv\nn+SPXdkpIINpMuEIGJANozdiEz7SPsrAf8WHyD93j/ZxrdQftRcIGH41xasetKGl\nI67uans8d+pgJgBKGb/Z+B5m+UsIuEVekpvgpwKtmmaLFC/NCGuSsJoFsRqoa6Gh\nm34W6yJoY87UatddCqLY4IIXaBFsgK9Q/wYzYLbnWM6ZZvhJ52VMtdhcdzeTHNW0\n5LGuXJOF7Ahb4JkEhoo6TS2c0NxB4l4MBfBPgti+O7WjR3FfZHpt18A6Zkq6A2u6\nD/oTSL6c9/3sAaFTFgMyL3wHb2YlW0BPiljZIqECAwEAAaNmMGQwDgYDVR0PAQH/\nBAQDAgEGMBIGA1UdEwEB/wQIMAYBAf8CAQAwHQYDVR0OBBYEFOcAToAc6skWffJa\nTnreaswAfrbcMB8GA1UdIwQYMBaAFHNfYNi8ywOY9CsXNC42WqZg/7wfMA0GCSqG\nSIb3DQEBCwUAA4IBAQA1d0Whc1QtspK496mFWfFEQNegLh0a9GWYlJm+Htcj5Nxt\nDAIGXb+8xrtOZFHmYP7VLCT5Zd2C+XytqseK/+s07iAr0/EPF+O2qcyQWMN5KhgE\ncXw2SwuP9FPV3i+YAm11PBVeenrmzuk9NrdHQ7TxU4v7VGhcsd2C++0EisrmquWH\nmgIfmVDGxphwoES52cY6t3fbnXmTkvENvR+h3rj+fUiSz0aSo+XZUGHPgvuEKM/W\nCBD9Smc9CBoBgvy7BgHRgRUmwtABZHFUIEjHI5rIr7ZvYn+6A0O6sogRfvVYtWFc\nqpyrW1YX8mD0VlJ8fGKM3G+aCOsiiPKDV/Uafrm+\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIECDCCAvCgAwIBAgICGAcwDQYJKoZIhvcNAQELBQAwgY8xCzAJBgNVBAYTAlVT\nMRAwDgYDVQQHDAdTZWF0dGxlMRMwEQYDVQQIDApXYXNoaW5ndG9uMSIwIAYDVQQK\nDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMuMRMwEQYDVQQLDApBbWF6b24gUkRT\nMSAwHgYDVQQDDBdBbWF6b24gUkRTIFJvb3QgMjAxOSBDQTAeFw0xOTA5MTIxODE5\nNDRaFw0yNDA4MjIxNzA4NTBaMIGVMQswCQYDVQQGEwJVUzETMBEGA1UECAwKV2Fz\naGluZ3RvbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9uIFdlYiBT\nZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzEmMCQGA1UEAwwdQW1h\nem9uIFJEUyBldS1ub3J0aC0xIDIwMTkgQ0EwggEiMA0GCSqGSIb3DQEBAQUAA4IB\nDwAwggEKAoIBAQCiIYnhe4UNBbdBb/nQxl5giM0XoVHWNrYV5nB0YukA98+TPn9v\nAoj1RGYmtryjhrf01Kuv8SWO+Eom95L3zquoTFcE2gmxCfk7bp6qJJ3eHOJB+QUO\nXsNRh76fwDzEF1yTeZWH49oeL2xO13EAx4PbZuZpZBttBM5zAxgZkqu4uWQczFEs\nJXfla7z2fvWmGcTagX10O5C18XaFroV0ubvSyIi75ue9ykg/nlFAeB7O0Wxae88e\nuhiBEFAuLYdqWnsg3459NfV8Yi1GnaitTym6VI3tHKIFiUvkSiy0DAlAGV2iiyJE\nq+DsVEO4/hSINJEtII4TMtysOsYPpINqeEzRAgMBAAGjZjBkMA4GA1UdDwEB/wQE\nAwIBBjASBgNVHRMBAf8ECDAGAQH/AgEAMB0GA1UdDgQWBBRR0UpnbQyjnHChgmOc\nhnlc0PogzTAfBgNVHSMEGDAWgBRzX2DYvMsDmPQrFzQuNlqmYP+8HzANBgkqhkiG\n9w0BAQsFAAOCAQEAKJD4xVzSf4zSGTBJrmamo86jl1NHQxXUApAZuBZEc8tqC6TI\nT5CeoSr9CMuVC8grYyBjXblC4OsM5NMvmsrXl/u5C9dEwtBFjo8mm53rOOIm1fxl\nI1oYB/9mtO9ANWjkykuLzWeBlqDT/i7ckaKwalhLODsRDO73vRhYNjsIUGloNsKe\npxw3dzHwAZx4upSdEVG4RGCZ1D0LJ4Gw40OfD69hfkDfRVVxKGrbEzqxXRvovmDc\ntKLdYZO/6REoca36v4BlgIs1CbUXJGLSXUwtg7YXGLSVBJ/U0+22iGJmBSNcoyUN\ncjPFD9JQEhDDIYYKSGzIYpvslvGc4T5ISXFiuQ==\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIEBzCCAu+gAwIBAgICZIEwDQYJKoZIhvcNAQELBQAwgY8xCzAJBgNVBAYTAlVT\nMRAwDgYDVQQHDAdTZWF0dGxlMRMwEQYDVQQIDApXYXNoaW5ndG9uMSIwIAYDVQQK\nDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMuMRMwEQYDVQQLDApBbWF6b24gUkRT\nMSAwHgYDVQQDDBdBbWF6b24gUkRTIFJvb3QgMjAxOSBDQTAeFw0xOTA5MTIyMTMy\nMzJaFw0yNDA4MjIxNzA4NTBaMIGUMQswCQYDVQQGEwJVUzETMBEGA1UECAwKV2Fz\naGluZ3RvbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9uIFdlYiBT\nZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzElMCMGA1UEAwwcQW1h\nem9uIFJEUyBldS13ZXN0LTIgMjAxOSBDQTCCASIwDQYJKoZIhvcNAQEBBQADggEP\nADCCAQoCggEBALGiwqjiF7xIjT0Sx7zB3764K2T2a1DHnAxEOr+/EIftWKxWzT3u\nPFwS2eEZcnKqSdRQ+vRzonLBeNLO4z8aLjQnNbkizZMBuXGm4BqRm1Kgq3nlLDQn\n7YqdijOq54SpShvR/8zsO4sgMDMmHIYAJJOJqBdaus2smRt0NobIKc0liy7759KB\n6kmQ47Gg+kfIwxrQA5zlvPLeQImxSoPi9LdbRoKvu7Iot7SOa+jGhVBh3VdqndJX\n7tm/saj4NE375csmMETFLAOXjat7zViMRwVorX4V6AzEg1vkzxXpA9N7qywWIT5Y\nfYaq5M8i6vvLg0CzrH9fHORtnkdjdu1y+0MCAwEAAaNmMGQwDgYDVR0PAQH/BAQD\nAgEGMBIGA1UdEwEB/wQIMAYBAf8CAQAwHQYDVR0OBBYEFFOhOx1yt3Z7mvGB9jBv\n2ymdZwiOMB8GA1UdIwQYMBaAFHNfYNi8ywOY9CsXNC42WqZg/7wfMA0GCSqGSIb3\nDQEBCwUAA4IBAQBehqY36UGDvPVU9+vtaYGr38dBbp+LzkjZzHwKT1XJSSUc2wqM\nhnCIQKilonrTIvP1vmkQi8qHPvDRtBZKqvz/AErW/ZwQdZzqYNFd+BmOXaeZWV0Q\noHtDzXmcwtP8aUQpxN0e1xkWb1E80qoy+0uuRqb/50b/R4Q5qqSfJhkn6z8nwB10\n7RjLtJPrK8igxdpr3tGUzfAOyiPrIDncY7UJaL84GFp7WWAkH0WG3H8Y8DRcRXOU\nmqDxDLUP3rNuow3jnGxiUY+gGX5OqaZg4f4P6QzOSmeQYs6nLpH0PiN00+oS1BbD\nbpWdZEttILPI+vAYkU4QuBKKDjJL6HbSd+cn\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIECDCCAvCgAwIBAgIDAIVCMA0GCSqGSIb3DQEBCwUAMIGPMQswCQYDVQQGEwJV\nUzEQMA4GA1UEBwwHU2VhdHRsZTETMBEGA1UECAwKV2FzaGluZ3RvbjEiMCAGA1UE\nCgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJE\nUzEgMB4GA1UEAwwXQW1hem9uIFJEUyBSb290IDIwMTkgQ0EwHhcNMTkwOTEzMTcw\nNjQxWhcNMjQwODIyMTcwODUwWjCBlDELMAkGA1UEBhMCVVMxEzARBgNVBAgMCldh\nc2hpbmd0b24xEDAOBgNVBAcMB1NlYXR0bGUxIjAgBgNVBAoMGUFtYXpvbiBXZWIg\nU2VydmljZXMsIEluYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMxJTAjBgNVBAMMHEFt\nYXpvbiBSRFMgdXMtZWFzdC0yIDIwMTkgQ0EwggEiMA0GCSqGSIb3DQEBAQUAA4IB\nDwAwggEKAoIBAQDE+T2xYjUbxOp+pv+gRA3FO24+1zCWgXTDF1DHrh1lsPg5k7ht\n2KPYzNc+Vg4E+jgPiW0BQnA6jStX5EqVh8BU60zELlxMNvpg4KumniMCZ3krtMUC\nau1NF9rM7HBh+O+DYMBLK5eSIVt6lZosOb7bCi3V6wMLA8YqWSWqabkxwN4w0vXI\n8lu5uXXFRemHnlNf+yA/4YtN4uaAyd0ami9+klwdkZfkrDOaiy59haOeBGL8EB/c\ndbJJlguHH5CpCscs3RKtOOjEonXnKXldxarFdkMzi+aIIjQ8GyUOSAXHtQHb3gZ4\nnS6Ey0CMlwkB8vUObZU9fnjKJcL5QCQqOfwvAgMBAAGjZjBkMA4GA1UdDwEB/wQE\nAwIBBjASBgNVHRMBAf8ECDAGAQH/AgEAMB0GA1UdDgQWBBQUPuRHohPxx4VjykmH\n6usGrLL1ETAfBgNVHSMEGDAWgBRzX2DYvMsDmPQrFzQuNlqmYP+8HzANBgkqhkiG\n9w0BAQsFAAOCAQEAUdR9Vb3y33Yj6X6KGtuthZ08SwjImVQPtknzpajNE5jOJAh8\nquvQnU9nlnMO85fVDU1Dz3lLHGJ/YG1pt1Cqq2QQ200JcWCvBRgdvH6MjHoDQpqZ\nHvQ3vLgOGqCLNQKFuet9BdpsHzsctKvCVaeBqbGpeCtt3Hh/26tgx0rorPLw90A2\nV8QSkZJjlcKkLa58N5CMM8Xz8KLWg3MZeT4DmlUXVCukqK2RGuP2L+aME8dOxqNv\nOnOz1zrL5mR2iJoDpk8+VE/eBDmJX40IJk6jBjWoxAO/RXq+vBozuF5YHN1ujE92\ntO8HItgTp37XT8bJBAiAnt5mxw+NLSqtxk2QdQ==\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIEDDCCAvSgAwIBAgICY4kwDQYJKoZIhvcNAQELBQAwgY8xCzAJBgNVBAYTAlVT\nMRAwDgYDVQQHDAdTZWF0dGxlMRMwEQYDVQQIDApXYXNoaW5ndG9uMSIwIAYDVQQK\nDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMuMRMwEQYDVQQLDApBbWF6b24gUkRT\nMSAwHgYDVQQDDBdBbWF6b24gUkRTIFJvb3QgMjAxOSBDQTAeFw0xOTA5MTMyMDEx\nNDJaFw0yNDA4MjIxNzA4NTBaMIGZMQswCQYDVQQGEwJVUzETMBEGA1UECAwKV2Fz\naGluZ3RvbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9uIFdlYiBT\nZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzEqMCgGA1UEAwwhQW1h\nem9uIFJEUyBhcC1zb3V0aGVhc3QtMSAyMDE5IENBMIIBIjANBgkqhkiG9w0BAQEF\nAAOCAQ8AMIIBCgKCAQEAr5u9OuLL/OF/fBNUX2kINJLzFl4DnmrhnLuSeSnBPgbb\nqddjf5EFFJBfv7IYiIWEFPDbDG5hoBwgMup5bZDbas+ZTJTotnnxVJTQ6wlhTmns\neHECcg2pqGIKGrxZfbQhlj08/4nNAPvyYCTS0bEcmQ1emuDPyvJBYDDLDU6AbCB5\n6Z7YKFQPTiCBblvvNzchjLWF9IpkqiTsPHiEt21sAdABxj9ityStV3ja/W9BfgxH\nwzABSTAQT6FbDwmQMo7dcFOPRX+hewQSic2Rn1XYjmNYzgEHisdUsH7eeXREAcTw\n61TRvaLH8AiOWBnTEJXPAe6wYfrcSd1pD0MXpoB62wIDAQABo2YwZDAOBgNVHQ8B\nAf8EBAMCAQYwEgYDVR0TAQH/BAgwBgEB/wIBADAdBgNVHQ4EFgQUytwMiomQOgX5\nIchd+2lDWRUhkikwHwYDVR0jBBgwFoAUc19g2LzLA5j0Kxc0LjZapmD/vB8wDQYJ\nKoZIhvcNAQELBQADggEBACf6lRDpfCD7BFRqiWM45hqIzffIaysmVfr+Jr+fBTjP\nuYe/ba1omSrNGG23bOcT9LJ8hkQJ9d+FxUwYyICQNWOy6ejicm4z0C3VhphbTPqj\nyjpt9nG56IAcV8BcRJh4o/2IfLNzC/dVuYJV8wj7XzwlvjysenwdrJCoLadkTr1h\neIdG6Le07sB9IxrGJL9e04afk37h7c8ESGSE4E+oS4JQEi3ATq8ne1B9DQ9SasXi\nIRmhNAaISDzOPdyLXi9N9V9Lwe/DHcja7hgLGYx3UqfjhLhOKwp8HtoZORixAmOI\nHfILgNmwyugAbuZoCazSKKBhQ0wgO0WZ66ZKTMG8Oho=\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIEBzCCAu+gAwIBAgICUYkwDQYJKoZIhvcNAQELBQAwgY8xCzAJBgNVBAYTAlVT\nMRAwDgYDVQQHDAdTZWF0dGxlMRMwEQYDVQQIDApXYXNoaW5ndG9uMSIwIAYDVQQK\nDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMuMRMwEQYDVQQLDApBbWF6b24gUkRT\nMSAwHgYDVQQDDBdBbWF6b24gUkRTIFJvb3QgMjAxOSBDQTAeFw0xOTA5MTYxODIx\nMTVaFw0yNDA4MjIxNzA4NTBaMIGUMQswCQYDVQQGEwJVUzETMBEGA1UECAwKV2Fz\naGluZ3RvbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9uIFdlYiBT\nZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzElMCMGA1UEAwwcQW1h\nem9uIFJEUyB1cy13ZXN0LTIgMjAxOSBDQTCCASIwDQYJKoZIhvcNAQEBBQADggEP\nADCCAQoCggEBANCEZBZyu6yJQFZBJmSUZfSZd3Ui2gitczMKC4FLr0QzkbxY+cLa\nuVONIOrPt4Rwi+3h/UdnUg917xao3S53XDf1TDMFEYp4U8EFPXqCn/GXBIWlU86P\nPvBN+gzw3nS+aco7WXb+woTouvFVkk8FGU7J532llW8o/9ydQyDIMtdIkKTuMfho\nOiNHSaNc+QXQ32TgvM9A/6q7ksUoNXGCP8hDOkSZ/YOLiI5TcdLh/aWj00ziL5bj\npvytiMZkilnc9dLY9QhRNr0vGqL0xjmWdoEXz9/OwjmCihHqJq+20MJPsvFm7D6a\n2NKybR9U+ddrjb8/iyLOjURUZnj5O+2+OPcCAwEAAaNmMGQwDgYDVR0PAQH/BAQD\nAgEGMBIGA1UdEwEB/wQIMAYBAf8CAQAwHQYDVR0OBBYEFEBxMBdv81xuzqcK5TVu\npHj+Aor8MB8GA1UdIwQYMBaAFHNfYNi8ywOY9CsXNC42WqZg/7wfMA0GCSqGSIb3\nDQEBCwUAA4IBAQBZkfiVqGoJjBI37aTlLOSjLcjI75L5wBrwO39q+B4cwcmpj58P\n3sivv+jhYfAGEbQnGRzjuFoyPzWnZ1DesRExX+wrmHsLLQbF2kVjLZhEJMHF9eB7\nGZlTPdTzHErcnuXkwA/OqyXMpj9aghcQFuhCNguEfnROY9sAoK2PTfnTz9NJHL+Q\nUpDLEJEUfc0GZMVWYhahc0x38ZnSY2SKacIPECQrTI0KpqZv/P+ijCEcMD9xmYEb\njL4en+XKS1uJpw5fIU5Sj0MxhdGstH6S84iAE5J3GM3XHklGSFwwqPYvuTXvANH6\nuboynxRgSae59jIlAK6Jrr6GWMwQRbgcaAlW\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIEDDCCAvSgAwIBAgICEkYwDQYJKoZIhvcNAQELBQAwgY8xCzAJBgNVBAYTAlVT\nMRAwDgYDVQQHDAdTZWF0dGxlMRMwEQYDVQQIDApXYXNoaW5ndG9uMSIwIAYDVQQK\nDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMuMRMwEQYDVQQLDApBbWF6b24gUkRT\nMSAwHgYDVQQDDBdBbWF6b24gUkRTIFJvb3QgMjAxOSBDQTAeFw0xOTA5MTYxOTUz\nNDdaFw0yNDA4MjIxNzA4NTBaMIGZMQswCQYDVQQGEwJVUzETMBEGA1UECAwKV2Fz\naGluZ3RvbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9uIFdlYiBT\nZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzEqMCgGA1UEAwwhQW1h\nem9uIFJEUyBhcC1zb3V0aGVhc3QtMiAyMDE5IENBMIIBIjANBgkqhkiG9w0BAQEF\nAAOCAQ8AMIIBCgKCAQEAufodI2Flker8q7PXZG0P0vmFSlhQDw907A6eJuF/WeMo\nGHnll3b4S6nC3oRS3nGeRMHbyU2KKXDwXNb3Mheu+ox+n5eb/BJ17eoj9HbQR1cd\ngEkIciiAltf8gpMMQH4anP7TD+HNFlZnP7ii3geEJB2GGXSxgSWvUzH4etL67Zmn\nTpGDWQMB0T8lK2ziLCMF4XAC/8xDELN/buHCNuhDpxpPebhct0T+f6Arzsiswt2j\n7OeNeLLZwIZvVwAKF7zUFjC6m7/VmTQC8nidVY559D6l0UhhU0Co/txgq3HVsMOH\nPbxmQUwJEKAzQXoIi+4uZzHFZrvov/nDTNJUhC6DqwIDAQABo2YwZDAOBgNVHQ8B\nAf8EBAMCAQYwEgYDVR0TAQH/BAgwBgEB/wIBADAdBgNVHQ4EFgQUwaZpaCme+EiV\nM5gcjeHZSTgOn4owHwYDVR0jBBgwFoAUc19g2LzLA5j0Kxc0LjZapmD/vB8wDQYJ\nKoZIhvcNAQELBQADggEBAAR6a2meCZuXO2TF9bGqKGtZmaah4pH2ETcEVUjkvXVz\nsl+ZKbYjrun+VkcMGGKLUjS812e7eDF726ptoku9/PZZIxlJB0isC/0OyixI8N4M\nNsEyvp52XN9QundTjkl362bomPnHAApeU0mRbMDRR2JdT70u6yAzGLGsUwMkoNnw\n1VR4XKhXHYGWo7KMvFrZ1KcjWhubxLHxZWXRulPVtGmyWg/MvE6KF+2XMLhojhUL\n+9jB3Fpn53s6KMx5tVq1x8PukHmowcZuAF8k+W4gk8Y68wIwynrdZrKRyRv6CVtR\nFZ8DeJgoNZT3y/GT254VqMxxfuy2Ccb/RInd16tEvVk=\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIEDDCCAvSgAwIBAgICOYIwDQYJKoZIhvcNAQELBQAwgY8xCzAJBgNVBAYTAlVT\nMRAwDgYDVQQHDAdTZWF0dGxlMRMwEQYDVQQIDApXYXNoaW5ndG9uMSIwIAYDVQQK\nDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMuMRMwEQYDVQQLDApBbWF6b24gUkRT\nMSAwHgYDVQQDDBdBbWF6b24gUkRTIFJvb3QgMjAxOSBDQTAeFw0xOTA5MTcyMDA1\nMjlaFw0yNDA4MjIxNzA4NTBaMIGZMQswCQYDVQQGEwJVUzETMBEGA1UECAwKV2Fz\naGluZ3RvbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9uIFdlYiBT\nZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzEqMCgGA1UEAwwhQW1h\nem9uIFJEUyBhcC1ub3J0aGVhc3QtMyAyMDE5IENBMIIBIjANBgkqhkiG9w0BAQEF\nAAOCAQ8AMIIBCgKCAQEA4dMak8W+XW8y/2F6nRiytFiA4XLwePadqWebGtlIgyCS\nkbug8Jv5w7nlMkuxOxoUeD4WhI6A9EkAn3r0REM/2f0aYnd2KPxeqS2MrtdxxHw1\nxoOxk2x0piNSlOz6yog1idsKR5Wurf94fvM9FdTrMYPPrDabbGqiBMsZZmoHLvA3\nZ+57HEV2tU0Ei3vWeGIqnNjIekS+E06KhASxrkNU5vi611UsnYZlSi0VtJsH4UGV\nLhnHl53aZL0YFO5mn/fzuNG/51qgk/6EFMMhaWInXX49Dia9FnnuWXwVwi6uX1Wn\n7kjoHi5VtmC8ZlGEHroxX2DxEr6bhJTEpcLMnoQMqwIDAQABo2YwZDAOBgNVHQ8B\nAf8EBAMCAQYwEgYDVR0TAQH/BAgwBgEB/wIBADAdBgNVHQ4EFgQUsUI5Cb3SWB8+\ngv1YLN/ABPMdxSAwHwYDVR0jBBgwFoAUc19g2LzLA5j0Kxc0LjZapmD/vB8wDQYJ\nKoZIhvcNAQELBQADggEBAJAF3E9PM1uzVL8YNdzb6fwJrxxqI2shvaMVmC1mXS+w\nG0zh4v2hBZOf91l1EO0rwFD7+fxoI6hzQfMxIczh875T6vUXePKVOCOKI5wCrDad\nzQbVqbFbdhsBjF4aUilOdtw2qjjs9JwPuB0VXN4/jY7m21oKEOcnpe36+7OiSPjN\nxngYewCXKrSRqoj3mw+0w/+exYj3Wsush7uFssX18av78G+ehKPIVDXptOCP/N7W\n8iKVNeQ2QGTnu2fzWsGUSvMGyM7yqT+h1ILaT//yQS8er511aHMLc142bD4D9VSy\nDgactwPDTShK/PXqhvNey9v/sKXm4XatZvwcc8KYlW4=\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIEDDCCAvSgAwIBAgICcEUwDQYJKoZIhvcNAQELBQAwgY8xCzAJBgNVBAYTAlVT\nMRAwDgYDVQQHDAdTZWF0dGxlMRMwEQYDVQQIDApXYXNoaW5ndG9uMSIwIAYDVQQK\nDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMuMRMwEQYDVQQLDApBbWF6b24gUkRT\nMSAwHgYDVQQDDBdBbWF6b24gUkRTIFJvb3QgMjAxOSBDQTAeFw0xOTA5MTgxNjU2\nMjBaFw0yNDA4MjIxNzA4NTBaMIGZMQswCQYDVQQGEwJVUzETMBEGA1UECAwKV2Fz\naGluZ3RvbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9uIFdlYiBT\nZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzEqMCgGA1UEAwwhQW1h\nem9uIFJEUyBhcC1ub3J0aGVhc3QtMSAyMDE5IENBMIIBIjANBgkqhkiG9w0BAQEF\nAAOCAQ8AMIIBCgKCAQEAndtkldmHtk4TVQAyqhAvtEHSMb6pLhyKrIFved1WO3S7\n+I+bWwv9b2W/ljJxLq9kdT43bhvzonNtI4a1LAohS6bqyirmk8sFfsWT3akb+4Sx\n1sjc8Ovc9eqIWJCrUiSvv7+cS7ZTA9AgM1PxvHcsqrcUXiK3Jd/Dax9jdZE1e15s\nBEhb2OEPE+tClFZ+soj8h8Pl2Clo5OAppEzYI4LmFKtp1X/BOf62k4jviXuCSst3\nUnRJzE/CXtjmN6oZySVWSe0rQYuyqRl6//9nK40cfGKyxVnimB8XrrcxUN743Vud\nQQVU0Esm8OVTX013mXWQXJHP2c0aKkog8LOga0vobQIDAQABo2YwZDAOBgNVHQ8B\nAf8EBAMCAQYwEgYDVR0TAQH/BAgwBgEB/wIBADAdBgNVHQ4EFgQULmoOS1mFSjj+\nsnUPx4DgS3SkLFYwHwYDVR0jBBgwFoAUc19g2LzLA5j0Kxc0LjZapmD/vB8wDQYJ\nKoZIhvcNAQELBQADggEBAAkVL2P1M2/G9GM3DANVAqYOwmX0Xk58YBHQu6iiQg4j\nb4Ky/qsZIsgT7YBsZA4AOcPKQFgGTWhe9pvhmXqoN3RYltN8Vn7TbUm/ZVDoMsrM\ngwv0+TKxW1/u7s8cXYfHPiTzVSJuOogHx99kBW6b2f99GbP7O1Sv3sLq4j6lVvBX\nFiacf5LAWC925nvlTzLlBgIc3O9xDtFeAGtZcEtxZJ4fnGXiqEnN4539+nqzIyYq\nnvlgCzyvcfRAxwltrJHuuRu6Maw5AGcd2Y0saMhqOVq9KYKFKuD/927BTrbd2JVf\n2sGWyuPZPCk3gq+5pCjbD0c6DkhcMGI6WwxvM5V/zSM=\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIEBzCCAu+gAwIBAgICJDQwDQYJKoZIhvcNAQELBQAwgY8xCzAJBgNVBAYTAlVT\nMRAwDgYDVQQHDAdTZWF0dGxlMRMwEQYDVQQIDApXYXNoaW5ndG9uMSIwIAYDVQQK\nDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMuMRMwEQYDVQQLDApBbWF6b24gUkRT\nMSAwHgYDVQQDDBdBbWF6b24gUkRTIFJvb3QgMjAxOSBDQTAeFw0xOTA5MTgxNzAz\nMTVaFw0yNDA4MjIxNzA4NTBaMIGUMQswCQYDVQQGEwJVUzETMBEGA1UECAwKV2Fz\naGluZ3RvbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9uIFdlYiBT\nZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzElMCMGA1UEAwwcQW1h\nem9uIFJEUyBldS13ZXN0LTMgMjAxOSBDQTCCASIwDQYJKoZIhvcNAQEBBQADggEP\nADCCAQoCggEBAL9bL7KE0n02DLVtlZ2PL+g/BuHpMYFq2JnE2RgompGurDIZdjmh\n1pxfL3nT+QIVMubuAOy8InRfkRxfpxyjKYdfLJTPJG+jDVL+wDcPpACFVqoV7Prg\npVYEV0lc5aoYw4bSeYFhdzgim6F8iyjoPnObjll9mo4XsHzSoqJLCd0QC+VG9Fw2\nq+GDRZrLRmVM2oNGDRbGpGIFg77aRxRapFZa8SnUgs2AqzuzKiprVH5i0S0M6dWr\ni+kk5epmTtkiDHceX+dP/0R1NcnkCPoQ9TglyXyPdUdTPPRfKCq12dftqll+u4mV\nARdN6WFjovxax8EAP2OAUTi1afY+1JFMj+sCAwEAAaNmMGQwDgYDVR0PAQH/BAQD\nAgEGMBIGA1UdEwEB/wQIMAYBAf8CAQAwHQYDVR0OBBYEFLfhrbrO5exkCVgxW0x3\nY2mAi8lNMB8GA1UdIwQYMBaAFHNfYNi8ywOY9CsXNC42WqZg/7wfMA0GCSqGSIb3\nDQEBCwUAA4IBAQAigQ5VBNGyw+OZFXwxeJEAUYaXVoP/qrhTOJ6mCE2DXUVEoJeV\nSxScy/TlFA9tJXqmit8JH8VQ/xDL4ubBfeMFAIAo4WzNWDVoeVMqphVEcDWBHsI1\nAETWzfsapRS9yQekOMmxg63d/nV8xewIl8aNVTHdHYXMqhhik47VrmaVEok1UQb3\nO971RadLXIEbVd9tjY5bMEHm89JsZDnDEw1hQXBb67Elu64OOxoKaHBgUH8AZn/2\nzFsL1ynNUjOhCSAA15pgd1vjwc0YsBbAEBPcHBWYBEyME6NLNarjOzBl4FMtATSF\nwWCKRGkvqN8oxYhwR2jf2rR5Mu4DWkK5Q8Ep\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIEBzCCAu+gAwIBAgICJVUwDQYJKoZIhvcNAQELBQAwgY8xCzAJBgNVBAYTAlVT\nMRAwDgYDVQQHDAdTZWF0dGxlMRMwEQYDVQQIDApXYXNoaW5ndG9uMSIwIAYDVQQK\nDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMuMRMwEQYDVQQLDApBbWF6b24gUkRT\nMSAwHgYDVQQDDBdBbWF6b24gUkRTIFJvb3QgMjAxOSBDQTAeFw0xOTA5MTkxODE2\nNTNaFw0yNDA4MjIxNzA4NTBaMIGUMQswCQYDVQQGEwJVUzETMBEGA1UECAwKV2Fz\naGluZ3RvbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9uIFdlYiBT\nZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzElMCMGA1UEAwwcQW1h\nem9uIFJEUyB1cy1lYXN0LTEgMjAxOSBDQTCCASIwDQYJKoZIhvcNAQEBBQADggEP\nADCCAQoCggEBAM3i/k2u6cqbMdcISGRvh+m+L0yaSIoOXjtpNEoIftAipTUYoMhL\nInXGlQBVA4shkekxp1N7HXe1Y/iMaPEyb3n+16pf3vdjKl7kaSkIhjdUz3oVUEYt\ni8Z/XeJJ9H2aEGuiZh3kHixQcZczn8cg3dA9aeeyLSEnTkl/npzLf//669Ammyhs\nXcAo58yvT0D4E0D/EEHf2N7HRX7j/TlyWvw/39SW0usiCrHPKDLxByLojxLdHzso\nQIp/S04m+eWn6rmD+uUiRteN1hI5ncQiA3wo4G37mHnUEKo6TtTUh+sd/ku6a8HK\nglMBcgqudDI90s1OpuIAWmuWpY//8xEG2YECAwEAAaNmMGQwDgYDVR0PAQH/BAQD\nAgEGMBIGA1UdEwEB/wQIMAYBAf8CAQAwHQYDVR0OBBYEFPqhoWZcrVY9mU7tuemR\nRBnQIj1jMB8GA1UdIwQYMBaAFHNfYNi8ywOY9CsXNC42WqZg/7wfMA0GCSqGSIb3\nDQEBCwUAA4IBAQB6zOLZ+YINEs72heHIWlPZ8c6WY8MDU+Be5w1M+BK2kpcVhCUK\nPJO4nMXpgamEX8DIiaO7emsunwJzMSvavSPRnxXXTKIc0i/g1EbiDjnYX9d85DkC\nE1LaAUCmCZBVi9fIe0H2r9whIh4uLWZA41oMnJx/MOmo3XyMfQoWcqaSFlMqfZM4\n0rNoB/tdHLNuV4eIdaw2mlHxdWDtF4oH+HFm+2cVBUVC1jXKrFv/euRVtsTT+A6i\nh2XBHKxQ1Y4HgAn0jACP2QSPEmuoQEIa57bEKEcZsBR8SDY6ZdTd2HLRIApcCOSF\nMRM8CKLeF658I0XgF8D5EsYoKPsA+74Z+jDH\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIEETCCAvmgAwIBAgICEAAwDQYJKoZIhvcNAQELBQAwgZQxCzAJBgNVBAYTAlVT\nMRAwDgYDVQQHDAdTZWF0dGxlMRMwEQYDVQQIDApXYXNoaW5ndG9uMSIwIAYDVQQK\nDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMuMRMwEQYDVQQLDApBbWF6b24gUkRT\nMSUwIwYDVQQDDBxBbWF6b24gUkRTIEJldGEgUm9vdCAyMDE5IENBMB4XDTE5MDgy\nMDE3MTAwN1oXDTI0MDgxOTE3MzgyNlowgZkxCzAJBgNVBAYTAlVTMRMwEQYDVQQI\nDApXYXNoaW5ndG9uMRAwDgYDVQQHDAdTZWF0dGxlMSIwIAYDVQQKDBlBbWF6b24g\nV2ViIFNlcnZpY2VzLCBJbmMuMRMwEQYDVQQLDApBbWF6b24gUkRTMSowKAYDVQQD\nDCFBbWF6b24gUkRTIEJldGEgdXMtZWFzdC0xIDIwMTkgQ0EwggEiMA0GCSqGSIb3\nDQEBAQUAA4IBDwAwggEKAoIBAQDTNCOlotQcLP8TP82U2+nk0bExVuuMVOgFeVMx\nvbUHZQeIj9ikjk+jm6eTDnnkhoZcmJiJgRy+5Jt69QcRbb3y3SAU7VoHgtraVbxF\nQDh7JEHI9tqEEVOA5OvRrDRcyeEYBoTDgh76ROco2lR+/9uCvGtHVrMCtG7BP7ZB\nsSVNAr1IIRZZqKLv2skKT/7mzZR2ivcw9UeBBTUf8xsfiYVBvMGoEsXEycjYdf6w\nWV+7XS7teNOc9UgsFNN+9AhIBc1jvee5E//72/4F8pAttAg/+mmPUyIKtekNJ4gj\nOAR2VAzGx1ybzWPwIgOudZFHXFduxvq4f1hIRPH0KbQ/gkRrAgMBAAGjZjBkMA4G\nA1UdDwEB/wQEAwIBBjASBgNVHRMBAf8ECDAGAQH/AgEAMB0GA1UdDgQWBBTkvpCD\n6C43rar9TtJoXr7q8dkrrjAfBgNVHSMEGDAWgBStoQwVpbGx87fxB3dEGDqKKnBT\n4TANBgkqhkiG9w0BAQsFAAOCAQEAJd9fOSkwB3uVdsS+puj6gCER8jqmhd3g/J5V\nZjk9cKS8H0e8pq/tMxeJ8kpurPAzUk5RkCspGt2l0BSwmf3ahr8aJRviMX6AuW3/\ng8aKplTvq/WMNGKLXONa3Sq8591J+ce8gtOX/1rDKmFI4wQ/gUzOSYiT991m7QKS\nFr6HMgFuz7RNJbb3Fy5cnurh8eYWA7mMv7laiLwTNsaro5qsqErD5uXuot6o9beT\na+GiKinEur35tNxAr47ax4IRubuIzyfCrezjfKc5raVV2NURJDyKP0m0CCaffAxE\nqn2dNfYc3v1D8ypg3XjHlOzRo32RB04o8ALHMD9LSwsYDLpMag==\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIEFzCCAv+gAwIBAgICFSUwDQYJKoZIhvcNAQELBQAwgZcxCzAJBgNVBAYTAlVT\nMRAwDgYDVQQHDAdTZWF0dGxlMRMwEQYDVQQIDApXYXNoaW5ndG9uMSIwIAYDVQQK\nDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMuMRMwEQYDVQQLDApBbWF6b24gUkRT\nMSgwJgYDVQQDDB9BbWF6b24gUkRTIFByZXZpZXcgUm9vdCAyMDE5IENBMB4XDTE5\nMDgyMTIyMzk0N1oXDTI0MDgyMTIyMjk0OVowgZwxCzAJBgNVBAYTAlVTMRMwEQYD\nVQQIDApXYXNoaW5ndG9uMRAwDgYDVQQHDAdTZWF0dGxlMSIwIAYDVQQKDBlBbWF6\nb24gV2ViIFNlcnZpY2VzLCBJbmMuMRMwEQYDVQQLDApBbWF6b24gUkRTMS0wKwYD\nVQQDDCRBbWF6b24gUkRTIFByZXZpZXcgdXMtZWFzdC0yIDIwMTkgQ0EwggEiMA0G\nCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQD0dB/U7qRnSf05wOi7m10Pa2uPMTJv\nr6U/3Y17a5prq5Zr4++CnSUYarG51YuIf355dKs+7Lpzs782PIwCmLpzAHKWzix6\npOaTQ+WZ0+vUMTxyqgqWbsBgSCyP7pVBiyqnmLC/L4az9XnscrbAX4pNaoJxsuQe\nmzBo6yofjQaAzCX69DuqxFkVTRQnVy7LCFkVaZtjNAftnAHJjVgQw7lIhdGZp9q9\nIafRt2gteihYfpn+EAQ/t/E4MnhrYs4CPLfS7BaYXBycEKC5Muj1l4GijNNQ0Efo\nxG8LSZz7SNgUvfVwiNTaqfLP3AtEAWiqxyMyh3VO+1HpCjT7uNBFtmF3AgMBAAGj\nZjBkMA4GA1UdDwEB/wQEAwIBBjASBgNVHRMBAf8ECDAGAQH/AgEAMB0GA1UdDgQW\nBBQtinkdrj+0B2+qdXngV2tgHnPIujAfBgNVHSMEGDAWgBRp0xqULkNh/w2ZVzEI\no2RIY7O03TANBgkqhkiG9w0BAQsFAAOCAQEAtJdqbCxDeMc8VN1/RzCabw9BIL/z\n73Auh8eFTww/sup26yn8NWUkfbckeDYr1BrXa+rPyLfHpg06kwR8rBKyrs5mHwJx\nbvOzXD/5WTdgreB+2Fb7mXNvWhenYuji1MF+q1R2DXV3I05zWHteKX6Dajmx+Uuq\nYq78oaCBSV48hMxWlp8fm40ANCL1+gzQ122xweMFN09FmNYFhwuW+Ao+Vv90ZfQG\nPYwTvN4n/gegw2TYcifGZC2PNX74q3DH03DXe5fvNgRW5plgz/7f+9mS+YHd5qa9\ntYTPUvoRbi169ou6jicsMKUKPORHWhiTpSCWR1FMMIbsAcsyrvtIsuaGCQ==\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIID/jCCAuagAwIBAgIQdOCSuA9psBpQd8EI368/0DANBgkqhkiG9w0BAQsFADCB\nlzELMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIElu\nYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTAwLgYDVQQDDCdB\nbWF6b24gUkRTIHNhLWVhc3QtMSBSb290IENBIFJTQTIwNDggRzExEDAOBgNVBAcM\nB1NlYXR0bGUwIBcNMjEwNTE5MTgwNjI2WhgPMjA2MTA1MTkxOTA2MjZaMIGXMQsw\nCQYDVQQGEwJVUzEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5jLjET\nMBEGA1UECwwKQW1hem9uIFJEUzELMAkGA1UECAwCV0ExMDAuBgNVBAMMJ0FtYXpv\nbiBSRFMgc2EtZWFzdC0xIFJvb3QgQ0EgUlNBMjA0OCBHMTEQMA4GA1UEBwwHU2Vh\ndHRsZTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAN6ftL6w8v3dB2yW\nLjCxSP1D7ZsOTeLZOSCz1Zv0Gkd0XLhil5MdHOHBvwH/DrXqFU2oGzCRuAy+aZis\nDardJU6ChyIQIciXCO37f0K23edhtpXuruTLLwUwzeEPdcnLPCX+sWEn9Y5FPnVm\npCd6J8edH2IfSGoa9LdErkpuESXdidLym/w0tWG/O2By4TabkNSmpdrCL00cqI+c\nprA8Bx1jX8/9sY0gpAovtuFaRN+Ivg3PAnWuhqiSYyQ5nC2qDparOWuDiOhpY56E\nEgmTvjwqMMjNtExfYx6Rv2Ndu50TriiNKEZBzEtkekwXInTupmYTvc7U83P/959V\nUiQ+WSMCAwEAAaNCMEAwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQU4uYHdH0+\nbUeh81Eq2l5/RJbW+vswDgYDVR0PAQH/BAQDAgGGMA0GCSqGSIb3DQEBCwUAA4IB\nAQBhxcExJ+w74bvDknrPZDRgTeMLYgbVJjx2ExH7/Ac5FZZWcpUpFwWMIJJxtewI\nAnhryzM3tQYYd4CG9O+Iu0+h/VVfW7e4O3joWVkxNMb820kQSEwvZfA78aItGwOY\nWSaFNVRyloVicZRNJSyb1UL9EiJ9ldhxm4LTT0ax+4ontI7zTx6n6h8Sr6r/UOvX\nd9T5aUUENWeo6M9jGupHNn3BobtL7BZm2oS8wX8IVYj4tl0q5T89zDi2x0MxbsIV\n5ZjwqBQ5JWKv7ASGPb+z286RjPA9R2knF4lJVZrYuNV90rHvI/ECyt/JrDqeljGL\nBLl1W/UsvZo6ldLIpoMbbrb5\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIEBDCCAuygAwIBAgIQUfVbqapkLYpUqcLajpTJWzANBgkqhkiG9w0BAQsFADCB\nmjELMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIElu\nYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTMwMQYDVQQDDCpB\nbWF6b24gUkRTIG1lLWNlbnRyYWwtMSBSb290IENBIFJTQTIwNDggRzExEDAOBgNV\nBAcMB1NlYXR0bGUwIBcNMjIwNTA2MjMyMDA5WhgPMjA2MjA1MDcwMDIwMDlaMIGa\nMQswCQYDVQQGEwJVUzEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5j\nLjETMBEGA1UECwwKQW1hem9uIFJEUzELMAkGA1UECAwCV0ExMzAxBgNVBAMMKkFt\nYXpvbiBSRFMgbWUtY2VudHJhbC0xIFJvb3QgQ0EgUlNBMjA0OCBHMTEQMA4GA1UE\nBwwHU2VhdHRsZTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAJIeovu3\newI9FVitXMQzvkh34aQ6WyI4NO3YepfJaePiv3cnyFGYHN2S1cR3UQcLWgypP5va\nj6bfroqwGbCbZZcb+6cyOB4ceKO9Ws1UkcaGHnNDcy5gXR7aCW2OGTUfinUuhd2d\n5bOGgV7JsPbpw0bwJ156+MwfOK40OLCWVbzy8B1kITs4RUPNa/ZJnvIbiMu9rdj4\n8y7GSFJLnKCjlOFUkNI5LcaYvI1+ybuNgphT3nuu5ZirvTswGakGUT/Q0J3dxP0J\npDfg5Sj/2G4gXiaM0LppVOoU5yEwVewhQ250l0eQAqSrwPqAkdTg9ng360zqCFPE\nJPPcgI1tdGUgneECAwEAAaNCMEAwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQU\n/2AJVxWdZxc8eJgdpbwpW7b0f7IwDgYDVR0PAQH/BAQDAgGGMA0GCSqGSIb3DQEB\nCwUAA4IBAQBYm63jTu2qYKJ94gKnqc+oUgqmb1mTXmgmp/lXDbxonjszJDOXFbri\n3CCO7xB2sg9bd5YWY8sGKHaWmENj3FZpCmoefbUx++8D7Mny95Cz8R32rNcwsPTl\nebpd9A/Oaw5ug6M0x/cNr0qzF8Wk9Dx+nFEimp8RYQdKvLDfNFZHjPa1itnTiD8M\nTorAqj+VwnUGHOYBsT/0NY12tnwXdD+ATWfpEHdOXV+kTMqFFwDyhfgRVNpTc+os\nygr8SwhnSCpJPB/EYl2S7r+tgAbJOkuwUvGT4pTqrzDQEhwE7swgepnHC87zhf6l\nqN6mVpSnQKQLm6Ob5TeCEFgcyElsF5bH\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIICrjCCAjSgAwIBAgIRAOxu0I1QuMAhIeszB3fJIlkwCgYIKoZIzj0EAwMwgZYx\nCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMu\nMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTEvMC0GA1UEAwwmQW1h\nem9uIFJEUyB1cy13ZXN0LTIgUm9vdCBDQSBFQ0MzODQgRzExEDAOBgNVBAcMB1Nl\nYXR0bGUwIBcNMjEwNTI0MjIwNjU5WhgPMjEyMTA1MjQyMzA2NTlaMIGWMQswCQYD\nVQQGEwJVUzEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5jLjETMBEG\nA1UECwwKQW1hem9uIFJEUzELMAkGA1UECAwCV0ExLzAtBgNVBAMMJkFtYXpvbiBS\nRFMgdXMtd2VzdC0yIFJvb3QgQ0EgRUNDMzg0IEcxMRAwDgYDVQQHDAdTZWF0dGxl\nMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEz4bylRcGqqDWdP7gQIIoTHdBK6FNtKH1\n4SkEIXRXkYDmRvL9Bci1MuGrwuvrka5TDj4b7e+csY0llEzHpKfq6nJPFljoYYP9\nuqHFkv77nOpJJ633KOr8IxmeHW5RXgrZo0IwQDAPBgNVHRMBAf8EBTADAQH/MB0G\nA1UdDgQWBBQQikVz8wmjd9eDFRXzBIU8OseiGzAOBgNVHQ8BAf8EBAMCAYYwCgYI\nKoZIzj0EAwMDaAAwZQIwf06Mcrpw1O0EBLBBrp84m37NYtOkE/0Z0O+C7D41wnXi\nEQdn6PXUVgdD23Gj82SrAjEAklhKs+liO1PtN15yeZR1Io98nFve+lLptaLakZcH\n+hfFuUtCqMbaI8CdvJlKnPqT\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIGCTCCA/GgAwIBAgIRALyWMTyCebLZOGcZZQmkmfcwDQYJKoZIhvcNAQEMBQAw\ngZwxCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJ\nbmMuMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTE1MDMGA1UEAwws\nQW1hem9uIFJEUyBhcC1ub3J0aGVhc3QtMyBSb290IENBIFJTQTQwOTYgRzExEDAO\nBgNVBAcMB1NlYXR0bGUwIBcNMjEwNTI0MjAyODAzWhgPMjEyMTA1MjQyMTI4MDNa\nMIGcMQswCQYDVQQGEwJVUzEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywg\nSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzELMAkGA1UECAwCV0ExNTAzBgNVBAMM\nLEFtYXpvbiBSRFMgYXAtbm9ydGhlYXN0LTMgUm9vdCBDQSBSU0E0MDk2IEcxMRAw\nDgYDVQQHDAdTZWF0dGxlMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEA\nwGFiyDyCrGqgdn4fXG12cxKAAfVvhMea1mw5h9CVRoavkPqhzQpAitSOuMB9DeiP\nwQyqcsiGl/cTEau4L+AUBG8b9v26RlY48exUYBXj8CieYntOT9iNw5WtdYJa3kF/\nJxgI+HDMzE9cmHDs5DOO3S0uwZVyra/xE1ymfSlpOeUIOTpHRJv97CBUEpaZMUW5\nSr6GruuOwFVpO5FX3A/jQlcS+UN4GjSRgDUJuqg6RRQldEZGCVCCmodbByvI2fGm\nreGpsPJD54KkmAX08nOR8e5hkGoHxq0m2DLD4SrOFmt65vG47qnuwplWJjtk9B3Z\n9wDoopwZLBOtlkPIkUllWm1P8EuHC1IKOA+wSP6XdT7cy8S77wgyHzR0ynxv7q/l\nvlZtH30wnNqFI0y9FeogD0TGMCHcnGqfBSicJXPy9T4fU6f0r1HwqKwPp2GArwe7\ndnqLTj2D7M9MyVtFjEs6gfGWXmu1y5uDrf+CszurE8Cycoma+OfjjuVQgWOCy7Nd\njJswPxAroTzVfpgoxXza4ShUY10woZu0/J+HmNmqK7lh4NS75q1tz75in8uTZDkV\nbe7GK+SEusTrRgcf3tlgPjSTWG3veNzFDF2Vn1GLJXmuZfhdlVQDBNXW4MNREExS\ndG57kJjICpT+r8X+si+5j51gRzkSnMYs7VHulpxfcwECAwEAAaNCMEAwDwYDVR0T\nAQH/BAUwAwEB/zAdBgNVHQ4EFgQU4JWOpDBmUBuWKvGPZelw87ezhL8wDgYDVR0P\nAQH/BAQDAgGGMA0GCSqGSIb3DQEBDAUAA4ICAQBRNLMql7itvXSEFQRAnyOjivHz\nl5IlWVQjAbOUr6ogZcwvK6YpxNAFW5zQr8F+fdkiypLz1kk5irx9TIpff0BWC9hQ\n/odMPO8Gxn8+COlSvc+dLsF2Dax3Hvz0zLeKMo+cYisJOzpdR/eKd0/AmFdkvQoM\nAOK9n0yYvVJU2IrSgeJBiiCarpKSeAktEVQ4rvyacQGr+QAPkkjRwm+5LHZKK43W\nnNnggRli9N/27qYtc5bgr3AaQEhEXMI4RxPRXCLsod0ehMGWyRRK728a+6PMMJAJ\nWHOU0x7LCEMPP/bvpLj3BdvSGqNor4ZtyXEbwREry1uzsgODeRRns5acPwTM6ff+\nCmxO2NZ0OktIUSYRmf6H/ZFlZrIhV8uWaIwEJDz71qvj7buhQ+RFDZ9CNL64C0X6\nmf0zJGEpddjANHaaVky+F4gYMtEy2K2Lcm4JGTdyIzUoIe+atzCnRp0QeIcuWtF+\ns8AjDYCVFNypcMmqbRmNpITSnOoCHSRuVkY3gutVoYyMLbp8Jm9SJnCIlEWTA6Rm\nwADOMGZJVn5/XRTRuetVOB3KlQDjs9OO01XN5NzGSZO2KT9ngAUfh9Eqhf1iRWSP\nnZlRbQ2NRCuY/oJ5N59mLGxnNJSE7giEKEBRhTQ/XEPIUYAUPD5fca0arKRJwbol\nl9Se1Hsq0ZU5f+OZKQ==\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIGATCCA+mgAwIBAgIRAK7vlRrGVEePJpW1VHMXdlIwDQYJKoZIhvcNAQEMBQAw\ngZgxCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJ\nbmMuMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTExMC8GA1UEAwwo\nQW1hem9uIFJEUyBhZi1zb3V0aC0xIFJvb3QgQ0EgUlNBNDA5NiBHMTEQMA4GA1UE\nBwwHU2VhdHRsZTAgFw0yMTA1MTkxOTI4NDNaGA8yMTIxMDUxOTIwMjg0M1owgZgx\nCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMu\nMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTExMC8GA1UEAwwoQW1h\nem9uIFJEUyBhZi1zb3V0aC0xIFJvb3QgQ0EgUlNBNDA5NiBHMTEQMA4GA1UEBwwH\nU2VhdHRsZTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAMZiHOQC6x4o\neC7vVOMCGiN5EuLqPYHdceFPm4h5k/ZejXTf7kryk6aoKZKsDIYihkaZwXVS7Y/y\n7Ig1F1ABi2jD+CYprj7WxXbhpysmN+CKG7YC3uE4jSvfvUnpzionkQbjJsRJcrPO\ncZJM4FVaVp3mlHHtvnM+K3T+ni4a38nAd8xrv1na4+B8ZzZwWZXarfg8lJoGskSn\nou+3rbGQ0r+XlUP03zWujHoNlVK85qUIQvDfTB7n3O4s1XNGvkfv3GNBhYRWJYlB\n4p8T+PFN8wG+UOByp1gV7BD64RnpuZ8V3dRAlO6YVAmINyG5UGrPzkIbLtErUNHO\n4iSp4UqYvztDqJWWHR/rA84ef+I9RVwwZ8FQbjKq96OTnPrsr63A5mXTC9dXKtbw\nXNJPQY//FEdyM3K8sqM0IdCzxCA1MXZ8+QapWVjwyTjUwFvL69HYky9H8eAER59K\n5I7u/CWWeCy2R1SYUBINc3xxLr0CGGukcWPEZW2aPo5ibW5kepU1P/pzdMTaTfao\nF42jSFXbc7gplLcSqUgWwzBnn35HLTbiZOFBPKf6vRRu8aRX9atgHw/EjCebi2xP\nxIYr5Ub8u0QVHIqcnF1/hVzO/Xz0chj3E6VF/yTXnsakm+W1aM2QkZbFGpga+LMy\nmFCtdPrELjea2CfxgibaJX1Q4rdEpc8DAgMBAAGjQjBAMA8GA1UdEwEB/wQFMAMB\nAf8wHQYDVR0OBBYEFDSaycEyuspo/NOuzlzblui8KotFMA4GA1UdDwEB/wQEAwIB\nhjANBgkqhkiG9w0BAQwFAAOCAgEAbosemjeTRsL9o4v0KadBUNS3V7gdAH+X4vH2\nEe1Jc91VOGLdd/s1L9UX6bhe37b9WjUD69ur657wDW0RzxMYgQdZ27SUl0tEgGGp\ncCmVs1ky3zEN+Hwnhkz+OTmIg1ufq0W2hJgJiluAx2r1ib1GB+YI3Mo3rXSaBYUk\nbgQuujYPctf0PA153RkeICE5GI3OaJ7u6j0caYEixBS3PDHt2MJWexITvXGwHWwc\nCcrC05RIrTUNOJaetQw8smVKYOfRImEzLLPZ5kf/H3Cbj8BNAFNsa10wgvlPuGOW\nXLXqzNXzrG4V3sjQU5YtisDMagwYaN3a6bBf1wFwFIHQoAPIgt8q5zaQ9WI+SBns\nIl6rd4zfvjq/BPmt0uI7rVg/cgbaEg/JDL2neuM9CJAzmKxYxLQuHSX2i3Fy4Y1B\ncnxnRQETCRZNPGd00ADyxPKVoYBC45/t+yVusArFt+2SVLEGiFBr23eG2CEZu+HS\nnDEgIfQ4V3YOTUNa86wvbAss1gbbnT/v1XCnNGClEWCWNCSRjwV2ZmQ/IVTmNHPo\n7axTTBBJbKJbKzFndCnuxnDXyytdYRgFU7Ly3sa27WS2KFyFEDebLFRHQEfoYqCu\nIupSqBSbXsR3U10OTjc9z6EPo1nuV6bdz+gEDthmxKa1NI+Qb1kvyliXQHL2lfhr\n5zT5+Bs=\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIF/zCCA+egAwIBAgIRAOLV6zZcL4IV2xmEneN1GwswDQYJKoZIhvcNAQEMBQAw\ngZcxCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJ\nbmMuMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTEwMC4GA1UEAwwn\nQW1hem9uIFJEUyB1cy13ZXN0LTEgUm9vdCBDQSBSU0E0MDk2IEcxMRAwDgYDVQQH\nDAdTZWF0dGxlMCAXDTIxMDUxOTE5MDg1OFoYDzIxMjEwNTE5MjAwODU4WjCBlzEL\nMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4x\nEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTAwLgYDVQQDDCdBbWF6\nb24gUkRTIHVzLXdlc3QtMSBSb290IENBIFJTQTQwOTYgRzExEDAOBgNVBAcMB1Nl\nYXR0bGUwggIiMA0GCSqGSIb3DQEBAQUAA4ICDwAwggIKAoICAQC7koAKGXXlLixN\nfVjhuqvz0WxDeTQfhthPK60ekRpftkfE5QtnYGzeovaUAiS58MYVzqnnTACDwcJs\nIGTFE6Wd7sB6r8eI/3CwI1pyJfxepubiQNVAQG0zJETOVkoYKe/5KnteKtnEER3X\ntCBRdV/rfbxEDG9ZAsYfMl6zzhEWKF88G6xhs2+VZpDqwJNNALvQuzmTx8BNbl5W\nRUWGq9CQ9GK9GPF570YPCuURW7kl35skofudE9bhURNz51pNoNtk2Z3aEeRx3ouT\nifFJlzh+xGJRHqBG7nt5NhX8xbg+vw4xHCeq1aAe6aVFJ3Uf9E2HzLB4SfIT9bRp\nP7c9c0ySGt+3n+KLSHFf/iQ3E4nft75JdPjeSt0dnyChi1sEKDi0tnWGiXaIg+J+\nr1ZtcHiyYpCB7l29QYMAdD0TjfDwwPayLmq//c20cPmnSzw271VwqjUT0jYdrNAm\ngV+JfW9t4ixtE3xF2jaUh/NzL3bAmN5v8+9k/aqPXlU1BgE3uPwMCjrfn7V0I7I1\nWLpHyd9jF3U/Ysci6H6i8YKgaPiOfySimQiDu1idmPld659qerutUSemQWmPD3bE\ndcjZolmzS9U0Ujq/jDF1YayN3G3xvry1qWkTci0qMRMu2dZu30Herugh9vsdTYkf\n00EqngPbqtIVLDrDjEQLqPcb8QvWFQIDAQABo0IwQDAPBgNVHRMBAf8EBTADAQH/\nMB0GA1UdDgQWBBQBqg8Za/L0YMHURGExHfvPyfLbOTAOBgNVHQ8BAf8EBAMCAYYw\nDQYJKoZIhvcNAQEMBQADggIBACAGPMa1QL7P/FIO7jEtMelJ0hQlQepKnGtbKz4r\nXq1bUX1jnLvnAieR9KZmeQVuKi3g3CDU6b0mDgygS+FL1KDDcGRCSPh238Ou8KcG\nHIxtt3CMwMHMa9gmdcMlR5fJF9vhR0C56KM2zvyelUY51B/HJqHwGvWuexryXUKa\nwq1/iK2/d9mNeOcjDvEIj0RCMI8dFQCJv3PRCTC36XS36Tzr6F47TcTw1c3mgKcs\nxpcwt7ezrXMUunzHS4qWAA5OGdzhYlcv+P5GW7iAA7TDNrBF+3W4a/6s9v2nQAnX\nUvXd9ul0ob71377UhZbJ6SOMY56+I9cJOOfF5QvaL83Sz29Ij1EKYw/s8TYdVqAq\n+dCyQZBkMSnDFLVe3J1KH2SUSfm3O98jdPORQrUlORQVYCHPls19l2F6lCmU7ICK\nhRt8EVSpXm4sAIA7zcnR2nU00UH8YmMQLnx5ok9YGhuh3Ehk6QlTQLJux6LYLskd\n9YHOLGW/t6knVtV78DgPqDeEx/Wu/5A8R0q7HunpWxr8LCPBK6hksZnOoUhhb8IP\nvl46Ve5Tv/FlkyYr1RTVjETmg7lb16a8J0At14iLtpZWmwmuv4agss/1iBVMXfFk\n+ZGtx5vytWU5XJmsfKA51KLsMQnhrLxb3X3zC+JRCyJoyc8++F3YEcRi2pkRYE3q\nHing\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIECTCCAvGgAwIBAgIRANxgyBbnxgTEOpDul2ZnC0UwDQYJKoZIhvcNAQELBQAw\ngZwxCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJ\nbmMuMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTE1MDMGA1UEAwws\nQW1hem9uIFJEUyBhcC1zb3V0aGVhc3QtMyBSb290IENBIFJTQTIwNDggRzExEDAO\nBgNVBAcMB1NlYXR0bGUwIBcNMjEwNjEwMTgxOTA3WhgPMjA2MTA2MTAxOTE5MDda\nMIGcMQswCQYDVQQGEwJVUzEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywg\nSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzELMAkGA1UECAwCV0ExNTAzBgNVBAMM\nLEFtYXpvbiBSRFMgYXAtc291dGhlYXN0LTMgUm9vdCBDQSBSU0EyMDQ4IEcxMRAw\nDgYDVQQHDAdTZWF0dGxlMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA\nxnwSDAChrMkfk5TA4Dk8hKzStDlSlONzmd3fTG0Wqr5+x3EmFT6Ksiu/WIwEl9J2\nK98UI7vYyuZfCxUKb1iMPeBdVGqk0zb92GpURd+Iz/+K1ps9ZLeGBkzR8mBmAi1S\nOfpwKiTBzIv6E8twhEn4IUpHsdcuX/2Y78uESpJyM8O5CpkG0JaV9FNEbDkJeBUQ\nAo2qqNcH4R0Qcr5pyeqA9Zto1RswgL06BQMI9dTpfwSP5VvkvcNUaLl7Zv5WzLQE\nJzORWePvdPzzvWEkY/3FPjxBypuYwssKaERW0fkPDmPtykktP9W/oJolKUFI6pXp\ny+Y6p6/AVdnQD2zZjW5FhQIDAQABo0IwQDAPBgNVHRMBAf8EBTADAQH/MB0GA1Ud\nDgQWBBT+jEKs96LC+/X4BZkUYUkzPfXdqTAOBgNVHQ8BAf8EBAMCAYYwDQYJKoZI\nhvcNAQELBQADggEBAIGQqgqcQ6XSGkmNebzR6DhadTbfDmbYeN5N0Vuzv+Tdmufb\ntMGjdjnYMg4B+IVnTKQb+Ox3pL9gbX6KglGK8HupobmIRtwKVth+gYYz3m0SL/Nk\nhaWPYzOm0x3tJm8jSdufJcEob4/ATce9JwseLl76pSWdl5A4lLjnhPPKudUDfH+1\nBLNUi3lxpp6GkC8aWUPtupnhZuXddolTLOuA3GwTZySI44NfaFRm+o83N1jp+EwD\n6e94M4cTRzjUv6J3MZmSbdtQP/Tk1uz2K4bQZGP0PZC3bVpqiesdE/xr+wbu8uHr\ncM1JXH0AmXf1yIkTgyWzmvt0k1/vgcw5ixAqvvE=\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIEATCCAumgAwIBAgIRAMhw98EQU18mIji+unM2YH8wDQYJKoZIhvcNAQELBQAw\ngZgxCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJ\nbmMuMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTExMC8GA1UEAwwo\nQW1hem9uIFJEUyBhcC1zb3V0aC0yIFJvb3QgQ0EgUlNBMjA0OCBHMTEQMA4GA1UE\nBwwHU2VhdHRsZTAgFw0yMjA2MDYyMTQyMjJaGA8yMDYyMDYwNjIyNDIyMlowgZgx\nCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMu\nMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTExMC8GA1UEAwwoQW1h\nem9uIFJEUyBhcC1zb3V0aC0yIFJvb3QgQ0EgUlNBMjA0OCBHMTEQMA4GA1UEBwwH\nU2VhdHRsZTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAIeeRoLfTm+7\nvqm7ZlFSx+1/CGYHyYrOOryM4/Z3dqYVHFMgWTR7V3ziO8RZ6yUanrRcWVX3PZbF\nAfX0KFE8OgLsXEZIX8odSrq86+/Th5eZOchB2fDBsUB7GuN2rvFBbM8lTI9ivVOU\nlbuTnYyb55nOXN7TpmH2bK+z5c1y9RVC5iQsNAl6IJNvSN8VCqXh31eK5MlKB4DT\n+Y3OivCrSGsjM+UR59uZmwuFB1h+icE+U0p9Ct3Mjq3MzSX5tQb6ElTNGlfmyGpW\nKh7GQ5XU1KaKNZXoJ37H53woNSlq56bpVrKI4uv7ATpdpFubOnSLtpsKlpLdR3sy\nWs245200pC8CAwEAAaNCMEAwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQUp0ki\n6+eWvsnBjQhMxwMW5pwn7DgwDgYDVR0PAQH/BAQDAgGGMA0GCSqGSIb3DQEBCwUA\nA4IBAQB2V8lv0aqbYQpj/bmVv/83QfE4vOxKCJAHv7DQ35cJsTyBdF+8pBczzi3t\n3VNL5IUgW6WkyuUOWnE0eqAFOUVj0yTS1jSAtfl3vOOzGJZmWBbqm9BKEdu1D8O6\nsB8bnomwiab2tNDHPmUslpdDqdabbkWwNWzLJ97oGFZ7KNODMEPXWKWNxg33iHfS\n/nlmnrTVI3XgaNK9qLZiUrxu9Yz5gxi/1K+sG9/Dajd32ZxjRwDipOLiZbiXQrsd\nqzIMY4GcWf3g1gHL5mCTfk7dG22h/rhPyGV0svaDnsb+hOt6sv1McMN6Y3Ou0mtM\n/UaAXojREmJmTSCNvs2aBny3/2sy\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIICrjCCAjSgAwIBAgIRAMnRxsKLYscJV8Qv5pWbL7swCgYIKoZIzj0EAwMwgZYx\nCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMu\nMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTEvMC0GA1UEAwwmQW1h\nem9uIFJEUyBzYS1lYXN0LTEgUm9vdCBDQSBFQ0MzODQgRzExEDAOBgNVBAcMB1Nl\nYXR0bGUwIBcNMjEwNTE5MTgxNjAxWhgPMjEyMTA1MTkxOTE2MDFaMIGWMQswCQYD\nVQQGEwJVUzEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5jLjETMBEG\nA1UECwwKQW1hem9uIFJEUzELMAkGA1UECAwCV0ExLzAtBgNVBAMMJkFtYXpvbiBS\nRFMgc2EtZWFzdC0xIFJvb3QgQ0EgRUNDMzg0IEcxMRAwDgYDVQQHDAdTZWF0dGxl\nMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEjFOCZgTNVKxLKhUxffiDEvTLFhrmIqdO\ndKqVdgDoELEzIHWDdC+19aDPitbCYtBVHl65ITu/9pn6mMUl5hhUNtfZuc6A+Iw1\nsBe0v0qI3y9Q9HdQYrGgeHDh8M5P7E2ho0IwQDAPBgNVHRMBAf8EBTADAQH/MB0G\nA1UdDgQWBBS5L7/8M0TzoBZk39Ps7BkfTB4yJTAOBgNVHQ8BAf8EBAMCAYYwCgYI\nKoZIzj0EAwMDaAAwZQIwI43O0NtWKTgnVv9z0LO5UMZYgSve7GvGTwqktZYCMObE\nrUI4QerXM9D6JwLy09mqAjEAypfkdLyVWtaElVDUyHFkihAS1I1oUxaaDrynLNQK\nOu/Ay+ns+J+GyvyDUjBpVVW1\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIF/jCCA+agAwIBAgIQR71Z8lTO5Sj+as2jB7IWXzANBgkqhkiG9w0BAQwFADCB\nlzELMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIElu\nYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTAwLgYDVQQDDCdB\nbWF6b24gUkRTIHVzLXdlc3QtMiBSb290IENBIFJTQTQwOTYgRzExEDAOBgNVBAcM\nB1NlYXR0bGUwIBcNMjEwNTI0MjIwMzIwWhgPMjEyMTA1MjQyMzAzMjBaMIGXMQsw\nCQYDVQQGEwJVUzEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5jLjET\nMBEGA1UECwwKQW1hem9uIFJEUzELMAkGA1UECAwCV0ExMDAuBgNVBAMMJ0FtYXpv\nbiBSRFMgdXMtd2VzdC0yIFJvb3QgQ0EgUlNBNDA5NiBHMTEQMA4GA1UEBwwHU2Vh\ndHRsZTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAM977bHIs1WJijrS\nXQMfUOhmlJjr2v0K0UjPl52sE1TJ76H8umo1yR4T7Whkd9IwBHNGKXCJtJmMr9zp\nfB38eLTu+5ydUAXdFuZpRMKBWwPVe37AdJRKqn5beS8HQjd3JXAgGKUNNuE92iqF\nqi2fIqFMpnJXWo0FIW6s2Dl2zkORd7tH0DygcRi7lgVxCsw1BJQhFJon3y+IV8/F\nbnbUXSNSDUnDW2EhvWSD8L+t4eiXYsozhDAzhBvojpxhPH9OB7vqFYw5qxFx+G0t\nlSLX5iWi1jzzc3XyGnB6WInZDVbvnvJ4BGZ+dTRpOCvsoMIn9bz4EQTvu243c7aU\nHbS/kvnCASNt+zk7C6lbmaq0AGNztwNj85Opn2enFciWZVnnJ/4OeefUWQxD0EPp\nSjEd9Cn2IHzkBZrHCg+lWZJQBKbUVS0lLIMSsLQQ6WvR38jY7D2nxM1A93xWxwpt\nZtQnYRCVXH6zt2OwDAFePInWwxUjR5t/wu3XxPgpSfrmTi3WYtr1wFypAJ811e/P\nyBtswWUQ6BNJQvy+KnOEeGfOwmtdDFYR+GOCfvCihzrKJrxOtHIieehR5Iw3cbXG\nsm4pDzfMUVvDDz6C2M6PRlJhhClbatHCjik9hxFYEsAlqtVVK9pxaz9i8hOqSFQq\nkJSQsgWw+oM/B2CyjcSqkSQEu8RLAgMBAAGjQjBAMA8GA1UdEwEB/wQFMAMBAf8w\nHQYDVR0OBBYEFPmrdxpRRgu3IcaB5BTqlprcKdTsMA4GA1UdDwEB/wQEAwIBhjAN\nBgkqhkiG9w0BAQwFAAOCAgEAVdlxWjPvVKky3kn8ZizeM4D+EsLw9dWLau2UD/ls\nzwDCFoT6euagVeCknrn+YEl7g20CRYT9iaonGoMUPuMR/cdtPL1W/Rf40PSrGf9q\nQuxavWiHLEXOQTCtCaVZMokkvjuuLNDXyZnstgECuiZECTwhexUF4oiuhyGk9o01\nQMaiz4HX4lgk0ozALUvEzaNd9gWEwD2qe+rq9cQMTVq3IArUkvTIftZUaVUMzr0O\ned1+zAsNa9nJhURJ/6anJPJjbQgb5qA1asFcp9UaMT1ku36U3gnR1T/BdgG2jX3X\nUm0UcaGNVPrH1ukInWW743pxWQb7/2sumEEMVh+jWbB18SAyLI4WIh4lkurdifzS\nIuTFp8TEx+MouISFhz/vJDWZ84tqoLVjkEcP6oDypq9lFoEzHDJv3V1CYcIgOusT\nk1jm9P7BXdTG7TYzUaTb9USb6bkqkD9EwJAOSs7DI94aE6rsSws2yAHavjAMfuMZ\nsDAZvkqS2Qg2Z2+CI6wUZn7mzkJXbZoqRjDvChDXEB1mIhzVXhiNW/CR5WKVDvlj\n9v1sdGByh2pbxcLQtVaq/5coM4ANgphoNz3pOYUPWHS+JUrIivBZ+JobjXcxr3SN\n9iDzcu5/FVVNbq7+KN/nvPMngT+gduEN5m+EBjm8GukJymFG0m6BENRA0QSDqZ7k\nzDY=\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIECTCCAvGgAwIBAgIRAK5EYG3iHserxMqgg+0EFjgwDQYJKoZIhvcNAQELBQAw\ngZwxCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJ\nbmMuMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTE1MDMGA1UEAwws\nQW1hem9uIFJEUyBhcC1ub3J0aGVhc3QtMyBSb290IENBIFJTQTIwNDggRzExEDAO\nBgNVBAcMB1NlYXR0bGUwIBcNMjEwNTI0MjAyMzE2WhgPMjA2MTA1MjQyMTIzMTZa\nMIGcMQswCQYDVQQGEwJVUzEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywg\nSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzELMAkGA1UECAwCV0ExNTAzBgNVBAMM\nLEFtYXpvbiBSRFMgYXAtbm9ydGhlYXN0LTMgUm9vdCBDQSBSU0EyMDQ4IEcxMRAw\nDgYDVQQHDAdTZWF0dGxlMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA\ns1L6TtB84LGraLHVC+rGPhLBW2P0oN/91Rq3AnYwqDOuTom7agANwEjvLq7dSRG/\nsIfZsSV/ABTgArZ5sCmLjHFZAo8Kd45yA9byx20RcYtAG8IZl+q1Cri+s0XefzyO\nU6mlfXZkVe6lzjlfXBkrlE/+5ifVbJK4dqOS1t9cWIpgKqv5fbE6Qbq4LVT+5/WM\nVd2BOljuBMGMzdZubqFKFq4mzTuIYfnBm7SmHlZfTdfBYPP1ScNuhpjuzw4n3NCR\nEdU6dQv04Q6th4r7eiOCwbWI9LkmVbvBe3ylhH63lApC7MiiPYLlB13xBubVHVhV\nq1NHoNTi+zA3MN9HWicRxQIDAQABo0IwQDAPBgNVHRMBAf8EBTADAQH/MB0GA1Ud\nDgQWBBSuxoqm0/wjNiZLvqv+JlQwsDvTPDAOBgNVHQ8BAf8EBAMCAYYwDQYJKoZI\nhvcNAQELBQADggEBAFfTK/j5kv90uIbM8VaFdVbr/6weKTwehafT0pAk1bfLVX+7\nuf8oHgYiyKTTl0DFQicXejghXTeyzwoEkWSR8c6XkhD5vYG3oESqmt/RGvvoxz11\nrHHy7yHYu7RIUc3VQG60c4qxXv/1mWySGwVwJrnuyNT9KZXPevu3jVaWOVHEILaK\nHvzQ2YEcWBPmde/zEseO2QeeGF8FL45Q1d66wqIP4nNUd2pCjeTS5SpB0MMx7yi9\nki1OH1pv8tOuIdimtZ7wkdB8+JSZoaJ81b8sRrydRwJyvB88rftuI3YB4WwGuONT\nZezUPsmaoK69B0RChB0ofDpAaviF9V3xOWvVZfo=\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIGDzCCA/egAwIBAgIRAI0sMNG2XhaBMRN3zD7ZyoEwDQYJKoZIhvcNAQEMBQAw\ngZ8xCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJ\nbmMuMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTE4MDYGA1UEAwwv\nQW1hem9uIFJEUyBQcmV2aWV3IHVzLWVhc3QtMiBSb290IENBIFJTQTQwOTYgRzEx\nEDAOBgNVBAcMB1NlYXR0bGUwIBcNMjEwNTE4MjA1NzUwWhgPMjEyMTA1MTgyMTU3\nNTBaMIGfMQswCQYDVQQGEwJVUzEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNl\ncywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzELMAkGA1UECAwCV0ExODA2BgNV\nBAMML0FtYXpvbiBSRFMgUHJldmlldyB1cy1lYXN0LTIgUm9vdCBDQSBSU0E0MDk2\nIEcxMRAwDgYDVQQHDAdTZWF0dGxlMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIIC\nCgKCAgEAh/otSiCu4Uw3hu7OJm0PKgLsLRqBmUS6jihcrkxfN2SHmp2zuRflkweU\nBhMkebzL+xnNvC8okzbgPWtUxSmDnIRhE8J7bvSKFlqs/tmEdiI/LMqe/YIKcdsI\n20UYmvyLIjtDaJIh598SHHlF9P8DB5jD8snJfhxWY+9AZRN+YVTltgQAAgayxkWp\nM1BbvxpOnz4CC00rE0eqkguXIUSuobb1vKqdKIenlYBNxm2AmtgvQfpsBIQ0SB+8\n8Zip8Ef5rtjSw5J3s2Rq0aYvZPfCVIsKYepIboVwXtD7E9J31UkB5onLBQlaHaA6\nXlH4srsMmrew5d2XejQGy/lGZ1nVWNsKO0x/Az2QzY5Kjd6AlXZ8kq6H68hscA5i\nOMbNlXzeEQsZH0YkId3+UsEns35AAjZv4qfFoLOu8vDotWhgVNT5DfdbIWZW3ZL8\nqbmra3JnCHuaTwXMnc25QeKgVq7/rG00YB69tCIDwcf1P+tFJWxvaGtV0g2NthtB\na+Xo09eC0L53gfZZ3hZw1pa3SIF5dIZ6RFRUQ+lFOux3Q/I3u+rYstYw7Zxc4Zeo\nY8JiedpQXEAnbw2ECHix/L6mVWgiWCiDzBnNLLdbmXjJRnafNSndSfFtHCnY1SiP\naCrNpzwZIJejoV1zDlWAMO+gyS28EqzuIq3WJK/TFE7acHkdKIcCAwEAAaNCMEAw\nDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQUrmV1YASnuudfmqAZP4sKGTvScaEw\nDgYDVR0PAQH/BAQDAgGGMA0GCSqGSIb3DQEBDAUAA4ICAQBGpEKeQoPvE85tN/25\nqHFkys9oHDl93DZ62EnOqAUKLd6v0JpCyEiop4nlrJe+4KrBYVBPyKOJDcIqE2Sp\n3cvgJXLhY4i46VM3Qxe8yuYF1ElqBpg3jJVj/sCQnYz9dwoAMWIJFaDWOvmU2E7M\nMRaKx+sPXFkIjiDA6Bv0m+VHef7aedSYIY7IDltEQHuXoqNacGrYo3I50R+fZs88\n/mB3e/V7967e99D6565yf9Lcjw4oQf2Hy7kl/6P9AuMz0LODnGITwh2TKk/Zo3RU\nVgq25RDrT4xJK6nFHyjUF6+4cOBxVpimmFw/VP1zaXT8DN5r4HyJ9p4YuSK8ha5N\n2pJc/exvU8Nv2+vS/efcDZWyuEdZ7eh1IJWQZlOZKIAONfRDRTpeQHJ3zzv3QVYy\nt78pYp/eWBHyVIfEE8p2lFKD4279WYe+Uvdb8c4Jm4TJwqkSJV8ifID7Ub80Lsir\nlPAU3OCVTBeVRFPXT2zpC4PB4W6KBSuj6OOcEu2y/HgWcoi7Cnjvp0vFTUhDFdus\nWz3ucmJjfVsrkEO6avDKu4SwdbVHsk30TVAwPd6srIdi9U6MOeOQSOSE4EsrrS7l\nSVmu2QIDUVFpm8QAHYplkyWIyGkupyl3ashH9mokQhixIU/Pzir0byePxHLHrwLu\n1axqeKpI0F5SBUPsaVNYY2uNFg==\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIECDCCAvCgAwIBAgIQCREfzzVyDTMcNME+gWnTCTANBgkqhkiG9w0BAQsFADCB\nnDELMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIElu\nYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTUwMwYDVQQDDCxB\nbWF6b24gUkRTIGFwLXNvdXRoZWFzdC0yIFJvb3QgQ0EgUlNBMjA0OCBHMTEQMA4G\nA1UEBwwHU2VhdHRsZTAgFw0yMTA1MjQyMDQyMzNaGA8yMDYxMDUyNDIxNDIzM1ow\ngZwxCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJ\nbmMuMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTE1MDMGA1UEAwws\nQW1hem9uIFJEUyBhcC1zb3V0aGVhc3QtMiBSb290IENBIFJTQTIwNDggRzExEDAO\nBgNVBAcMB1NlYXR0bGUwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDL\n1MT6br3L/4Pq87DPXtcjlXN3cnbNk2YqRAZHJayStTz8VtsFcGPJOpk14geRVeVk\ne9uKFHRbcyr/RM4owrJTj5X4qcEuATYZbo6ou/rW2kYzuWFZpFp7lqm0vasV4Z9F\nfChlhwkNks0UbM3G+psCSMNSoF19ERunj7w2c4E62LwujkeYLvKGNepjnaH10TJL\n2krpERd+ZQ4jIpObtRcMH++bTrvklc+ei8W9lqrVOJL+89v2piN3Ecdd389uphst\nqQdb1BBVXbhUrtuGHgVf7zKqN1SkCoktoWxVuOprVWhSvr7akaWeq0UmlvbEsujU\nvADqxGMcJFyCzxx3CkJjAgMBAAGjQjBAMA8GA1UdEwEB/wQFMAMBAf8wHQYDVR0O\nBBYEFFk8UJmlhoxFT3PP12PvhvazHjT4MA4GA1UdDwEB/wQEAwIBhjANBgkqhkiG\n9w0BAQsFAAOCAQEAfFtr2lGoWVXmWAsIo2NYre7kzL8Xb9Tx7desKxCCz5HOOvIr\n8JMB1YK6A7IOvQsLJQ/f1UnKRh3X3mJZjKIywfrMSh0FiDf+rjcEzXxw2dGtUem4\nA+WMvIA3jwxnJ90OQj5rQ8bg3iPtE6eojzo9vWQGw/Vu48Dtw1DJo9210Lq/6hze\nhPhNkFh8fMXNT7Q1Wz/TJqJElyAQGNOXhyGpHKeb0jHMMhsy5UNoW5hLeMS5ffao\nTBFWEJ1gVfxIU9QRxSh+62m46JIg+dwDlWv8Aww14KgepspRbMqDuaM2cinoejv6\nt3dyOyHHrsOyv3ffZUKtQhQbQr+sUcL89lARsg==\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIID/zCCAuegAwIBAgIRAIJLTMpzGNxqHZ4t+c1MlCIwDQYJKoZIhvcNAQELBQAw\ngZcxCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJ\nbmMuMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTEwMC4GA1UEAwwn\nQW1hem9uIFJEUyBhcC1lYXN0LTEgUm9vdCBDQSBSU0EyMDQ4IEcxMRAwDgYDVQQH\nDAdTZWF0dGxlMCAXDTIxMDUyNTIxMzAzM1oYDzIwNjEwNTI1MjIzMDMzWjCBlzEL\nMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4x\nEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTAwLgYDVQQDDCdBbWF6\nb24gUkRTIGFwLWVhc3QtMSBSb290IENBIFJTQTIwNDggRzExEDAOBgNVBAcMB1Nl\nYXR0bGUwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDtdHut0ZhJ9Nn2\nMpVafFcwHdoEzx06okmmhjJsNy4l9QYVeh0UUoek0SufRNMRF4d5ibzpgZol0Y92\n/qKWNe0jNxhEj6sXyHsHPeYtNBPuDMzThfbvsLK8z7pBP7vVyGPGuppqW/6m4ZBB\nlcc9fsf7xpZ689iSgoyjiT6J5wlVgmCx8hFYc/uvcRtfd8jAHvheug7QJ3zZmIye\nV4htOW+fRVWnBjf40Q+7uTv790UAqs0Zboj4Yil+hER0ibG62y1g71XcCyvcVpto\n2/XW7Y9NCgMNqQ7fGN3wR1gjtSYPd7DO32LTzYhutyvfbpAZjsAHnoObmoljcgXI\nQjfBcCFpAgMBAAGjQjBAMA8GA1UdEwEB/wQFMAMBAf8wHQYDVR0OBBYEFJI3aWLg\nCS5xqU5WYVaeT5s8lpO0MA4GA1UdDwEB/wQEAwIBhjANBgkqhkiG9w0BAQsFAAOC\nAQEAUwATpJOcGVOs3hZAgJwznWOoTzOVJKfrqBum7lvkVH1vBwxBl9CahaKj3ZOt\nYYp2qJzhDUWludL164DL4ZjS6eRedLRviyy5cRy0581l1MxPWTThs27z+lCC14RL\nPJZNVYYdl7Jy9Q5NsQ0RBINUKYlRY6OqGDySWyuMPgno2GPbE8aynMdKP+f6G/uE\nYHOf08gFDqTsbyfa70ztgVEJaRooVf5JJq4UQtpDvVswW2reT96qi6tXPKHN5qp3\n3wI0I1Mp4ePmiBKku2dwYzPfrJK/pQlvu0Gu5lKOQ65QdotwLAAoaFqrf9za1yYs\nINUkHLWIxDds+4OHNYcerGp5Dw==\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIGCTCCA/GgAwIBAgIRAIO6ldra1KZvNWJ0TA1ihXEwDQYJKoZIhvcNAQEMBQAw\ngZwxCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJ\nbmMuMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTE1MDMGA1UEAwws\nQW1hem9uIFJEUyBhcC1zb3V0aGVhc3QtMSBSb290IENBIFJTQTQwOTYgRzExEDAO\nBgNVBAcMB1NlYXR0bGUwIBcNMjEwNTIxMjE0NTA1WhgPMjEyMTA1MjEyMjQ1MDVa\nMIGcMQswCQYDVQQGEwJVUzEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywg\nSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzELMAkGA1UECAwCV0ExNTAzBgNVBAMM\nLEFtYXpvbiBSRFMgYXAtc291dGhlYXN0LTEgUm9vdCBDQSBSU0E0MDk2IEcxMRAw\nDgYDVQQHDAdTZWF0dGxlMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEA\nsDN52Si9pFSyZ1ruh3xAN0nVqEs960o2IK5CPu/ZfshFmzAwnx/MM8EHt/jMeZtj\nSM58LADAsNDL01ELpFZATjgZQ6xNAyXRXE7RiTRUvNkK7O3o2qAGbLnJq/UqF7Sw\nLRnB8V6hYOv+2EjVnohtGCn9SUFGZtYDjWXsLd4ML4Zpxv0a5LK7oEC7AHzbUR7R\njsjkrXqSv7GE7bvhSOhMkmgxgj1F3J0b0jdQdtyyj109aO0ATUmIvf+Bzadg5AI2\nA9UA+TUcGeebhpHu8AP1Hf56XIlzPpaQv3ZJ4vzoLaVNUC7XKzAl1dlvCl7Klg/C\n84qmbD/tjZ6GHtzpLKgg7kQEV7mRoXq8X4wDX2AFPPQl2fv+Kbe+JODqm5ZjGegm\nuskABBi8IFv1hYx9jEulZPxC6uD/09W2+niFm3pirnlWS83BwVDTUBzF+CooUIMT\njhWkIIZGDDgMJTzouBHfoSJtS1KpUZi99m2WyVs21MNKHeWAbs+zmI6TO5iiMC+T\nuB8spaOiHFO1573Fmeer4sy3YA6qVoqVl6jjTQqOdy3frAMbCkwH22/crV8YA+08\nhLeHXrMK+6XUvU+EtHAM3VzcrLbuYJUI2XJbzTj5g0Eb8I8JWsHvWHR5K7Z7gceR\n78AzxQmoGEfV6KABNWKsgoCQnfb1BidDJIe3BsI0A6UCAwEAAaNCMEAwDwYDVR0T\nAQH/BAUwAwEB/zAdBgNVHQ4EFgQUABp0MlB14MSHgAcuNSOhs3MOlUcwDgYDVR0P\nAQH/BAQDAgGGMA0GCSqGSIb3DQEBDAUAA4ICAQCv4CIOBSQi/QR9NxdRgVAG/pAh\ntFJhV7OWb/wqwsNKFDtg6tTxwaahdCfWpGWId15OUe7G9LoPiKiwM9C92n0ZeHRz\n4ewbrQVo7Eu1JI1wf0rnZJISL72hVYKmlvaWaacHhWxvsbKLrB7vt6Cknxa+S993\nKf8i2Psw8j5886gaxhiUtzMTBwoDWak8ZaK7m3Y6C6hXQk08+3pnIornVSFJ9dlS\nPAqt5UPwWmrEfF+0uIDORlT+cvrAwgSp7nUF1q8iasledycZ/BxFgQqzNwnkBDwQ\nZ/aM52ArGsTzfMhkZRz9HIEhz1/0mJw8gZtDVQroD8778h8zsx2SrIz7eWQ6uWsD\nQEeSWXpcheiUtEfzkDImjr2DLbwbA23c9LoexUD10nwohhoiQQg77LmvBVxeu7WU\nE63JqaYUlOLOzEmNJp85zekIgR8UTkO7Gc+5BD7P4noYscI7pPOL5rP7YLg15ZFi\nega+G53NTckRXz4metsd8XFWloDjZJJq4FfD60VuxgXzoMNT9wpFTNSH42PR2s9L\nI1vcl3w8yNccs9se2utM2nLsItZ3J0m/+QSRiw9hbrTYTcM9sXki0DtH2kyIOwYf\nlOrGJDiYOIrXSQK36H0gQ+8omlrUTvUj4msvkXuQjlfgx6sgp2duOAfnGxE7uHnc\nUhnJzzoe6M+LfGHkVQ==\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIICuDCCAj2gAwIBAgIQSAG6j2WHtWUUuLGJTPb1nTAKBggqhkjOPQQDAzCBmzEL\nMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4x\nEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTQwMgYDVQQDDCtBbWF6\nb24gUkRTIGFwLW5vcnRoZWFzdC0yIFJvb3QgQ0EgRUNDMzg0IEcxMRAwDgYDVQQH\nDAdTZWF0dGxlMCAXDTIxMDUyMDE2MzgyNloYDzIxMjEwNTIwMTczODI2WjCBmzEL\nMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4x\nEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTQwMgYDVQQDDCtBbWF6\nb24gUkRTIGFwLW5vcnRoZWFzdC0yIFJvb3QgQ0EgRUNDMzg0IEcxMRAwDgYDVQQH\nDAdTZWF0dGxlMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAE2eqwU4FOzW8RV1W381Bd\nolhDOrqoMqzWli21oDUt7y8OnXM/lmAuOS6sr8Nt61BLVbONdbr+jgCYw75KabrK\nZGg3siqvMOgabIKkKuXO14wtrGyGDt7dnKXg5ERGYOZlo0IwQDAPBgNVHRMBAf8E\nBTADAQH/MB0GA1UdDgQWBBS1Acp2WYxOcblv5ikZ3ZIbRCCW+zAOBgNVHQ8BAf8E\nBAMCAYYwCgYIKoZIzj0EAwMDaQAwZgIxAJL84J08PBprxmsAKPTotBuVI3MyW1r8\nxQ0i8lgCQUf8GcmYjQ0jI4oZyv+TuYJAcwIxAP9Xpzq0Docxb+4N1qVhpiOfWt1O\nFnemFiy9m1l+wv6p3riQMPV7mBVpklmijkIv3Q==\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIECTCCAvGgAwIBAgIRALZLcqCVIJ25maDPE3sbPCIwDQYJKoZIhvcNAQELBQAw\ngZwxCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJ\nbmMuMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTE1MDMGA1UEAwws\nQW1hem9uIFJEUyBhcC1zb3V0aGVhc3QtMSBSb290IENBIFJTQTIwNDggRzExEDAO\nBgNVBAcMB1NlYXR0bGUwIBcNMjEwNTIxMjEzOTM5WhgPMjA2MTA1MjEyMjM5Mzla\nMIGcMQswCQYDVQQGEwJVUzEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywg\nSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzELMAkGA1UECAwCV0ExNTAzBgNVBAMM\nLEFtYXpvbiBSRFMgYXAtc291dGhlYXN0LTEgUm9vdCBDQSBSU0EyMDQ4IEcxMRAw\nDgYDVQQHDAdTZWF0dGxlMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA\nypKc+6FfGx6Gl6fQ78WYS29QoKgQiur58oxR3zltWeg5fqh9Z85K5S3UbRSTqWWu\nXcfnkz0/FS07qHX+nWAGU27JiQb4YYqhjZNOAq8q0+ptFHJ6V7lyOqXBq5xOzO8f\n+0DlbJSsy7GEtJp7d7QCM3M5KVY9dENVZUKeJwa8PC5StvwPx4jcLeZRJC2rAVDG\nSW7NAInbATvr9ssSh03JqjXb+HDyywiqoQ7EVLtmtXWimX+0b3/2vhqcH5jgcKC9\nIGFydrjPbv4kwMrKnm6XlPZ9L0/3FMzanXPGd64LQVy51SI4d5Xymn0Mw2kMX8s6\nNf05OsWcDzJ1n6/Q1qHSxQIDAQABo0IwQDAPBgNVHRMBAf8EBTADAQH/MB0GA1Ud\nDgQWBBRmaIc8eNwGP7i6P7AJrNQuK6OpFzAOBgNVHQ8BAf8EBAMCAYYwDQYJKoZI\nhvcNAQELBQADggEBAIBeHfGwz3S2zwIUIpqEEI5/sMySDeS+3nJR+woWAHeO0C8i\nBJdDh+kzzkP0JkWpr/4NWz84/IdYo1lqASd1Kopz9aT1+iROXaWr43CtbzjXb7/X\nZv7eZZFC8/lS5SROq42pPWl4ekbR0w8XGQElmHYcWS41LBfKeHCUwv83ATF0XQ6I\n4t+9YSqZHzj4vvedrvcRInzmwWJaal9s7Z6GuwTGmnMsN3LkhZ+/GD6oW3pU/Pyh\nEtWqffjsLhfcdCs3gG8x9BbkcJPH5aPAVkPn4wc8wuXg6xxb9YGsQuY930GWTYRf\nschbgjsuqznW4HHakq4WNhs1UdTSTKkRdZz7FUQ=\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIEDzCCAvegAwIBAgIRAM2zAbhyckaqRim63b+Tib8wDQYJKoZIhvcNAQELBQAw\ngZ8xCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJ\nbmMuMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTE4MDYGA1UEAwwv\nQW1hem9uIFJEUyBQcmV2aWV3IHVzLWVhc3QtMiBSb290IENBIFJTQTIwNDggRzEx\nEDAOBgNVBAcMB1NlYXR0bGUwIBcNMjEwNTE4MjA0OTQ1WhgPMjA2MTA1MTgyMTQ5\nNDVaMIGfMQswCQYDVQQGEwJVUzEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNl\ncywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzELMAkGA1UECAwCV0ExODA2BgNV\nBAMML0FtYXpvbiBSRFMgUHJldmlldyB1cy1lYXN0LTIgUm9vdCBDQSBSU0EyMDQ4\nIEcxMRAwDgYDVQQHDAdTZWF0dGxlMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIB\nCgKCAQEA1ybjQMH1MkbvfKsWJaCTXeCSN1SG5UYid+Twe+TjuSqaXWonyp4WRR5z\ntlkqq+L2MWUeQQAX3S17ivo/t84mpZ3Rla0cx39SJtP3BiA2BwfUKRjhPwOjmk7j\n3zrcJjV5k1vSeLNOfFFSlwyDiVyLAE61lO6onBx+cRjelu0egMGq6WyFVidTdCmT\nQ9Zw3W6LTrnPvPmEyjHy2yCHzH3E50KSd/5k4MliV4QTujnxYexI2eR8F8YQC4m3\nDYjXt/MicbqA366SOoJA50JbgpuVv62+LSBu56FpzY12wubmDZsdn4lsfYKiWxUy\nuc83a2fRXsJZ1d3whxrl20VFtLFHFQIDAQABo0IwQDAPBgNVHRMBAf8EBTADAQH/\nMB0GA1UdDgQWBBRC0ytKmDYbfz0Bz0Psd4lRQV3aNTAOBgNVHQ8BAf8EBAMCAYYw\nDQYJKoZIhvcNAQELBQADggEBAGv8qZu4uaeoF6zsbumauz6ea6tdcWt+hGFuwGrb\ntRbI85ucAmVSX06x59DJClsb4MPhL1XmqO3RxVMIVVfRwRHWOsZQPnXm8OYQ2sny\nrYuFln1COOz1U/KflZjgJmxbn8x4lYiTPZRLarG0V/OsCmnLkQLPtEl/spMu8Un7\nr3K8SkbWN80gg17Q8EV5mnFwycUx9xsTAaFItuG0en9bGsMgMmy+ZsDmTRbL+lcX\nFq8r4LT4QjrFz0shrzCwuuM4GmcYtBSxlacl+HxYEtAs5k10tmzRf6OYlY33tGf6\n1tkYvKryxDPF/EDgGp/LiBwx6ixYMBfISoYASt4V/ylAlHA=\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIICtTCCAjqgAwIBAgIRAK9BSZU6nIe6jqfODmuVctYwCgYIKoZIzj0EAwMwgZkx\nCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMu\nMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTEyMDAGA1UEAwwpQW1h\nem9uIFJEUyBjYS1jZW50cmFsLTEgUm9vdCBDQSBFQ0MzODQgRzExEDAOBgNVBAcM\nB1NlYXR0bGUwIBcNMjEwNTIxMjIxMzA5WhgPMjEyMTA1MjEyMzEzMDlaMIGZMQsw\nCQYDVQQGEwJVUzEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5jLjET\nMBEGA1UECwwKQW1hem9uIFJEUzELMAkGA1UECAwCV0ExMjAwBgNVBAMMKUFtYXpv\nbiBSRFMgY2EtY2VudHJhbC0xIFJvb3QgQ0EgRUNDMzg0IEcxMRAwDgYDVQQHDAdT\nZWF0dGxlMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEUkEERcgxneT5H+P+fERcbGmf\nbVx+M7rNWtgWUr6w+OBENebQA9ozTkeSg4c4M+qdYSObFqjxITdYxT1z/nHz1gyx\nOKAhLjWu+nkbRefqy3RwXaWT680uUaAP6ccnkZOMo0IwQDAPBgNVHRMBAf8EBTAD\nAQH/MB0GA1UdDgQWBBSN6fxlg0s5Wny08uRBYZcQ3TUoyzAOBgNVHQ8BAf8EBAMC\nAYYwCgYIKoZIzj0EAwMDaQAwZgIxAORaz+MBVoFBTmZ93j2G2vYTwA6T5hWzBWrx\nCrI54pKn5g6At56DBrkjrwZF5T1enAIxAJe/LZ9xpDkAdxDgGJFN8gZYLRWc0NRy\nRb4hihy5vj9L+w9uKc9VfEBIFuhT7Z3ljg==\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIEADCCAuigAwIBAgIQB/57HSuaqUkLaasdjxUdPjANBgkqhkiG9w0BAQsFADCB\nmDELMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIElu\nYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTEwLwYDVQQDDChB\nbWF6b24gUkRTIGFwLXNvdXRoLTEgUm9vdCBDQSBSU0EyMDQ4IEcxMRAwDgYDVQQH\nDAdTZWF0dGxlMCAXDTIxMDUxOTE3NDAzNFoYDzIwNjEwNTE5MTg0MDM0WjCBmDEL\nMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4x\nEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTEwLwYDVQQDDChBbWF6\nb24gUkRTIGFwLXNvdXRoLTEgUm9vdCBDQSBSU0EyMDQ4IEcxMRAwDgYDVQQHDAdT\nZWF0dGxlMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtbkaoVsUS76o\nTgLFmcnaB8cswBk1M3Bf4IVRcwWT3a1HeJSnaJUqWHCJ+u3ip/zGVOYl0gN1MgBb\nMuQRIJiB95zGVcIa6HZtx00VezDTr3jgGWRHmRjNVCCHGmxOZWvJjsIE1xavT/1j\nQYV/ph4EZEIZ/qPq7e3rHohJaHDe23Z7QM9kbyqp2hANG2JtU/iUhCxqgqUHNozV\nZd0l5K6KnltZQoBhhekKgyiHqdTrH8fWajYl5seD71bs0Axowb+Oh0rwmrws3Db2\nDh+oc2PwREnjHeca9/1C6J2vhY+V0LGaJmnnIuOANrslx2+bgMlyhf9j0Bv8AwSi\ndSWsobOhNQIDAQABo0IwQDAPBgNVHRMBAf8EBTADAQH/MB0GA1UdDgQWBBQb7vJT\nVciLN72yJGhaRKLn6Krn2TAOBgNVHQ8BAf8EBAMCAYYwDQYJKoZIhvcNAQELBQAD\nggEBAAxEj8N9GslReAQnNOBpGl8SLgCMTejQ6AW/bapQvzxrZrfVOZOYwp/5oV0f\n9S1jcGysDM+DrmfUJNzWxq2Y586R94WtpH4UpJDGqZp+FuOVJL313te4609kopzO\nlDdmd+8z61+0Au93wB1rMiEfnIMkOEyt7D2eTFJfJRKNmnPrd8RjimRDlFgcLWJA\n3E8wca67Lz/G0eAeLhRHIXv429y8RRXDtKNNz0wA2RwURWIxyPjn1fHjA9SPDkeW\nE1Bq7gZj+tBnrqz+ra3yjZ2blss6Ds3/uRY6NYqseFTZWmQWT7FolZEnT9vMUitW\nI0VynUbShVpGf6946e0vgaaKw20=\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIID/jCCAuagAwIBAgIQGyUVTaVjYJvWhroVEiHPpDANBgkqhkiG9w0BAQsFADCB\nlzELMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIElu\nYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTAwLgYDVQQDDCdB\nbWF6b24gUkRTIHVzLXdlc3QtMSBSb290IENBIFJTQTIwNDggRzExEDAOBgNVBAcM\nB1NlYXR0bGUwIBcNMjEwNTE5MTkwNDA2WhgPMjA2MTA1MTkyMDA0MDZaMIGXMQsw\nCQYDVQQGEwJVUzEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5jLjET\nMBEGA1UECwwKQW1hem9uIFJEUzELMAkGA1UECAwCV0ExMDAuBgNVBAMMJ0FtYXpv\nbiBSRFMgdXMtd2VzdC0xIFJvb3QgQ0EgUlNBMjA0OCBHMTEQMA4GA1UEBwwHU2Vh\ndHRsZTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBANhyXpJ0t4nigRDZ\nEwNtFOem1rM1k8k5XmziHKDvDk831p7QsX9ZOxl/BT59Pu/P+6W6SvasIyKls1sW\nFJIjFF+6xRQcpoE5L5evMgN/JXahpKGeQJPOX9UEXVW5B8yi+/dyUitFT7YK5LZA\nMqWBN/LtHVPa8UmE88RCDLiKkqiv229tmwZtWT7nlMTTCqiAHMFcryZHx0pf9VPh\nx/iPV8p2gBJnuPwcz7z1kRKNmJ8/cWaY+9w4q7AYlAMaq/rzEqDaN2XXevdpsYAK\nTMMj2kji4x1oZO50+VPNfBl5ZgJc92qz1ocF95SAwMfOUsP8AIRZkf0CILJYlgzk\n/6u6qZECAwEAAaNCMEAwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQUm5jfcS9o\n+LwL517HpB6hG+PmpBswDgYDVR0PAQH/BAQDAgGGMA0GCSqGSIb3DQEBCwUAA4IB\nAQAcQ6lsqxi63MtpGk9XK8mCxGRLCad51+MF6gcNz6i6PAqhPOoKCoFqdj4cEQTF\nF8dCfa3pvfJhxV6RIh+t5FCk/y6bWT8Ls/fYKVo6FhHj57bcemWsw/Z0XnROdVfK\nYqbc7zvjCPmwPHEqYBhjU34NcY4UF9yPmlLOL8uO1JKXa3CAR0htIoW4Pbmo6sA4\n6P0co/clW+3zzsQ92yUCjYmRNeSbdXbPfz3K/RtFfZ8jMtriRGuO7KNxp8MqrUho\nHK8O0mlSUxGXBZMNicfo7qY8FD21GIPH9w5fp5oiAl7lqFzt3E3sCLD3IiVJmxbf\nfUwpGd1XZBBSdIxysRLM6j48\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIICrTCCAjOgAwIBAgIQU+PAILXGkpoTcpF200VD/jAKBggqhkjOPQQDAzCBljEL\nMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4x\nEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMS8wLQYDVQQDDCZBbWF6\nb24gUkRTIGFwLWVhc3QtMSBSb290IENBIEVDQzM4NCBHMTEQMA4GA1UEBwwHU2Vh\ndHRsZTAgFw0yMTA1MjUyMTQ1MTFaGA8yMTIxMDUyNTIyNDUxMVowgZYxCzAJBgNV\nBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMuMRMwEQYD\nVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTEvMC0GA1UEAwwmQW1hem9uIFJE\nUyBhcC1lYXN0LTEgUm9vdCBDQSBFQ0MzODQgRzExEDAOBgNVBAcMB1NlYXR0bGUw\ndjAQBgcqhkjOPQIBBgUrgQQAIgNiAAT3tFKE8Kw1sGQAvNLlLhd8OcGhlc7MiW/s\nNXm3pOiCT4vZpawKvHBzD76Kcv+ZZzHRxQEmG1/muDzZGlKR32h8AAj+NNO2Wy3d\nCKTtYMiVF6Z2zjtuSkZQdjuQbe4eQ7qjQjBAMA8GA1UdEwEB/wQFMAMBAf8wHQYD\nVR0OBBYEFAiSQOp16Vv0Ohpvqcbd2j5RmhYNMA4GA1UdDwEB/wQEAwIBhjAKBggq\nhkjOPQQDAwNoADBlAjBVsi+5Ape0kOhMt/WFkANkslD4qXA5uqhrfAtH29Xzz2NV\ntR7akiA771OaIGB/6xsCMQCZt2egCtbX7J0WkuZ2KivTh66jecJr5DHvAP4X2xtS\nF/5pS+AUhcKTEGjI9jDH3ew=\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIICuDCCAj2gAwIBAgIQT5mGlavQzFHsB7hV6Mmy6TAKBggqhkjOPQQDAzCBmzEL\nMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4x\nEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTQwMgYDVQQDDCtBbWF6\nb24gUkRTIGFwLXNvdXRoZWFzdC0yIFJvb3QgQ0EgRUNDMzg0IEcxMRAwDgYDVQQH\nDAdTZWF0dGxlMCAXDTIxMDUyNDIwNTAxNVoYDzIxMjEwNTI0MjE1MDE1WjCBmzEL\nMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4x\nEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTQwMgYDVQQDDCtBbWF6\nb24gUkRTIGFwLXNvdXRoZWFzdC0yIFJvb3QgQ0EgRUNDMzg0IEcxMRAwDgYDVQQH\nDAdTZWF0dGxlMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEcm4BBBjYK7clwm0HJRWS\nflt3iYwoJbIXiXn9c1y3E+Vb7bmuyKhS4eO8mwO4GefUcXObRfoHY2TZLhMJLVBQ\n7MN2xDc0RtZNj07BbGD3VAIFRTDX0mH9UNYd0JQM3t/Oo0IwQDAPBgNVHRMBAf8E\nBTADAQH/MB0GA1UdDgQWBBRrd5ITedfAwrGo4FA9UaDaGFK3rjAOBgNVHQ8BAf8E\nBAMCAYYwCgYIKoZIzj0EAwMDaQAwZgIxAPBNqmVv1IIA3EZyQ6XuVf4gj79/DMO8\nbkicNS1EcBpUqbSuU4Zwt2BYc8c/t7KVOQIxAOHoWkoKZPiKyCxfMtJpCZySUG+n\nsXgB/LOyWE5BJcXUfm+T1ckeNoWeUUMOLmnJjg==\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIECTCCAvGgAwIBAgIRAJcDeinvdNrDQBeJ8+t38WQwDQYJKoZIhvcNAQELBQAw\ngZwxCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJ\nbmMuMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTE1MDMGA1UEAwws\nQW1hem9uIFJEUyBhcC1zb3V0aGVhc3QtNCBSb290IENBIFJTQTIwNDggRzExEDAO\nBgNVBAcMB1NlYXR0bGUwIBcNMjIwNTI1MTY0OTE2WhgPMjA2MjA1MjUxNzQ5MTZa\nMIGcMQswCQYDVQQGEwJVUzEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywg\nSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzELMAkGA1UECAwCV0ExNTAzBgNVBAMM\nLEFtYXpvbiBSRFMgYXAtc291dGhlYXN0LTQgUm9vdCBDQSBSU0EyMDQ4IEcxMRAw\nDgYDVQQHDAdTZWF0dGxlMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA\nk8DBNkr9tMoIM0NHoFiO7cQfSX0cOMhEuk/CHt0fFx95IBytx7GHCnNzpM27O5z6\nx6iRhfNnx+B6CrGyCzOjxvPizneY+h+9zfvNz9jj7L1I2uYMuiNyOKR6FkHR46CT\n1CiArfVLLPaTqgD/rQjS0GL2sLHS/0dmYipzynnZcs613XT0rAWdYDYgxDq7r/Yi\nXge5AkWQFkMUq3nOYDLCyGGfQqWKkwv6lZUHLCDKf+Y0Uvsrj8YGCI1O8mF0qPCQ\nlmlfaDvbuBu1AV+aabmkvyFj3b8KRIlNLEtQ4N8KGYR2Jdb82S4YUGIOAt4wuuFt\n1B7AUDLk3V/u+HTWiwfoLQIDAQABo0IwQDAPBgNVHRMBAf8EBTADAQH/MB0GA1Ud\nDgQWBBSNpcjz6ArWBtAA+Gz6kyyZxrrgdDAOBgNVHQ8BAf8EBAMCAYYwDQYJKoZI\nhvcNAQELBQADggEBAGJEd7UgOzHYIcQRSF7nSYyjLROyalaIV9AX4WXW/Cqlul1c\nMblP5etDZm7A/thliZIWAuyqv2bNicmS3xKvNy6/QYi1YgxZyy/qwJ3NdFl067W0\nt8nGo29B+EVK94IPjzFHWShuoktIgp+dmpijB7wkTIk8SmIoe9yuY4+hzgqk+bo4\nms2SOXSN1DoQ75Xv+YmztbnZM8MuWhL1T7hA4AMorzTQLJ9Pof8SpSdMHeDsHp0R\n01jogNFkwy25nw7cL62nufSuH2fPYGWXyNDg+y42wKsKWYXLRgUQuDVEJ2OmTFMB\nT0Vf7VuNijfIA9hkN2d3K53m/9z5WjGPSdOjGhg=\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIID/jCCAuagAwIBAgIQRiwspKyrO0xoxDgSkqLZczANBgkqhkiG9w0BAQsFADCB\nlzELMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIElu\nYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTAwLgYDVQQDDCdB\nbWF6b24gUkRTIHVzLXdlc3QtMiBSb290IENBIFJTQTIwNDggRzExEDAOBgNVBAcM\nB1NlYXR0bGUwIBcNMjEwNTI0MjE1OTAwWhgPMjA2MTA1MjQyMjU5MDBaMIGXMQsw\nCQYDVQQGEwJVUzEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5jLjET\nMBEGA1UECwwKQW1hem9uIFJEUzELMAkGA1UECAwCV0ExMDAuBgNVBAMMJ0FtYXpv\nbiBSRFMgdXMtd2VzdC0yIFJvb3QgQ0EgUlNBMjA0OCBHMTEQMA4GA1UEBwwHU2Vh\ndHRsZTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAL53Jk3GsKiu+4bx\njDfsevWbwPCNJ3H08Zp7GWhvI3Tgi39opfHYv2ku2BKFjK8N2L6RvNPSR8yplv5j\nY0tK0U+XVNl8o0ibhqRDhbTuh6KL8CFINWYzAajuxFS+CF0U6c1Q3tXLBdALxA7l\nFlXJ71QrP06W31kRe7kvgrvO7qWU3/OzUf9qYw4LSiR1/VkvvRCTqcVNw09clw/M\nJbw6FSgweN65M9j7zPbjGAXSHkXyxH1Erin2fa+B9PE4ZDgX9cp2C1DHewYJQL/g\nSepwwcudVNRN1ibKH7kpMrgPnaNIVNx5sXVsTjk6q2ZqYw3SVHegltJpLy/cZReP\nmlivF2kCAwEAAaNCMEAwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQUmTcQd6o1\nCuS65MjBrMwQ9JJjmBwwDgYDVR0PAQH/BAQDAgGGMA0GCSqGSIb3DQEBCwUAA4IB\nAQAKSDSIzl956wVddPThf2VAzI8syw9ngSwsEHZvxVGHBvu5gg618rDyguVCYX9L\n4Kw/xJrk6S3qxOS2ZDyBcOpsrBskgahDFIunzoRP3a18ARQVq55LVgfwSDQiunch\nBd05cnFGLoiLkR5rrkgYaP2ftn3gRBRaf0y0S3JXZ2XB3sMZxGxavYq9mfiEcwB0\nLMTMQ1NYzahIeG6Jm3LqRqR8HkzP/Ztq4dT2AtSLvFebbNMiWqeqT7OcYp94HTYT\nzqrtaVdUg9bwyAUCDgy0GV9RHDIdNAOInU/4LEETovrtuBU7Z1q4tcHXvN6Hd1H8\ngMb0mCG5I393qW5hFsA/diFb\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIECTCCAvGgAwIBAgIRAPQAvihfjBg/JDbj6U64K98wDQYJKoZIhvcNAQELBQAw\ngZwxCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJ\nbmMuMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTE1MDMGA1UEAwws\nQW1hem9uIFJEUyBhcC1ub3J0aGVhc3QtMiBSb290IENBIFJTQTIwNDggRzExEDAO\nBgNVBAcMB1NlYXR0bGUwIBcNMjEwNTIwMTYyODQxWhgPMjA2MTA1MjAxNzI4NDFa\nMIGcMQswCQYDVQQGEwJVUzEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywg\nSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzELMAkGA1UECAwCV0ExNTAzBgNVBAMM\nLEFtYXpvbiBSRFMgYXAtbm9ydGhlYXN0LTIgUm9vdCBDQSBSU0EyMDQ4IEcxMRAw\nDgYDVQQHDAdTZWF0dGxlMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA\nvJ9lgyksCxkBlY40qOzI1TCj/Q0FVGuPL/Z1Mw2YN0l+41BDv0FHApjTUkIKOeIP\nnwDwpXTa3NjYbk3cOZ/fpH2rYJ++Fte6PNDGPgKppVCUh6x3jiVZ1L7wOgnTdK1Q\nTrw8440IDS5eLykRHvz8OmwvYDl0iIrt832V0QyOlHTGt6ZJ/aTQKl12Fy3QBLv7\nstClPzvHTrgWqVU6uidSYoDtzHbU7Vda7YH0wD9IUoMBf7Tu0rqcE4uH47s2XYkc\nSdLEoOg/Ngs7Y9B1y1GCyj3Ux7hnyvCoRTw014QyNB7dTatFMDvYlrRDGG14KeiU\nUL7Vo/+EejWI31eXNLw84wIDAQABo0IwQDAPBgNVHRMBAf8EBTADAQH/MB0GA1Ud\nDgQWBBQkgTWFsNg6wA3HbbihDQ4vpt1E2zAOBgNVHQ8BAf8EBAMCAYYwDQYJKoZI\nhvcNAQELBQADggEBAGz1Asiw7hn5WYUj8RpOCzpE0h/oBZcnxP8wulzZ5Xd0YxWO\n0jYUcUk3tTQy1QvoY+Q5aCjg6vFv+oFBAxkib/SmZzp4xLisZIGlzpJQuAgRkwWA\n6BVMgRS+AaOMQ6wKPgz1x4v6T0cIELZEPq3piGxvvqkcLZKdCaeC3wCS6sxuafzZ\n4qA3zMwWuLOzRftgX2hQto7d/2YkRXga7jSvQl3id/EI+xrYoH6zIWgjdU1AUaNq\nNGT7DIo47vVMfnd9HFZNhREsd4GJE83I+JhTqIxiKPNxrKgESzyADmNPt0gXDnHo\ntbV1pMZz5HpJtjnP/qVZhEK5oB0tqlKPv9yx074=\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIICuTCCAj6gAwIBAgIRAKp1Rn3aL/g/6oiHVIXtCq8wCgYIKoZIzj0EAwMwgZsx\nCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMu\nMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTE0MDIGA1UEAwwrQW1h\nem9uIFJEUyBhcC1ub3J0aGVhc3QtMyBSb290IENBIEVDQzM4NCBHMTEQMA4GA1UE\nBwwHU2VhdHRsZTAgFw0yMTA1MjQyMDMyMTdaGA8yMTIxMDUyNDIxMzIxN1owgZsx\nCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMu\nMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTE0MDIGA1UEAwwrQW1h\nem9uIFJEUyBhcC1ub3J0aGVhc3QtMyBSb290IENBIEVDQzM4NCBHMTEQMA4GA1UE\nBwwHU2VhdHRsZTB2MBAGByqGSM49AgEGBSuBBAAiA2IABGTYWPILeBJXfcL3Dz4z\nEWMUq78xB1HpjBwHoTURYfcMd5r96BTVG6yaUBWnAVCMeeD6yTG9a1eVGNhG14Hk\nZAEjgLiNB7RRbEG5JZ/XV7W/vODh09WCst2y9SLKsdgeAaNCMEAwDwYDVR0TAQH/\nBAUwAwEB/zAdBgNVHQ4EFgQUoE0qZHmDCDB+Bnm8GUa/evpfPwgwDgYDVR0PAQH/\nBAQDAgGGMAoGCCqGSM49BAMDA2kAMGYCMQCnil5MMwhY3qoXv0xvcKZGxGPaBV15\n0CCssCKn0oVtdJQfJQ3Jrf3RSaEyijXIJsoCMQC35iJi4cWoNX3N/qfgnHohW52O\nB5dg0DYMqy5cNZ40+UcAanRMyqNQ6P7fy3umGco=\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIICtzCCAj2gAwIBAgIQPXnDTPegvJrI98qz8WxrMjAKBggqhkjOPQQDAzCBmzEL\nMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4x\nEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTQwMgYDVQQDDCtBbWF6\nb24gUkRTIEJldGEgdXMtZWFzdC0xIFJvb3QgQ0EgRUNDMzg0IEcxMRAwDgYDVQQH\nDAdTZWF0dGxlMCAXDTIxMDUxODIxNDAxMloYDzIxMjEwNTE4MjI0MDEyWjCBmzEL\nMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4x\nEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTQwMgYDVQQDDCtBbWF6\nb24gUkRTIEJldGEgdXMtZWFzdC0xIFJvb3QgQ0EgRUNDMzg0IEcxMRAwDgYDVQQH\nDAdTZWF0dGxlMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEI0sR7gwutK5AB46hM761\ngcLTGBIYlURSEoM1jcBwy56CL+3CJKZwLLyJ7qoOKfWbu5GsVLUTWS8MV6Nw33cx\n2KQD2svb694wi+Px2f4n9+XHkEFQw8BbiodDD7RZA70fo0IwQDAPBgNVHRMBAf8E\nBTADAQH/MB0GA1UdDgQWBBTQSioOvnVLEMXwNSDg+zgln/vAkjAOBgNVHQ8BAf8E\nBAMCAYYwCgYIKoZIzj0EAwMDaAAwZQIxAMwu1hqm5Bc98uE/E0B5iMYbBQ4kpMxO\ntP8FTfz5UR37HUn26nXE0puj6S/Ffj4oJgIwXI7s2c26tFQeqzq6u3lrNJHp5jC9\nUxlo/hEJOLoDj5jnpxo8dMAtCNoQPaHdfL0P\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIICrjCCAjWgAwIBAgIQGKVv+5VuzEZEBzJ+bVfx2zAKBggqhkjOPQQDAzCBlzEL\nMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4x\nEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTAwLgYDVQQDDCdBbWF6\nb24gUkRTIGFwLXNvdXRoLTEgUm9vdCBDQSBFQ0MzODQgRzExEDAOBgNVBAcMB1Nl\nYXR0bGUwIBcNMjEwNTE5MTc1MDU5WhgPMjEyMTA1MTkxODUwNTlaMIGXMQswCQYD\nVQQGEwJVUzEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5jLjETMBEG\nA1UECwwKQW1hem9uIFJEUzELMAkGA1UECAwCV0ExMDAuBgNVBAMMJ0FtYXpvbiBS\nRFMgYXAtc291dGgtMSBSb290IENBIEVDQzM4NCBHMTEQMA4GA1UEBwwHU2VhdHRs\nZTB2MBAGByqGSM49AgEGBSuBBAAiA2IABMqdLJ0tZF/DGFZTKZDrGRJZID8ivC2I\nJRCYTWweZKCKSCAzoiuGGHzJhr5RlLHQf/QgmFcgXsdmO2n3CggzhA4tOD9Ip7Lk\nP05eHd2UPInyPCHRgmGjGb0Z+RdQ6zkitKNCMEAwDwYDVR0TAQH/BAUwAwEB/zAd\nBgNVHQ4EFgQUC1yhRgVqU5bR8cGzOUCIxRpl4EYwDgYDVR0PAQH/BAQDAgGGMAoG\nCCqGSM49BAMDA2cAMGQCMG0c/zLGECRPzGKJvYCkpFTCUvdP4J74YP0v/dPvKojL\nt/BrR1Tg4xlfhaib7hPc7wIwFvgqHes20CubQnZmswbTKLUrgSUW4/lcKFpouFd2\nt2/ewfi/0VhkeUW+IiHhOMdU\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIGCTCCA/GgAwIBAgIRAOXxJuyXVkbfhZCkS/dOpfEwDQYJKoZIhvcNAQEMBQAw\ngZwxCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJ\nbmMuMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTE1MDMGA1UEAwws\nQW1hem9uIFJEUyBhcC1ub3J0aGVhc3QtMSBSb290IENBIFJTQTQwOTYgRzExEDAO\nBgNVBAcMB1NlYXR0bGUwIBcNMjEwNTI1MjE1OTEwWhgPMjEyMTA1MjUyMjU5MTBa\nMIGcMQswCQYDVQQGEwJVUzEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywg\nSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzELMAkGA1UECAwCV0ExNTAzBgNVBAMM\nLEFtYXpvbiBSRFMgYXAtbm9ydGhlYXN0LTEgUm9vdCBDQSBSU0E0MDk2IEcxMRAw\nDgYDVQQHDAdTZWF0dGxlMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEA\nxiP4RDYm4tIS12hGgn1csfO8onQDmK5SZDswUpl0HIKXOUVVWkHNlINkVxbdqpqH\nFhbyZmNN6F/EWopotMDKe1B+NLrjNQf4zefv2vyKvPHJXhxoKmfyuTd5Wk8k1F7I\nlNwLQzznB+ElhrLIDJl9Ro8t31YBBNFRGAGEnxyACFGcdkjlsa52UwfYrwreEg2l\ngW5AzqHgjFfj9QRLydeU/n4bHm0F1adMsV7P3rVwilcUlqsENDwXnWyPEyv3sw6F\nwNemLEs1129mB77fwvySb+lLNGsnzr8w4wdioZ74co+T9z2ca+eUiP+EQccVw1Is\nD4Fh57IjPa6Wuc4mwiUYKkKY63+38aCfEWb0Qoi+zW+mE9nek6MOQ914cN12u5LX\ndBoYopphRO5YmubSN4xcBy405nIdSdbrAVWwxXnVVyjqjknmNeqQsPZaxAhdoKhV\nAqxNr8AUAdOAO6Sz3MslmcLlDXFihrEEOeUbpg/m1mSUUHGbu966ajTG1FuEHHwS\n7WB52yxoJo/tHvt9nAWnh3uH5BHmS8zn6s6CGweWKbX5yICnZ1QFR1e4pogxX39v\nXD6YcNOO+Vn+HY4nXmjgSYVC7l+eeP8eduMg1xJujzjrbmrXU+d+cBObgdTOAlpa\nJFHaGwYw1osAwPCo9cZ2f04yitBfj9aPFia8ASKldakCAwEAAaNCMEAwDwYDVR0T\nAQH/BAUwAwEB/zAdBgNVHQ4EFgQUqKS+ltlior0SyZKYAkJ/efv55towDgYDVR0P\nAQH/BAQDAgGGMA0GCSqGSIb3DQEBDAUAA4ICAQAdElvp8bW4B+Cv+1WSN87dg6TN\nwGyIjJ14/QYURgyrZiYpUmZpj+/pJmprSWXu4KNyqHftmaidu7cdjL5nCAvAfnY5\n/6eDDbX4j8Gt9fb/6H9y0O0dn3mUPSEKG0crR+JRFAtPhn/2FNvst2P82yguWLv0\npHjHVUVcq+HqDMtUIJsTPYjSh9Iy77Q6TOZKln9dyDOWJpCSkiUWQtMAKbCSlvzd\nzTs/ahqpT+zLfGR1SR+T3snZHgQnbnemmz/XtlKl52NxccARwfcEEKaCRQyGq/pR\n0PVZasyJS9JY4JfQs4YOdeOt4UMZ8BmW1+BQWGSkkb0QIRl8CszoKofucAlqdPcO\nIT/ZaMVhI580LFGWiQIizWFskX6lqbCyHqJB3LDl8gJISB5vNTHOHpvpMOMs5PYt\ncRl5Mrksx5MKMqG7y5R734nMlZxQIHjL5FOoOxTBp9KeWIL/Ib89T2QDaLw1SQ+w\nihqWBJ4ZdrIMWYpP3WqM+MXWk7WAem+xsFJdR+MDgOOuobVQTy5dGBlPks/6gpjm\nrO9TjfQ36ppJ3b7LdKUPeRfnYmlR5RU4oyYJ//uLbClI443RZAgxaCXX/nyc12lr\neVLUMNF2abLX4/VF63m2/Z9ACgMRfqGshPssn1NN33OonrotQoj4S3N9ZrjvzKt8\niHcaqd60QKpfiH2A3A==\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIICuDCCAj2gAwIBAgIQPaVGRuu86nh/ylZVCLB0MzAKBggqhkjOPQQDAzCBmzEL\nMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4x\nEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTQwMgYDVQQDDCtBbWF6\nb24gUkRTIGFwLW5vcnRoZWFzdC0xIFJvb3QgQ0EgRUNDMzg0IEcxMRAwDgYDVQQH\nDAdTZWF0dGxlMCAXDTIxMDUyNTIyMDMxNloYDzIxMjEwNTI1MjMwMzE2WjCBmzEL\nMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4x\nEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTQwMgYDVQQDDCtBbWF6\nb24gUkRTIGFwLW5vcnRoZWFzdC0xIFJvb3QgQ0EgRUNDMzg0IEcxMRAwDgYDVQQH\nDAdTZWF0dGxlMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEexNURoB9KE93MEtEAlJG\nobz4LS/pD2hc8Gczix1WhVvpJ8bN5zCDXaKdnDMCebetyRQsmQ2LYlfmCwpZwSDu\n0zowB11Pt3I5Avu2EEcuKTlKIDMBeZ1WWuOd3Tf7MEAMo0IwQDAPBgNVHRMBAf8E\nBTADAQH/MB0GA1UdDgQWBBSaYbZPBvFLikSAjpa8mRJvyArMxzAOBgNVHQ8BAf8E\nBAMCAYYwCgYIKoZIzj0EAwMDaQAwZgIxAOEJkuh3Zjb7Ih/zuNRd1RBqmIYcnyw0\nnwUZczKXry+9XebYj3VQxSRNadrarPWVqgIxAMg1dyGoDAYjY/L/9YElyMnvHltO\nPwpJShmqHvCLc/mXMgjjYb/akK7yGthvW6j/uQ==\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIGCDCCA/CgAwIBAgIQChu3v5W1Doil3v6pgRIcVzANBgkqhkiG9w0BAQwFADCB\nnDELMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIElu\nYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTUwMwYDVQQDDCxB\nbWF6b24gUkRTIEJldGEgdXMtZWFzdC0xIFJvb3QgQ0EgUlNBNDA5NiBHMTEQMA4G\nA1UEBwwHU2VhdHRsZTAgFw0yMTA1MTgyMTM0MTVaGA8yMTIxMDUxODIyMzQxNVow\ngZwxCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJ\nbmMuMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTE1MDMGA1UEAwws\nQW1hem9uIFJEUyBCZXRhIHVzLWVhc3QtMSBSb290IENBIFJTQTQwOTYgRzExEDAO\nBgNVBAcMB1NlYXR0bGUwggIiMA0GCSqGSIb3DQEBAQUAA4ICDwAwggIKAoICAQC1\nFUGQ5tf3OwpDR6hGBxhUcrkwKZhaXP+1St1lSOQvjG8wXT3RkKzRGMvb7Ee0kzqI\nmzKKe4ASIhtV3UUWdlNmP0EA3XKnif6N79MismTeGkDj75Yzp5A6tSvqByCgxIjK\nJqpJrch3Dszoyn8+XhwDxMZtkUa5nQVdJgPzJ6ltsQ8E4SWLyLtTu0S63jJDkqYY\nS7cQblk7y7fel+Vn+LS5dGTdRRhMvSzEnb6mkVBaVzRyVX90FNUED06e8q+gU8Ob\nhtvQlf9/kRzHwRAdls2YBhH40ZeyhpUC7vdtPwlmIyvW5CZ/QiG0yglixnL6xahL\npbmTuTSA/Oqz4UGQZv2WzHe1lD2gRHhtFX2poQZeNQX8wO9IcUhrH5XurW/G9Xwl\nSat9CMPERQn4KC3HSkat4ir2xaEUrjfg6c4XsGyh2Pk/LZ0gLKum0dyWYpWP4JmM\nRQNjrInXPbMhzQObozCyFT7jYegS/3cppdyy+K1K7434wzQGLU1gYXDKFnXwkX8R\nbRKgx2pHNbH5lUddjnNt75+e8m83ygSq/ZNBUz2Ur6W2s0pl6aBjwaDES4VfWYlI\njokcmrGvJNDfQWygb1k00eF2bzNeNCHwgWsuo3HSxVgc/WGsbcGrTlDKfz+g3ich\nbXUeUidPhRiv5UQIVCLIHpHuin3bj9lQO/0t6p+tAQIDAQABo0IwQDAPBgNVHRMB\nAf8EBTADAQH/MB0GA1UdDgQWBBSFmMBgm5IsRv3hLrvDPIhcPweXYTAOBgNVHQ8B\nAf8EBAMCAYYwDQYJKoZIhvcNAQEMBQADggIBAAa2EuozymOsQDJlEi7TqnyA2OhT\nGXPfYqCyMJVkfrqNgcnsNpCAiNEiZbb+8sIPXnT8Ay8hrwJYEObJ5b7MHXpLuyft\nz0Pu1oFLKnQxKjNxrIsCvaB4CRRdYjm1q7EqGhMGv76se9stOxkOqO9it31w/LoU\nENDk7GLsSqsV1OzYLhaH8t+MaNP6rZTSNuPrHwbV3CtBFl2TAZ7iKgKOhdFz1Hh9\nPez0lG+oKi4mHZ7ajov6PD0W7njn5KqzCAkJR6OYmlNVPjir+c/vUtEs0j+owsMl\ng7KE5g4ZpTRShyh5BjCFRK2tv0tkqafzNtxrKC5XNpEkqqVTCnLcKG+OplIEadtr\nC7UWf4HyhCiR+xIyxFyR05p3uY/QQU/5uza7GlK0J+U1sBUytx7BZ+Fo8KQfPPqV\nCqDCaYUksoJcnJE/KeoksyqNQys7sDGJhkd0NeUGDrFLKHSLhIwAMbEWnqGxvhli\nE7sP2E5rI/I9Y9zTbLIiI8pfeZlFF8DBdoP/Hzg8pqsiE/yiXSFTKByDwKzGwNqz\nF0VoFdIZcIbLdDbzlQitgGpJtvEL7HseB0WH7B2PMMD8KPJlYvPveO3/6OLzCsav\n+CAkvk47NQViKMsUTKOA0JDCW+u981YRozxa3K081snhSiSe83zIPBz1ikldXxO9\n6YYLNPRrj3mi9T/f\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIICrjCCAjSgAwIBAgIRAMkvdFnVDb0mWWFiXqnKH68wCgYIKoZIzj0EAwMwgZYx\nCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMu\nMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTEvMC0GA1UEAwwmQW1h\nem9uIFJEUyB1cy13ZXN0LTEgUm9vdCBDQSBFQ0MzODQgRzExEDAOBgNVBAcMB1Nl\nYXR0bGUwIBcNMjEwNTE5MTkxMzI0WhgPMjEyMTA1MTkyMDEzMjRaMIGWMQswCQYD\nVQQGEwJVUzEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5jLjETMBEG\nA1UECwwKQW1hem9uIFJEUzELMAkGA1UECAwCV0ExLzAtBgNVBAMMJkFtYXpvbiBS\nRFMgdXMtd2VzdC0xIFJvb3QgQ0EgRUNDMzg0IEcxMRAwDgYDVQQHDAdTZWF0dGxl\nMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEy86DB+9th/0A5VcWqMSWDxIUblWTt/R0\nao6Z2l3vf2YDF2wt1A2NIOGpfQ5+WAOJO/IQmnV9LhYo+kacB8sOnXdQa6biZZkR\nIyouUfikVQAKWEJnh1Cuo5YMM4E2sUt5o0IwQDAPBgNVHRMBAf8EBTADAQH/MB0G\nA1UdDgQWBBQ8u3OnecANmG8OoT7KLWDuFzZwBTAOBgNVHQ8BAf8EBAMCAYYwCgYI\nKoZIzj0EAwMDaAAwZQIwQ817qkb7mWJFnieRAN+m9W3E0FLVKaV3zC5aYJUk2fcZ\nTaUx3oLp3jPLGvY5+wgeAjEA6wAicAki4ZiDfxvAIuYiIe1OS/7H5RA++R8BH6qG\niRzUBM/FItFpnkus7u/eTkvo\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIICrzCCAjWgAwIBAgIQS/+Ryfgb/IOVEa1pWoe8oTAKBggqhkjOPQQDAzCBlzEL\nMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4x\nEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTAwLgYDVQQDDCdBbWF6\nb24gUkRTIGFwLXNvdXRoLTIgUm9vdCBDQSBFQ0MzODQgRzExEDAOBgNVBAcMB1Nl\nYXR0bGUwIBcNMjIwNjA2MjE1NDQyWhgPMjEyMjA2MDYyMjU0NDJaMIGXMQswCQYD\nVQQGEwJVUzEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5jLjETMBEG\nA1UECwwKQW1hem9uIFJEUzELMAkGA1UECAwCV0ExMDAuBgNVBAMMJ0FtYXpvbiBS\nRFMgYXAtc291dGgtMiBSb290IENBIEVDQzM4NCBHMTEQMA4GA1UEBwwHU2VhdHRs\nZTB2MBAGByqGSM49AgEGBSuBBAAiA2IABDsX6fhdUWBQpYTdseBD/P3s96Dtw2Iw\nOrXKNToCnmX5nMkUGdRn9qKNiz1pw3EPzaPxShbYwQ7LYP09ENK/JN4QQjxMihxC\njLFxS85nhBQQQGRCWikDAe38mD8fSvREQKNCMEAwDwYDVR0TAQH/BAUwAwEB/zAd\nBgNVHQ4EFgQUIh1xZiseQYFjPYKJmGbruAgRH+AwDgYDVR0PAQH/BAQDAgGGMAoG\nCCqGSM49BAMDA2gAMGUCMFudS4zLy+UUGrtgNLtRMcu/DZ9BUzV4NdHxo0bkG44O\nthnjl4+wTKI6VbyAbj2rkgIxAOHps8NMITU5DpyiMnKTxV8ubb/WGHrLl0BjB8Lw\nETVJk5DNuZvsIIcm7ykk6iL4Tw==\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIGBDCCA+ygAwIBAgIQDcEmNIAVrDpUw5cH5ynutDANBgkqhkiG9w0BAQwFADCB\nmjELMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIElu\nYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTMwMQYDVQQDDCpB\nbWF6b24gUkRTIG1lLWNlbnRyYWwtMSBSb290IENBIFJTQTQwOTYgRzExEDAOBgNV\nBAcMB1NlYXR0bGUwIBcNMjIwNTA3MDA0MDIzWhgPMjEyMjA1MDcwMTQwMjNaMIGa\nMQswCQYDVQQGEwJVUzEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5j\nLjETMBEGA1UECwwKQW1hem9uIFJEUzELMAkGA1UECAwCV0ExMzAxBgNVBAMMKkFt\nYXpvbiBSRFMgbWUtY2VudHJhbC0xIFJvb3QgQ0EgUlNBNDA5NiBHMTEQMA4GA1UE\nBwwHU2VhdHRsZTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAKvADk8t\nFl9bFlU5sajLPPDSOUpPAkKs6iPlz+27o1GJC88THcOvf3x0nVAcu9WYe9Qaas+4\nj4a0vv51agqyODRD/SNi2HnqW7DbtLPAm6KBHe4twl28ItB/JD5g7u1oPAHFoXMS\ncH1CZEAs5RtlZGzJhcBXLFsHNv/7+SCLyZ7+2XFh9OrtgU4wMzkHoRNndhfwV5bu\n17bPTwuH+VxH37zXf1mQ/KjhuJos0C9dL0FpjYBAuyZTAWhZKs8dpSe4DI544z4w\ngkwUB4bC2nA1TBzsywEAHyNuZ/xRjNpWvx0ToWAA2iFJqC3VO3iKcnBplMvaUuMt\njwzVSNBnKcoabXCZL2XDLt4YTZR8FSwz05IvsmwcPB7uNTBXq3T9sjejW8QQK3vT\ntzyfLq4jKmQE7PoS6cqYm+hEPm2hDaC/WP9bp3FdEJxZlPH26fq1b7BWYWhQ9pBA\nNv9zTnzdR1xohTyOJBUFQ81ybEzabqXqVXUIANqIOaNcTB09/sLJ7+zuMhp3mwBu\nLtjfJv8PLuT1r63bU3seROhKA98b5KfzjvbvPSg3vws78JQyoYGbqNyDfyjVjg3U\nv//AdVuPie6PNtdrW3upZY4Qti5IjP9e3kimaJ+KAtTgMRG56W0WxD3SP7+YGGbG\nKhntDOkKsN39hLpn9UOafTIqFu7kIaueEy/NAgMBAAGjQjBAMA8GA1UdEwEB/wQF\nMAMBAf8wHQYDVR0OBBYEFHAems86dTwdZbLe8AaPy3kfIUVoMA4GA1UdDwEB/wQE\nAwIBhjANBgkqhkiG9w0BAQwFAAOCAgEAOBHpp0ICx81kmeoBcZTrMdJs2gnhcd85\nFoSCjXx9H5XE5rmN/lQcxxOgj8hr3uPuLdLHu+i6THAyzjrl2NA1FWiqpfeECGmy\n0jm7iZsYORgGQYp/VKnDrwnKNSqlZvOuRr0kfUexwFlr34Y4VmupvEOK/RdGsd3S\n+3hiemcHse9ST/sJLHx962AWMkN86UHPscJEe4+eT3f2Wyzg6La8ARwdWZSNS+WH\nZfybrncMmuiXuUdHv9XspPsqhKgtHhcYeXOGUtrwQPLe3+VJZ0LVxhlTWr9951GZ\nGfmWwTV/9VsyKVaCFIXeQ6L+gjcKyEzYF8wpMtQlSc7FFqwgC4bKxvMBSaRy88Nr\nlV2+tJD/fr8zGUeBK44Emon0HKDBWGX+/Hq1ZIv0Da0S+j6LbA4fusWxtGfuGha+\nluhHgVInCpALIOamiBEdGhILkoTtx7JrYppt3/Raqg9gUNCOOYlCvGhqX7DXeEfL\nDGabooiY2FNWot6h04JE9nqGj5QqT8D6t/TL1nzxhRPzbcSDIHUd/b5R+a0bAA+7\nYTU6JqzEVCWKEIEynYmqikgLMGB/OzWsgyEL6822QW6hJAQ78XpbNeCzrICF4+GC\n7KShLnwuWoWpAb26268lvOEvCTFM47VC6jNQl97md+2SA9Ma81C9wflid2M83Wle\ncuLMVcQZceE=\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIEADCCAuigAwIBAgIQAhAteLRCvizAElaWORFU2zANBgkqhkiG9w0BAQsFADCB\nmDELMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIElu\nYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTEwLwYDVQQDDChB\nbWF6b24gUkRTIG1lLXNvdXRoLTEgUm9vdCBDQSBSU0EyMDQ4IEcxMRAwDgYDVQQH\nDAdTZWF0dGxlMCAXDTIxMDUyMDE3MDkxNloYDzIwNjEwNTIwMTgwOTE2WjCBmDEL\nMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4x\nEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTEwLwYDVQQDDChBbWF6\nb24gUkRTIG1lLXNvdXRoLTEgUm9vdCBDQSBSU0EyMDQ4IEcxMRAwDgYDVQQHDAdT\nZWF0dGxlMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA+qg7JAcOVKjh\nN83SACnBFZPyB63EusfDr/0V9ZdL8lKcmZX9sv/CqoBo3N0EvBqHQqUUX6JvFb7F\nXrMUZ740kr28gSRALfXTFgNODjXeDsCtEkKRTkac/UM8xXHn+hR7UFRPHS3e0GzI\niLiwQWDkr0Op74W8aM0CfaVKvh2bp4BI1jJbdDnQ9OKXpOxNHGUf0ZGb7TkNPkgI\nb2CBAc8J5o3H9lfw4uiyvl6Fz5JoP+A+zPELAioYBXDrbE7wJeqQDJrETWqR9VEK\nBXURCkVnHeaJy123MpAX2ozf4pqk0V0LOEOZRS29I+USF5DcWr7QIXR/w2I8ws1Q\n7ys+qbE+kQIDAQABo0IwQDAPBgNVHRMBAf8EBTADAQH/MB0GA1UdDgQWBBQFJ16n\n1EcCMOIhoZs/F9sR+Jy++zAOBgNVHQ8BAf8EBAMCAYYwDQYJKoZIhvcNAQELBQAD\nggEBAOc5nXbT3XTDEZsxX2iD15YrQvmL5m13B3ImZWpx/pqmObsgx3/dg75rF2nQ\nqS+Vl+f/HLh516pj2BPP/yWCq12TRYigGav8UH0qdT3CAClYy2o+zAzUJHm84oiB\nud+6pFVGkbqpsY+QMpJUbZWu52KViBpJMYsUEy+9cnPSFRVuRAHjYynSiLk2ZEjb\nWkdc4x0nOZR5tP0FgrX0Ve2KcjFwVQJVZLgOUqmFYQ/G0TIIGTNh9tcmR7yp+xJR\nA2tbPV2Z6m9Yxx4E8lLEPNuoeouJ/GR4CkMEmF8cLwM310t174o3lKKUXJ4Vs2HO\nWj2uN6R9oI+jGLMSswTzCNV1vgc=\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIICuDCCAj6gAwIBAgIRAOocLeZWjYkG/EbHmscuy8gwCgYIKoZIzj0EAwMwgZsx\nCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMu\nMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTE0MDIGA1UEAwwrQW1h\nem9uIFJEUyBhcC1zb3V0aGVhc3QtMSBSb290IENBIEVDQzM4NCBHMTEQMA4GA1UE\nBwwHU2VhdHRsZTAgFw0yMTA1MjEyMTUwMDFaGA8yMTIxMDUyMTIyNTAwMVowgZsx\nCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMu\nMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTE0MDIGA1UEAwwrQW1h\nem9uIFJEUyBhcC1zb3V0aGVhc3QtMSBSb290IENBIEVDQzM4NCBHMTEQMA4GA1UE\nBwwHU2VhdHRsZTB2MBAGByqGSM49AgEGBSuBBAAiA2IABCEr3jq1KtRncnZfK5cq\nbtY0nW6ZG3FMbh7XwBIR6Ca0f8llGZ4vJEC1pXgiM/4Dh045B9ZIzNrR54rYOIfa\n2NcYZ7mk06DjIQML64hbAxbQzOAuNzLPx268MrlL2uW2XaNCMEAwDwYDVR0TAQH/\nBAUwAwEB/zAdBgNVHQ4EFgQUln75pChychwN4RfHl+tOinMrfVowDgYDVR0PAQH/\nBAQDAgGGMAoGCCqGSM49BAMDA2gAMGUCMGiyPINRU1mwZ4Crw01vpuPvxZxb2IOr\nyX3RNlOIu4We1H+5dQk5tIvH8KGYFbWEpAIxAO9NZ6/j9osMhLgZ0yj0WVjb+uZx\nYlZR9fyFisY/jNfX7QhSk+nrc3SFLRUNtpXrng==\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIEBTCCAu2gAwIBAgIRAKiaRZatN8eiz9p0s0lu0rQwDQYJKoZIhvcNAQELBQAw\ngZoxCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJ\nbmMuMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTEzMDEGA1UEAwwq\nQW1hem9uIFJEUyBjYS1jZW50cmFsLTEgUm9vdCBDQSBSU0EyMDQ4IEcxMRAwDgYD\nVQQHDAdTZWF0dGxlMCAXDTIxMDUyMTIyMDIzNVoYDzIwNjEwNTIxMjMwMjM1WjCB\nmjELMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIElu\nYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTMwMQYDVQQDDCpB\nbWF6b24gUkRTIGNhLWNlbnRyYWwtMSBSb290IENBIFJTQTIwNDggRzExEDAOBgNV\nBAcMB1NlYXR0bGUwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQCygVMf\nqB865IR9qYRBRFHn4eAqGJOCFx+UbraQZmjr/mnRqSkY+nhbM7Pn/DWOrRnxoh+w\nq5F9ZxdZ5D5T1v6kljVwxyfFgHItyyyIL0YS7e2h7cRRscCM+75kMedAP7icb4YN\nLfWBqfKHbHIOqvvQK8T6+Emu/QlG2B5LvuErrop9K0KinhITekpVIO4HCN61cuOe\nCADBKF/5uUJHwS9pWw3uUbpGUwsLBuhJzCY/OpJlDqC8Y9aToi2Ivl5u3/Q/sKjr\n6AZb9lx4q3J2z7tJDrm5MHYwV74elGSXoeoG8nODUqjgklIWAPrt6lQ3WJpO2kug\n8RhCdSbWkcXHfX95AgMBAAGjQjBAMA8GA1UdEwEB/wQFMAMBAf8wHQYDVR0OBBYE\nFOIxhqTPkKVqKBZvMWtKewKWDvDBMA4GA1UdDwEB/wQEAwIBhjANBgkqhkiG9w0B\nAQsFAAOCAQEAqoItII89lOl4TKvg0I1EinxafZLXIheLcdGCxpjRxlZ9QMQUN3yb\ny/8uFKBL0otbQgJEoGhxm4h0tp54g28M6TN1U0332dwkjYxUNwvzrMaV5Na55I2Z\n1hq4GB3NMXW+PvdtsgVOZbEN+zOyOZ5MvJHEQVkT3YRnf6avsdntltcRzHJ16pJc\nY8rR7yWwPXh1lPaPkxddrCtwayyGxNbNmRybjR48uHRhwu7v2WuAMdChL8H8bp89\nTQLMrMHgSbZfee9hKhO4Zebelf1/cslRSrhkG0ESq6G5MUINj6lMg2g6F0F7Xz2v\nncD/vuRN5P+vT8th/oZ0Q2Gc68Pun0cn/g==\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIID/zCCAuegAwIBAgIRAJYlnmkGRj4ju/2jBQsnXJYwDQYJKoZIhvcNAQELBQAw\ngZcxCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJ\nbmMuMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTEwMC4GA1UEAwwn\nQW1hem9uIFJEUyB1cy1lYXN0LTIgUm9vdCBDQSBSU0EyMDQ4IEcxMRAwDgYDVQQH\nDAdTZWF0dGxlMCAXDTIxMDUyMTIzMDQ0NFoYDzIwNjEwNTIyMDAwNDQ0WjCBlzEL\nMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4x\nEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTAwLgYDVQQDDCdBbWF6\nb24gUkRTIHVzLWVhc3QtMiBSb290IENBIFJTQTIwNDggRzExEDAOBgNVBAcMB1Nl\nYXR0bGUwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC74V3eigv+pCj5\nnqDBqplY0Jp16pTeNB06IKbzb4MOTvNde6QjsZxrE1xUmprT8LxQqN9tI3aDYEYk\nb9v4F99WtQVgCv3Y34tYKX9NwWQgwS1vQwnIR8zOFBYqsAsHEkeJuSqAB12AYUSd\nZv2RVFjiFmYJho2X30IrSLQfS/IE3KV7fCyMMm154+/K1Z2IJlcissydEAwgsUHw\nedrE6CxJVkkJ3EvIgG4ugK/suxd8eEMztaQYJwSdN8TdfT59LFuSPl7zmF3fIBdJ\n//WexcQmGabaJ7Xnx+6o2HTfkP8Zzzzaq8fvjAcvA7gyFH5EP26G2ZqMG+0y4pTx\nSPVTrQEXAgMBAAGjQjBAMA8GA1UdEwEB/wQFMAMBAf8wHQYDVR0OBBYEFIWWuNEF\nsUMOC82XlfJeqazzrkPDMA4GA1UdDwEB/wQEAwIBhjANBgkqhkiG9w0BAQsFAAOC\nAQEAgClmxcJaQTGpEZmjElL8G2Zc8lGc+ylGjiNlSIw8X25/bcLRptbDA90nuP+q\nzXAMhEf0ccbdpwxG/P5a8JipmHgqQLHfpkvaXx+0CuP++3k+chAJ3Gk5XtY587jX\n+MJfrPgjFt7vmMaKmynndf+NaIJAYczjhJj6xjPWmGrjM3MlTa9XesmelMwP3jep\nbApIWAvCYVjGndbK9byyMq1nyj0TUzB8oJZQooaR3MMjHTmADuVBylWzkRMxbKPl\n4Nlsk4Ef1JvIWBCzsMt+X17nuKfEatRfp3c9tbpGlAE/DSP0W2/Lnayxr4RpE9ds\nICF35uSis/7ZlsftODUe8wtpkQ==\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIF/zCCA+egAwIBAgIRAPvvd+MCcp8E36lHziv0xhMwDQYJKoZIhvcNAQEMBQAw\ngZcxCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJ\nbmMuMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTEwMC4GA1UEAwwn\nQW1hem9uIFJEUyB1cy1lYXN0LTIgUm9vdCBDQSBSU0E0MDk2IEcxMRAwDgYDVQQH\nDAdTZWF0dGxlMCAXDTIxMDUyMTIzMTEwNloYDzIxMjEwNTIyMDAxMTA2WjCBlzEL\nMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4x\nEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTAwLgYDVQQDDCdBbWF6\nb24gUkRTIHVzLWVhc3QtMiBSb290IENBIFJTQTQwOTYgRzExEDAOBgNVBAcMB1Nl\nYXR0bGUwggIiMA0GCSqGSIb3DQEBAQUAA4ICDwAwggIKAoICAQDbvwekKIKGcV/s\nlDU96a71ZdN2pTYkev1X2e2/ICb765fw/i1jP9MwCzs8/xHBEQBJSxdfO4hPeNx3\nENi0zbM+TrMKliS1kFVe1trTTEaHYjF8BMK9yTY0VgSpWiGxGwg4tshezIA5lpu8\nsF6XMRxosCEVCxD/44CFqGZTzZaREIvvFPDTXKJ6yOYnuEkhH3OcoOajHN2GEMMQ\nShuyRFDQvYkqOC/Q5icqFbKg7eGwfl4PmimdV7gOVsxSlw2s/0EeeIILXtHx22z3\n8QBhX25Lrq2rMuaGcD3IOMBeBo2d//YuEtd9J+LGXL9AeOXHAwpvInywJKAtXTMq\nWsy3LjhuANFrzMlzjR2YdjkGVzeQVx3dKUzJ2//Qf7IXPSPaEGmcgbxuatxjnvfT\nH85oeKr3udKnXm0Kh7CLXeqJB5ITsvxI+Qq2iXtYCc+goHNR01QJwtGDSzuIMj3K\nf+YMrqBXZgYBwU2J/kCNTH31nfw96WTbOfNGwLwmVRDgguzFa+QzmQsJW4FTDMwc\n7cIjwdElQQVA+Gqa67uWmyDKAnoTkudmgAP+OTBkhnmc6NJuZDcy6f/iWUdl0X0u\n/tsfgXXR6ZovnHonM13ANiN7VmEVqFlEMa0VVmc09m+2FYjjlk8F9sC7Rc4wt214\n7u5YvCiCsFZwx44baP5viyRZgkJVpQIDAQABo0IwQDAPBgNVHRMBAf8EBTADAQH/\nMB0GA1UdDgQWBBQgCZCsc34nVTRbWsniXBPjnUTQ2DAOBgNVHQ8BAf8EBAMCAYYw\nDQYJKoZIhvcNAQEMBQADggIBAAQas3x1G6OpsIvQeMS9BbiHG3+kU9P/ba6Rrg+E\nlUz8TmL04Bcd+I+R0IyMBww4NznT+K60cFdk+1iSmT8Q55bpqRekyhcdWda1Qu0r\nJiTi7zz+3w2v66akofOnGevDpo/ilXGvCUJiLOBnHIF0izUqzvfczaMZGJT6xzKq\nPcEVRyAN1IHHf5KnGzUlVFv9SGy47xJ9I1vTk24JU0LWkSLzMMoxiUudVmHSqJtN\nu0h+n/x3Q6XguZi1/C1KOntH56ewRh8n5AF7c+9LJJSRM9wunb0Dzl7BEy21Xe9q\n03xRYjf5wn8eDELB8FZPa1PrNKXIOLYM9egdctbKEcpSsse060+tkyBrl507+SJT\n04lvJ4tcKjZFqxn+bUkDQvXYj0D3WK+iJ7a8kZJPRvz8BDHfIqancY8Tgw+69SUn\nWqIb+HNZqFuRs16WFSzlMksqzXv6wcDSyI7aZOmCGGEcYW9NHk8EuOnOQ+1UMT9C\nQb1GJcipjRzry3M4KN/t5vN3hIetB+/PhmgTO4gKhBETTEyPC3HC1QbdVfRndB6e\nU/NF2U/t8U2GvD26TTFLK4pScW7gyw4FQyXWs8g8FS8f+R2yWajhtS9++VDJQKom\nfAUISoCH+PlPRJpu/nHd1Zrddeiiis53rBaLbXu2J1Q3VqjWOmtj0HjxJJxWnYmz\nPqj2\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIGATCCA+mgAwIBAgIRAI/U4z6+GF8/znpHM8Dq8G0wDQYJKoZIhvcNAQEMBQAw\ngZgxCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJ\nbmMuMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTExMC8GA1UEAwwo\nQW1hem9uIFJEUyBhcC1zb3V0aC0yIFJvb3QgQ0EgUlNBNDA5NiBHMTEQMA4GA1UE\nBwwHU2VhdHRsZTAgFw0yMjA2MDYyMTQ4MThaGA8yMTIyMDYwNjIyNDgxOFowgZgx\nCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMu\nMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTExMC8GA1UEAwwoQW1h\nem9uIFJEUyBhcC1zb3V0aC0yIFJvb3QgQ0EgUlNBNDA5NiBHMTEQMA4GA1UEBwwH\nU2VhdHRsZTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAK5WqMvyq888\n3uuOtEj1FcP6iZhqO5kJurdJF59Otp2WCg+zv6I+QwaAspEWHQsKD405XfFsTGKV\nSKTCwoMxwBniuChSmyhlagQGKSnRY9+znOWq0v7hgmJRwp6FqclTbubmr+K6lzPy\nhs86mEp68O5TcOTYWUlPZDqfKwfNTbtCl5YDRr8Gxb5buHmkp6gUSgDkRsXiZ5VV\nb3GBmXRqbnwo5ZRNAzQeM6ylXCn4jKs310lQGUrFbrJqlyxUdfxzqdlaIRn2X+HY\nxRSYbHox3LVNPpJxYSBRvpQVFSy9xbX8d1v6OM8+xluB31cbLBtm08KqPFuqx+cO\nI2H5F0CYqYzhyOSKJsiOEJT6/uH4ewryskZzncx9ae62SC+bB5n3aJLmOSTkKLFY\nYS5IsmDT2m3iMgzsJNUKVoCx2zihAzgBanFFBsG+Xmoq0aKseZUI6vd2qpd5tUST\n/wS1sNk0Ph7teWB2ACgbFE6etnJ6stwjHFZOj/iTYhlnR2zDRU8akunFdGb6CB4/\nhMxGJxaqXSJeGtHm7FpadlUTf+2ESbYcVW+ui/F8sdBJseQdKZf3VdZZMgM0bcaX\nNE47cauDTy72WdU9YJX/YXKYMLDE0iFHTnGpfVGsuWGPYhlwZ3dFIO07mWnCRM6X\nu5JXRB1oy5n5HRluMsmpSN/R92MeBxKFAgMBAAGjQjBAMA8GA1UdEwEB/wQFMAMB\nAf8wHQYDVR0OBBYEFNtH0F0xfijSLHEyIkRGD9gW6NazMA4GA1UdDwEB/wQEAwIB\nhjANBgkqhkiG9w0BAQwFAAOCAgEACo+5jFeY3ygxoDDzL3xpfe5M0U1WxdKk+az4\n/OfjZvkoma7WfChi3IIMtwtKLYC2/seKWA4KjlB3rlTsCVNPnK6D+gAnybcfTKk/\nIRSPk92zagwQkSUWtAk80HpVfWJzpkSU16ejiajhedzOBRtg6BwsbSqLCDXb8hXr\neXWC1S9ZceGc+LcKRHewGWPu31JDhHE9bNcl9BFSAS0lYVZqxIRWxivZ+45j5uQv\nwPrC8ggqsdU3K8quV6dblUQzzA8gKbXJpCzXZihkPrYpQHTH0szvXvgebh+CNUAG\nrUxm8+yTS0NFI3U+RLbcLFVzSvjMOnEwCX0SPj5XZRYYXs5ajtQCoZhTUkkwpDV8\nRxXk8qGKiXwUxDO8GRvmvM82IOiXz5w2jy/h7b7soyIgdYiUydMq4Ja4ogB/xPZa\ngf4y0o+bremO15HFf1MkaU2UxPK5FFVUds05pKvpSIaQWbF5lw4LHHj4ZtVup7zF\nCLjPWs4Hs/oUkxLMqQDw0FBwlqa4uot8ItT8uq5BFpz196ZZ+4WXw5PVzfSxZibI\nC/nwcj0AS6qharXOs8yPnPFLPSZ7BbmWzFDgo3tpglRqo3LbSPsiZR+sLeivqydr\n0w4RK1btRda5Ws88uZMmW7+2aufposMKcbAdrApDEAVzHijbB/nolS5nsnFPHZoA\nKDPtFEk=\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIICtzCCAj2gAwIBAgIQVZ5Y/KqjR4XLou8MCD5pOjAKBggqhkjOPQQDAzCBmzEL\nMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4x\nEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTQwMgYDVQQDDCtBbWF6\nb24gUkRTIGFwLXNvdXRoZWFzdC00IFJvb3QgQ0EgRUNDMzg0IEcxMRAwDgYDVQQH\nDAdTZWF0dGxlMCAXDTIyMDUyNTE2NTgzM1oYDzIxMjIwNTI1MTc1ODMzWjCBmzEL\nMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4x\nEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTQwMgYDVQQDDCtBbWF6\nb24gUkRTIGFwLXNvdXRoZWFzdC00IFJvb3QgQ0EgRUNDMzg0IEcxMRAwDgYDVQQH\nDAdTZWF0dGxlMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEbo473OmpD5vkckdJajXg\nbrhmNFyoSa0WCY1njuZC2zMFp3zP6rX4I1r3imrYnJd9pFH/aSiV/r6L5ACE5RPx\n4qdg5SQ7JJUaZc3DWsTOiOed7BCZSzM+KTYK/2QzDMApo0IwQDAPBgNVHRMBAf8E\nBTADAQH/MB0GA1UdDgQWBBTmogc06+1knsej1ltKUOdWFvwgsjAOBgNVHQ8BAf8E\nBAMCAYYwCgYIKoZIzj0EAwMDaAAwZQIxAIs7TlLMbGTWNXpGiKf9DxaM07d/iDHe\nF/Vv/wyWSTGdobxBL6iArQNVXz0Gr4dvPAIwd0rsoa6R0x5mtvhdRPtM37FYrbHJ\npbV+OMusQqcSLseunLBoCHenvJW0QOCQ8EDY\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIICvTCCAkOgAwIBAgIQCIY7E/bFvFN2lK9Kckb0dTAKBggqhkjOPQQDAzCBnjEL\nMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4x\nEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTcwNQYDVQQDDC5BbWF6\nb24gUkRTIFByZXZpZXcgdXMtZWFzdC0yIFJvb3QgQ0EgRUNDMzg0IEcxMRAwDgYD\nVQQHDAdTZWF0dGxlMCAXDTIxMDUxODIxMDUxMFoYDzIxMjEwNTE4MjIwNTEwWjCB\nnjELMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIElu\nYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTcwNQYDVQQDDC5B\nbWF6b24gUkRTIFByZXZpZXcgdXMtZWFzdC0yIFJvb3QgQ0EgRUNDMzg0IEcxMRAw\nDgYDVQQHDAdTZWF0dGxlMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEMI0hzf1JCEOI\nEue4+DmcNnSs2i2UaJxHMrNGGfU7b42a7vwP53F7045ffHPBGP4jb9q02/bStZzd\nVHqfcgqkSRI7beBKjD2mfz82hF/wJSITTgCLs+NRpS6zKMFOFHUNo0IwQDAPBgNV\nHRMBAf8EBTADAQH/MB0GA1UdDgQWBBS8uF/6hk5mPLH4qaWv9NVZaMmyTjAOBgNV\nHQ8BAf8EBAMCAYYwCgYIKoZIzj0EAwMDaAAwZQIxAO7Pu9wzLyM0X7Q08uLIL+vL\nqaxe3UFuzFTWjM16MLJHbzLf1i9IDFKz+Q4hXCSiJwIwClMBsqT49BPUxVsJnjGr\nEbyEk6aOOVfY1p2yQL649zh3M4h8okLnwf+bYIb1YpeU\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIEADCCAuigAwIBAgIQY+JhwFEQTe36qyRlUlF8ozANBgkqhkiG9w0BAQsFADCB\nmDELMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIElu\nYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTEwLwYDVQQDDChB\nbWF6b24gUkRTIGFmLXNvdXRoLTEgUm9vdCBDQSBSU0EyMDQ4IEcxMRAwDgYDVQQH\nDAdTZWF0dGxlMCAXDTIxMDUxOTE5MjQxNloYDzIwNjEwNTE5MjAyNDE2WjCBmDEL\nMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4x\nEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTEwLwYDVQQDDChBbWF6\nb24gUkRTIGFmLXNvdXRoLTEgUm9vdCBDQSBSU0EyMDQ4IEcxMRAwDgYDVQQHDAdT\nZWF0dGxlMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAnIye77j6ev40\n8wRPyN2OdKFSUfI9jB20Or2RLO+RDoL43+USXdrze0Wv4HMRLqaen9BcmCfaKMp0\nE4SFo47bXK/O17r6G8eyq1sqnHE+v288mWtYH9lAlSamNFRF6YwA7zncmE/iKL8J\n0vePHMHP/B6svw8LULZCk+nZk3tgxQn2+r0B4FOz+RmpkoVddfqqUPMbKUxhM2wf\nfO7F6bJaUXDNMBPhCn/3ayKCjYr49ErmnpYV2ZVs1i34S+LFq39J7kyv6zAgbHv9\n+/MtRMoRB1CjpqW0jIOZkHBdYcd1o9p1zFn591Do1wPkmMsWdjIYj+6e7UXcHvOB\n2+ScIRAcnwIDAQABo0IwQDAPBgNVHRMBAf8EBTADAQH/MB0GA1UdDgQWBBQGtq2W\nYSyMMxpdQ3IZvcGE+nyZqTAOBgNVHQ8BAf8EBAMCAYYwDQYJKoZIhvcNAQELBQAD\nggEBAEgoP3ixJsKSD5FN8dQ01RNHERl/IFbA7TRXfwC+L1yFocKnQh4Mp/msPRSV\n+OeHIvemPW/wtZDJzLTOFJ6eTolGekHK1GRTQ6ZqsWiU2fmiOP8ks4oSpI+tQ9Lw\nVrfZqTiEcS5wEIqyfUAZZfKDo7W1xp+dQWzfczSBuZJZwI5iaha7+ILM0r8Ckden\nTVTapc5pLSoO15v0ziRuQ2bT3V3nwu/U0MRK44z+VWOJdSiKxdnOYDs8hFNnKhfe\nklbTZF7kW7WbiNYB43OaAQBJ6BALZsIskEaqfeZT8FD71uN928TcEQyBDXdZpRN+\niGQZDGhht0r0URGMDSs9waJtTfA=\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIF/jCCA+agAwIBAgIQXY/dmS+72lZPranO2JM9jjANBgkqhkiG9w0BAQwFADCB\nlzELMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIElu\nYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTAwLgYDVQQDDCdB\nbWF6b24gUkRTIGFwLWVhc3QtMSBSb290IENBIFJTQTQwOTYgRzExEDAOBgNVBAcM\nB1NlYXR0bGUwIBcNMjEwNTI1MjEzNDUxWhgPMjEyMTA1MjUyMjM0NTFaMIGXMQsw\nCQYDVQQGEwJVUzEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5jLjET\nMBEGA1UECwwKQW1hem9uIFJEUzELMAkGA1UECAwCV0ExMDAuBgNVBAMMJ0FtYXpv\nbiBSRFMgYXAtZWFzdC0xIFJvb3QgQ0EgUlNBNDA5NiBHMTEQMA4GA1UEBwwHU2Vh\ndHRsZTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAMyW9kBJjD/hx8e8\nb5E1sF42bp8TXsz1htSYE3Tl3T1Aq379DfEhB+xa/ASDZxt7/vwa81BkNo4M6HYq\nokYIXeE7cu5SnSgjWXqcERhgPevtAwgmhdE3yREe8oz2DyOi2qKKZqah+1gpPaIQ\nfK0uAqoeQlyHosye3KZZKkDHBatjBsQ5kf8lhuf7wVulEZVRHY2bP2X7N98PfbpL\nQdH7mWXzDtJJ0LiwFwds47BrkgK1pkHx2p1mTo+HMkfX0P6Fq1atkVC2RHHtbB/X\niYyH7paaHBzviFrhr679zNqwXIOKlbf74w3mS11P76rFn9rS1BAH2Qm6eY5S/Fxe\nHEKXm4kjPN63Zy0p3yE5EjPt54yPkvumOnT+RqDGJ2HCI9k8Ehcbve0ogfdRKNqQ\nVHWYTy8V33ndQRHZlx/CuU1yN61TH4WSoMly1+q1ihTX9sApmlQ14B2pJi/9DnKW\ncwECrPy1jAowC2UJ45RtC8UC05CbP9yrIy/7Noj8gQDiDOepm+6w1g6aNlWoiuQS\nkyI6nzz1983GcnOHya73ga7otXo0Qfg9jPghlYiMomrgshlSLDHZG0Ib/3hb8cnR\n1OcN9FpzNmVK2Ll1SmTMLrIhuCkyNYX9O/bOknbcf706XeESxGduSkHEjIw/k1+2\nAtteoq5dT6cwjnJ9hyhiueVlVkiDAgMBAAGjQjBAMA8GA1UdEwEB/wQFMAMBAf8w\nHQYDVR0OBBYEFLUI+DD7RJs+0nRnjcwIVWzzYSsFMA4GA1UdDwEB/wQEAwIBhjAN\nBgkqhkiG9w0BAQwFAAOCAgEAb1mcCHv4qMQetLGTBH9IxsB2YUUhr5dda0D2BcHr\nUtDbfd0VQs4tux6h/6iKwHPx0Ew8fuuYj99WknG0ffgJfNc5/fMspxR/pc1jpdyU\n5zMQ+B9wi0lOZPO9uH7/pr+d2odcNEy8zAwqdv/ihsTwLmGP54is9fVbsgzNW1cm\nHKAVL2t/Ope+3QnRiRilKCN1lzhav4HHdLlN401TcWRWKbEuxF/FgxSO2Hmx86pj\ne726lweCTMmnq/cTsPOVY0WMjs0or3eHDVlyLgVeV5ldyN+ptg3Oit60T05SRa58\nAJPTaVKIcGQ/gKkKZConpu7GDofT67P/ox0YNY57LRbhsx9r5UY4ROgz7WMQ1yoS\nY+19xizm+mBm2PyjMUbfwZUyCxsdKMwVdOq5/UmTmdms+TR8+m1uBHPOTQ2vKR0s\nPd/THSzPuu+d3dbzRyDSLQbHFFneG760CUlD/ZmzFlQjJ89/HmAmz8IyENq+Sjhx\nJgzy+FjVZb8aRUoYLlnffpUpej1n87Ynlr1GrvC4GsRpNpOHlwuf6WD4W0qUTsC/\nC9JO+fBzUj/aWlJzNcLEW6pte1SB+EdkR2sZvWH+F88TxemeDrV0jKJw5R89CDf8\nZQNfkxJYjhns+YeV0moYjqQdc7tq4i04uggEQEtVzEhRLU5PE83nlh/K2NZZm8Kj\ndIA=\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIID/zCCAuegAwIBAgIRAPVSMfFitmM5PhmbaOFoGfUwDQYJKoZIhvcNAQELBQAw\ngZcxCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJ\nbmMuMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTEwMC4GA1UEAwwn\nQW1hem9uIFJEUyB1cy1lYXN0LTEgUm9vdCBDQSBSU0EyMDQ4IEcxMRAwDgYDVQQH\nDAdTZWF0dGxlMCAXDTIxMDUyNTIyMzQ1N1oYDzIwNjEwNTI1MjMzNDU3WjCBlzEL\nMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4x\nEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTAwLgYDVQQDDCdBbWF6\nb24gUkRTIHVzLWVhc3QtMSBSb290IENBIFJTQTIwNDggRzExEDAOBgNVBAcMB1Nl\nYXR0bGUwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDu9H7TBeGoDzMr\ndxN6H8COntJX4IR6dbyhnj5qMD4xl/IWvp50lt0VpmMd+z2PNZzx8RazeGC5IniV\n5nrLg0AKWRQ2A/lGGXbUrGXCSe09brMQCxWBSIYe1WZZ1iU1IJ/6Bp4D2YEHpXrW\nbPkOq5x3YPcsoitgm1Xh8ygz6vb7PsvJvPbvRMnkDg5IqEThapPjmKb8ZJWyEFEE\nQRrkCIRueB1EqQtJw0fvP4PKDlCJAKBEs/y049FoOqYpT3pRy0WKqPhWve+hScMd\n6obq8kxTFy1IHACjHc51nrGII5Bt76/MpTWhnJIJrCnq1/Uc3Qs8IVeb+sLaFC8K\nDI69Sw6bAgMBAAGjQjBAMA8GA1UdEwEB/wQFMAMBAf8wHQYDVR0OBBYEFE7PCopt\nlyOgtXX0Y1lObBUxuKaCMA4GA1UdDwEB/wQEAwIBhjANBgkqhkiG9w0BAQsFAAOC\nAQEAFj+bX8gLmMNefr5jRJfHjrL3iuZCjf7YEZgn89pS4z8408mjj9z6Q5D1H7yS\njNETVV8QaJip1qyhh5gRzRaArgGAYvi2/r0zPsy+Tgf7v1KGL5Lh8NT8iCEGGXwF\ng3Ir+Nl3e+9XUp0eyyzBIjHtjLBm6yy8rGk9p6OtFDQnKF5OxwbAgip42CD75r/q\np421maEDDvvRFR4D+99JZxgAYDBGqRRceUoe16qDzbMvlz0A9paCZFclxeftAxv6\nQlR5rItMz/XdzpBJUpYhdzM0gCzAzdQuVO5tjJxmXhkSMcDP+8Q+Uv6FA9k2VpUV\nE/O5jgpqUJJ2Hc/5rs9VkAPXeA==\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIICrzCCAjWgAwIBAgIQW0yuFCle3uj4vWiGU0SaGzAKBggqhkjOPQQDAzCBlzEL\nMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4x\nEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTAwLgYDVQQDDCdBbWF6\nb24gUkRTIGFmLXNvdXRoLTEgUm9vdCBDQSBFQ0MzODQgRzExEDAOBgNVBAcMB1Nl\nYXR0bGUwIBcNMjEwNTE5MTkzNTE2WhgPMjEyMTA1MTkyMDM1MTZaMIGXMQswCQYD\nVQQGEwJVUzEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5jLjETMBEG\nA1UECwwKQW1hem9uIFJEUzELMAkGA1UECAwCV0ExMDAuBgNVBAMMJ0FtYXpvbiBS\nRFMgYWYtc291dGgtMSBSb290IENBIEVDQzM4NCBHMTEQMA4GA1UEBwwHU2VhdHRs\nZTB2MBAGByqGSM49AgEGBSuBBAAiA2IABDPiKNZSaXs3Un/J/v+LTsFDANHpi7en\noL2qh0u0DoqNzEBTbBjvO23bLN3k599zh6CY3HKW0r2k1yaIdbWqt4upMCRCcUFi\nI4iedAmubgzh56wJdoMZztjXZRwDthTkJKNCMEAwDwYDVR0TAQH/BAUwAwEB/zAd\nBgNVHQ4EFgQUWbYkcrvVSnAWPR5PJhIzppcAnZIwDgYDVR0PAQH/BAQDAgGGMAoG\nCCqGSM49BAMDA2gAMGUCMCESGqpat93CjrSEjE7z+Hbvz0psZTHwqaxuiH64GKUm\nmYynIiwpKHyBrzjKBmeDoQIxANGrjIo6/b8Jl6sdIZQI18V0pAyLfLiZjlHVOnhM\nMOTVgr82ZuPoEHTX78MxeMnYlw==\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIECTCCAvGgAwIBAgIRAIbsx8XOl0sgTNiCN4O+18QwDQYJKoZIhvcNAQELBQAw\ngZwxCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJ\nbmMuMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTE1MDMGA1UEAwws\nQW1hem9uIFJEUyBhcC1ub3J0aGVhc3QtMSBSb290IENBIFJTQTIwNDggRzExEDAO\nBgNVBAcMB1NlYXR0bGUwIBcNMjEwNTI1MjE1NDU4WhgPMjA2MTA1MjUyMjU0NTha\nMIGcMQswCQYDVQQGEwJVUzEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywg\nSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzELMAkGA1UECAwCV0ExNTAzBgNVBAMM\nLEFtYXpvbiBSRFMgYXAtbm9ydGhlYXN0LTEgUm9vdCBDQSBSU0EyMDQ4IEcxMRAw\nDgYDVQQHDAdTZWF0dGxlMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA\ntROxwXWCgn5R9gI/2Ivjzaxc0g95ysBjoJsnhPdJEHQb7w3y2kWrVWU3Y9fOitgb\nCEsnEC3PrhRnzNVW0fPsK6kbvOeCmjvY30rdbxbc8h+bjXfGmIOgAkmoULEr6Hc7\nG1Q/+tvv4lEwIs7bEaf+abSZxRJbZ0MBxhbHn7UHHDiMZYvzK+SV1MGCxx7JVhrm\nxWu3GC1zZCsGDhB9YqY9eR6PmjbqA5wy8vqbC57dZZa1QVtWIQn3JaRXn+faIzHx\nnLMN5CEWihsdmHBXhnRboXprE/OS4MFv1UrQF/XM/h5RBeCywpHePpC+Oe1T3LNC\niP8KzRFrjC1MX/WXJnmOVQIDAQABo0IwQDAPBgNVHRMBAf8EBTADAQH/MB0GA1Ud\nDgQWBBS33XbXAUMs1znyZo4B0+B3D68WFTAOBgNVHQ8BAf8EBAMCAYYwDQYJKoZI\nhvcNAQELBQADggEBADuadd2EmlpueY2VlrIIPC30QkoA1EOSoCmZgN6124apkoY1\nHiV4r+QNPljN4WP8gmcARnNkS7ZeR4fvWi8xPh5AxQCpiaBMw4gcbTMCuKDV68Pw\nP2dZCTMspvR3CDfM35oXCufdtFnxyU6PAyINUqF/wyTHguO3owRFPz64+sk3r2pT\nWHmJjG9E7V+KOh0s6REgD17Gqn6C5ijLchSrPUHB0wOIkeLJZndHxN/76h7+zhMt\nfFeNxPWHY2MfpcaLjz4UREzZPSB2U9k+y3pW1omCIcl6MQU9itGx/LpQE+H3ZeX2\nM2bdYd5L+ow+bdbGtsVKOuN+R9Dm17YpswF+vyQ=\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIGATCCA+mgAwIBAgIRAKlQ+3JX9yHXyjP/Ja6kZhkwDQYJKoZIhvcNAQEMBQAw\ngZgxCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJ\nbmMuMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTExMC8GA1UEAwwo\nQW1hem9uIFJEUyBhcC1zb3V0aC0xIFJvb3QgQ0EgUlNBNDA5NiBHMTEQMA4GA1UE\nBwwHU2VhdHRsZTAgFw0yMTA1MTkxNzQ1MjBaGA8yMTIxMDUxOTE4NDUyMFowgZgx\nCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMu\nMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTExMC8GA1UEAwwoQW1h\nem9uIFJEUyBhcC1zb3V0aC0xIFJvb3QgQ0EgUlNBNDA5NiBHMTEQMA4GA1UEBwwH\nU2VhdHRsZTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAKtahBrpUjQ6\nH2mni05BAKU6Z5USPZeSKmBBJN3YgD17rJ93ikJxSgzJ+CupGy5rvYQ0xznJyiV0\n91QeQN4P+G2MjGQR0RGeUuZcfcZitJro7iAg3UBvw8WIGkcDUg+MGVpRv/B7ry88\n7E4OxKb8CPNoa+a9j6ABjOaaxaI22Bb7j3OJ+JyMICs6CU2bgkJaj3VUV9FCNUOc\nh9PxD4jzT9yyGYm/sK9BAT1WOTPG8XQUkpcFqy/IerZDfiQkf1koiSd4s5VhBkUn\naQHOdri/stldT7a+HJFVyz2AXDGPDj+UBMOuLq0K6GAT6ThpkXCb2RIf4mdTy7ox\nN5BaJ+ih+Ro3ZwPkok60egnt/RN98jgbm+WstgjJWuLqSNInnMUgkuqjyBWwePqX\nKib+wdpyx/LOzhKPEFpeMIvHQ3A0sjlulIjnh+j+itezD+dp0UNxMERlW4Bn/IlS\nsYQVNfYutWkRPRLErXOZXtlxxkI98JWQtLjvGzQr+jywxTiw644FSLWdhKa6DtfU\n2JWBHqQPJicMElfZpmfaHZjtXuCZNdZQXWg7onZYohe281ZrdFPOqC4rUq7gYamL\nT+ZB+2P+YCPOLJ60bj/XSvcB7mesAdg8P0DNddPhHUFWx2dFqOs1HxIVB4FZVA9U\nPpbv4a484yxjTgG7zFZNqXHKTqze6rBBAgMBAAGjQjBAMA8GA1UdEwEB/wQFMAMB\nAf8wHQYDVR0OBBYEFCEAqjighncv/UnWzBjqu1Ka2Yb4MA4GA1UdDwEB/wQEAwIB\nhjANBgkqhkiG9w0BAQwFAAOCAgEAYyvumblckIXlohzi3QiShkZhqFzZultbFIu9\nGhA5CDar1IFMhJ9vJpO9nUK/camKs1VQRs8ZsBbXa0GFUM2p8y2cgUfLwFULAiC/\nsWETyW5lcX/xc4Pyf6dONhqFJt/ovVBxNZtcmMEWv/1D6Tf0nLeEb0P2i/pnSRR4\nOq99LVFjossXtyvtaq06OSiUUZ1zLPvV6AQINg8dWeBOWRcQYhYcEcC2wQ06KShZ\n0ahuu7ar5Gym3vuLK6nH+eQrkUievVomN/LpASrYhK32joQ5ypIJej3sICIgJUEP\nUoeswJ+Z16f3ECoL1OSnq4A0riiLj1ZGmVHNhM6m/gotKaHNMxsK9zsbqmuU6IT/\nP6cR0S+vdigQG8ZNFf5vEyVNXhl8KcaJn6lMD/gMB2rY0qpaeTg4gPfU5wcg8S4Y\nC9V//tw3hv0f2n+8kGNmqZrylOQDQWSSo8j8M2SRSXiwOHDoTASd1fyBEIqBAwzn\nLvXVg8wQd1WlmM3b0Vrsbzltyh6y4SuKSkmgufYYvC07NknQO5vqvZcNoYbLNea3\n76NkFaMHUekSbwVejZgG5HGwbaYBgNdJEdpbWlA3X4yGRVxknQSUyt4dZRnw/HrX\nk8x6/wvtw7wht0/DOqz1li7baSsMazqxx+jDdSr1h9xML416Q4loFCLgqQhil8Jq\nEm4Hy3A=\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIGBTCCA+2gAwIBAgIRAJfKe4Zh4aWNt3bv6ZjQwogwDQYJKoZIhvcNAQEMBQAw\ngZoxCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJ\nbmMuMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTEzMDEGA1UEAwwq\nQW1hem9uIFJEUyBjYS1jZW50cmFsLTEgUm9vdCBDQSBSU0E0MDk2IEcxMRAwDgYD\nVQQHDAdTZWF0dGxlMCAXDTIxMDUyMTIyMDg1M1oYDzIxMjEwNTIxMjMwODUzWjCB\nmjELMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIElu\nYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTMwMQYDVQQDDCpB\nbWF6b24gUkRTIGNhLWNlbnRyYWwtMSBSb290IENBIFJTQTQwOTYgRzExEDAOBgNV\nBAcMB1NlYXR0bGUwggIiMA0GCSqGSIb3DQEBAQUAA4ICDwAwggIKAoICAQCpgUH6\nCrzd8cOw9prAh2rkQqAOx2vtuI7xX4tmBG4I/um28eBjyVmgwQ1fpq0Zg2nCKS54\nNn0pCmT7f3h6Bvopxn0J45AzXEtajFqXf92NQ3iPth95GVfAJSD7gk2LWMhpmID9\nJGQyoGuDPg+hYyr292X6d0madzEktVVGO4mKTF989qEg+tY8+oN0U2fRTrqa2tZp\niYsmg350ynNopvntsJAfpCO/srwpsqHHLNFZ9jvhTU8uW90wgaKO9i31j/mHggCE\n+CAOaJCM3g+L8DPl/2QKsb6UkBgaaIwKyRgKSj1IlgrK+OdCBCOgM9jjId4Tqo2j\nZIrrPBGl6fbn1+etZX+2/tf6tegz+yV0HHQRAcKCpaH8AXF44bny9andslBoNjGx\nH6R/3ib4FhPrnBMElzZ5i4+eM/cuPC2huZMBXb/jKgRC/QN1Wm3/nah5FWq+yn+N\ntiAF10Ga0BYzVhHDEwZzN7gn38bcY5yi/CjDUNpY0OzEe2+dpaBKPlXTaFfn9Nba\nCBmXPRF0lLGGtPeTAgjcju+NEcVa82Ht1pqxyu2sDtbu3J5bxp4RKtj+ShwN8nut\nTkf5Ea9rSmHEY13fzgibZlQhXaiFSKA2ASUwgJP19Putm0XKlBCNSGCoECemewxL\n+7Y8FszS4Uu4eaIwvXVqUEE2yf+4ex0hqQ1acQIDAQABo0IwQDAPBgNVHRMBAf8E\nBTADAQH/MB0GA1UdDgQWBBSeUnXIRxNbYsZLtKomIz4Y1nOZEzAOBgNVHQ8BAf8E\nBAMCAYYwDQYJKoZIhvcNAQEMBQADggIBAIpRvxVS0dzoosBh/qw65ghPUGSbP2D4\ndm6oYCv5g/zJr4fR7NzEbHOXX5aOQnHbQL4M/7veuOCLNPOW1uXwywMg6gY+dbKe\nYtPVA1as8G9sUyadeXyGh2uXGsziMFXyaESwiAXZyiYyKChS3+g26/7jwECFo5vC\nXGhWpIO7Hp35Yglp8AnwnEAo/PnuXgyt2nvyTSrxlEYa0jus6GZEZd77pa82U1JH\nqFhIgmKPWWdvELA3+ra1nKnvpWM/xX0pnMznMej5B3RT3Y+k61+kWghJE81Ix78T\n+tG4jSotgbaL53BhtQWBD1yzbbilqsGE1/DXPXzHVf9yD73fwh2tGWSaVInKYinr\na4tcrB3KDN/PFq0/w5/21lpZjVFyu/eiPj6DmWDuHW73XnRwZpHo/2OFkei5R7cT\nrn/YdDD6c1dYtSw5YNnS6hdCQ3sOiB/xbPRN9VWJa6se79uZ9NLz6RMOr73DNnb2\nbhIR9Gf7XAA5lYKqQk+A+stoKbIT0F65RnkxrXi/6vSiXfCh/bV6B41cf7MY/6YW\nehserSdjhQamv35rTFdM+foJwUKz1QN9n9KZhPxeRmwqPitAV79PloksOnX25ElN\nSlyxdndIoA1wia1HRd26EFm2pqfZ2vtD2EjU3wD42CXX4H8fKVDna30nNFSYF0yn\njGKc3k6UNxpg\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIF/jCCA+agAwIBAgIQaRHaEqqacXN20e8zZJtmDDANBgkqhkiG9w0BAQwFADCB\nlzELMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIElu\nYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTAwLgYDVQQDDCdB\nbWF6b24gUkRTIHVzLWVhc3QtMSBSb290IENBIFJTQTQwOTYgRzExEDAOBgNVBAcM\nB1NlYXR0bGUwIBcNMjEwNTI1MjIzODM1WhgPMjEyMTA1MjUyMzM4MzVaMIGXMQsw\nCQYDVQQGEwJVUzEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5jLjET\nMBEGA1UECwwKQW1hem9uIFJEUzELMAkGA1UECAwCV0ExMDAuBgNVBAMMJ0FtYXpv\nbiBSRFMgdXMtZWFzdC0xIFJvb3QgQ0EgUlNBNDA5NiBHMTEQMA4GA1UEBwwHU2Vh\ndHRsZTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAInfBCaHuvj6Rb5c\nL5Wmn1jv2PHtEGMHm+7Z8dYosdwouG8VG2A+BCYCZfij9lIGszrTXkY4O7vnXgru\nJUNdxh0Q3M83p4X+bg+gODUs3jf+Z3Oeq7nTOk/2UYvQLcxP4FEXILxDInbQFcIx\nyen1ESHggGrjEodgn6nbKQNRfIhjhW+TKYaewfsVWH7EF2pfj+cjbJ6njjgZ0/M9\nVZifJFBgat6XUTOf3jwHwkCBh7T6rDpgy19A61laImJCQhdTnHKvzTpxcxiLRh69\nZObypR7W04OAUmFS88V7IotlPmCL8xf7kwxG+gQfvx31+A9IDMsiTqJ1Cc4fYEKg\nbL+Vo+2Ii4W2esCTGVYmHm73drznfeKwL+kmIC/Bq+DrZ+veTqKFYwSkpHRyJCEe\nU4Zym6POqQ/4LBSKwDUhWLJIlq99bjKX+hNTJykB+Lbcx0ScOP4IAZQoxmDxGWxN\nS+lQj+Cx2pwU3S/7+OxlRndZAX/FKgk7xSMkg88HykUZaZ/ozIiqJqSnGpgXCtED\noQ4OJw5ozAr+/wudOawaMwUWQl5asD8fuy/hl5S1nv9XxIc842QJOtJFxhyeMIXt\nLVECVw/dPekhMjS3Zo3wwRgYbnKG7YXXT5WMxJEnHu8+cYpMiRClzq2BEP6/MtI2\nAZQQUFu2yFjRGL2OZA6IYjxnXYiRAgMBAAGjQjBAMA8GA1UdEwEB/wQFMAMBAf8w\nHQYDVR0OBBYEFADCcQCPX2HmkqQcmuHfiQ2jjqnrMA4GA1UdDwEB/wQEAwIBhjAN\nBgkqhkiG9w0BAQwFAAOCAgEASXkGQ2eUmudIKPeOIF7RBryCoPmMOsqP0+1qxF8l\npGkwmrgNDGpmd9s0ArfIVBTc1jmpgB3oiRW9c6n2OmwBKL4UPuQ8O3KwSP0iD2sZ\nKMXoMEyphCEzW1I2GRvYDugL3Z9MWrnHkoaoH2l8YyTYvszTvdgxBPpM2x4pSkp+\n76d4/eRpJ5mVuQ93nC+YG0wXCxSq63hX4kyZgPxgCdAA+qgFfKIGyNqUIqWgeyTP\nn5OgKaboYk2141Rf2hGMD3/hsGm0rrJh7g3C0ZirPws3eeJfulvAOIy2IZzqHUSY\njkFzraz6LEH3IlArT3jUPvWKqvh2lJWnnp56aqxBR7qHH5voD49UpJWY1K0BjGnS\nOHcurpp0Yt/BIs4VZeWdCZwI7JaSeDcPMaMDBvND3Ia5Fga0thgYQTG6dE+N5fgF\nz+hRaujXO2nb0LmddVyvE8prYlWRMuYFv+Co8hcMdJ0lEZlfVNu0jbm9/GmwAZ+l\n9umeYO9yz/uC7edC8XJBglMAKUmVK9wNtOckUWAcCfnPWYLbYa/PqtXBYcxrso5j\niaS/A7iEW51uteHBGrViCy1afGG+hiUWwFlesli+Rq4dNstX3h6h2baWABaAxEVJ\ny1RnTQSz6mROT1VmZSgSVO37rgIyY0Hf0872ogcTS+FfvXgBxCxsNWEbiQ/XXva4\n0Ws=\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIICtDCCAjqgAwIBAgIRAMyaTlVLN0ndGp4ffwKAfoMwCgYIKoZIzj0EAwMwgZkx\nCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMu\nMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTEyMDAGA1UEAwwpQW1h\nem9uIFJEUyBtZS1jZW50cmFsLTEgUm9vdCBDQSBFQ0MzODQgRzExEDAOBgNVBAcM\nB1NlYXR0bGUwIBcNMjIwNTA3MDA0NDM3WhgPMjEyMjA1MDcwMTQ0MzdaMIGZMQsw\nCQYDVQQGEwJVUzEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5jLjET\nMBEGA1UECwwKQW1hem9uIFJEUzELMAkGA1UECAwCV0ExMjAwBgNVBAMMKUFtYXpv\nbiBSRFMgbWUtY2VudHJhbC0xIFJvb3QgQ0EgRUNDMzg0IEcxMRAwDgYDVQQHDAdT\nZWF0dGxlMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAE19nCV1nsI6CohSor13+B25cr\nzg+IHdi9Y3L7ziQnHWI6yjBazvnKD+oC71aRRlR8b5YXsYGUQxWzPLHN7EGPcSGv\nbzA9SLG1KQYCJaQ0m9Eg/iGrwKWOgylbhVw0bCxoo0IwQDAPBgNVHRMBAf8EBTAD\nAQH/MB0GA1UdDgQWBBS4KsknsJXM9+QPEkBdZxUPaLr11zAOBgNVHQ8BAf8EBAMC\nAYYwCgYIKoZIzj0EAwMDaAAwZQIxAJaRgrYIEfXQMZQQDxMTYS0azpyWSseQooXo\nL3nYq4OHGBgYyQ9gVjvRYWU85PXbfgIwdi82DtANQFkCu+j+BU0JBY/uRKPEeYzo\nJG92igKIcXPqCoxIJ7lJbbzmuf73gQu5\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIGATCCA+mgAwIBAgIRAJwCobx0Os8F7ihbJngxrR8wDQYJKoZIhvcNAQEMBQAw\ngZgxCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJ\nbmMuMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTExMC8GA1UEAwwo\nQW1hem9uIFJEUyBtZS1zb3V0aC0xIFJvb3QgQ0EgUlNBNDA5NiBHMTEQMA4GA1UE\nBwwHU2VhdHRsZTAgFw0yMTA1MjAxNzE1MzNaGA8yMTIxMDUyMDE4MTUzM1owgZgx\nCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMu\nMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTExMC8GA1UEAwwoQW1h\nem9uIFJEUyBtZS1zb3V0aC0xIFJvb3QgQ0EgUlNBNDA5NiBHMTEQMA4GA1UEBwwH\nU2VhdHRsZTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBANukKwlm+ZaI\nY5MkWGbEVLApEyLmlrHLEg8PfiiEa9ts7jssQcin3bzEPdTqGr5jo91ONoZ3ccWq\nxJgg1W3bLu5CAO2CqIOXTXHRyCO/u0Ch1FGgWB8xETPSi3UHt/Vn1ltdO6DYdbDU\nmYgwzYrvLBdRCwxsb9o+BuYQHVFzUYonqk/y9ujz3gotzFq7r55UwDTA1ita3vb4\neDKjIb4b1M4Wr81M23WHonpje+9qkkrAkdQcHrkgvSCV046xsq/6NctzwCUUNsgF\n7Q1a8ut5qJEYpz5ta8vI1rqFqAMBqCbFjRYlmAoTTpFPOmzAVxV+YoqTrW5A16su\n/2SXlMYfJ/n/ad/QfBNPPAAQMpyOr2RCL/YiL/PFZPs7NxYjnZHNWxMLSPgFyI+/\nt2klnn5jR76KJK2qimmaXedB90EtFsMRUU1e4NxH9gDuyrihKPJ3aVnZ35mSipvR\n/1KB8t8gtFXp/VQaz2sg8+uxPMKB81O37fL4zz6Mg5K8+aq3ejBiyHucpFGnsnVB\n3kQWeD36ONkybngmgWoyPceuSWm1hQ0Z7VRAQX+KlxxSaHmSaIk1XxZu9h9riQHx\nfMuev6KXjRn/CjCoUTn+7eFrt0dT5GryQEIZP+nA0oq0LKxogigHNZlwAT4flrqb\nJUfZJrqgoce5HjZSXl10APbtPjJi0fW9AgMBAAGjQjBAMA8GA1UdEwEB/wQFMAMB\nAf8wHQYDVR0OBBYEFEfV+LztI29OVDRm0tqClP3NrmEWMA4GA1UdDwEB/wQEAwIB\nhjANBgkqhkiG9w0BAQwFAAOCAgEAvSNe+0wuk53KhWlRlRf2x/97H2Q76X3anzF0\n5fOSVm022ldALzXMzqOfdnoKIhAu2oVKiHHKs7mMas+T6TL+Mkphx0CYEVxFE3PG\n061q3CqJU+wMm9W9xsB79oB2XG47r1fIEywZZ3GaRsatAbjcNOT8uBaATPQAfJFN\nzjFe4XyN+rA4cFrYNvfHTeu5ftrYmvks7JlRaJgEGWsz+qXux7uvaEEVPqEumd2H\nuYeaRNOZ2V23R009X5lbgBFx9tq5VDTnKhQiTQ2SeT0rc1W3Dz5ik6SbQQNP3nSR\n0Ywy7r/sZ3fcDyfFiqnrVY4Ympfvb4YW2PZ6OsQJbzH6xjdnTG2HtzEU30ngxdp1\nWUEF4zt6rjJCp7QBUqXgdlHvJqYu6949qtWjEPiFN9uSsRV2i1YDjJqN52dLjAPn\nAipJKo8x1PHTwUzuITqnB9BdP+5TlTl8biJfkEf/+08eWDTLlDHr2VrZLOLompTh\nbS5OrhDmqA2Q+O+EWrTIhMflwwlCpR9QYM/Xwvlbad9H0FUHbJsCVNaru3wGOgWo\ntt3dNSK9Lqnv/Ej9K9v6CRr36in4ylJKivhJ5B9E7ABHg7EpBJ1xi7O5eNDkNoJG\n+pFyphJq3AkBR2U4ni2tUaTAtSW2tks7IaiDV+UMtqZyGabT5ISQfWLLtLHSWn2F\nTspdjbg=\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIECTCCAvGgAwIBAgIRAJZFh4s9aZGzKaTMLrSb4acwDQYJKoZIhvcNAQELBQAw\ngZwxCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJ\nbmMuMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTE1MDMGA1UEAwws\nQW1hem9uIFJEUyBCZXRhIHVzLWVhc3QtMSBSb290IENBIFJTQTIwNDggRzExEDAO\nBgNVBAcMB1NlYXR0bGUwIBcNMjEwNTE4MjEyODQxWhgPMjA2MTA1MTgyMjI4NDFa\nMIGcMQswCQYDVQQGEwJVUzEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywg\nSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzELMAkGA1UECAwCV0ExNTAzBgNVBAMM\nLEFtYXpvbiBSRFMgQmV0YSB1cy1lYXN0LTEgUm9vdCBDQSBSU0EyMDQ4IEcxMRAw\nDgYDVQQHDAdTZWF0dGxlMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA\n17i2yoU6diep+WrqxIn2CrDEO2NdJVwWTSckx4WMZlLpkQDoymSmkNHjq9ADIApD\nA31Cx+843apL7wub8QkFZD0Tk7/ThdHWJOzcAM3ov98QBPQfOC1W5zYIIRP2F+vQ\nTRETHQnLcW3rLv0NMk5oQvIKpJoC9ett6aeVrzu+4cU4DZVWYlJUoC/ljWzCluau\n8blfW0Vwin6OB7s0HCG5/wijQWJBU5SrP/KAIPeQi1GqG5efbqAXDr/ple0Ipwyo\nXjjl73LenGUgqpANlC9EAT4i7FkJcllLPeK3NcOHjuUG0AccLv1lGsHAxZLgjk/x\nz9ZcnVV9UFWZiyJTKxeKPwIDAQABo0IwQDAPBgNVHRMBAf8EBTADAQH/MB0GA1Ud\nDgQWBBRWyMuZUo4gxCR3Luf9/bd2AqZ7CjAOBgNVHQ8BAf8EBAMCAYYwDQYJKoZI\nhvcNAQELBQADggEBAIqN2DlIKlvDFPO0QUZQVFbsi/tLdYM98/vvzBpttlTGVMyD\ngJuQeHVz+MnhGIwoCGOlGU3OOUoIlLAut0+WG74qYczn43oA2gbMd7HoD7oL/IGg\nnjorBwJVcuuLv2G//SqM3nxGcLRtkRnQ+lvqPxMz9+0fKFUn6QcIDuF0QSfthLs2\nWSiGEPKO9c9RSXdRQ4pXA7c3hXng8P4A2ZmdciPne5Nu4I4qLDGZYRrRLRkNTrOi\nTyS6r2HNGUfgF7eOSeKt3NWL+mNChcYj71/Vycf5edeczpUgfnWy9WbPrK1svKyl\naAs2xg+X6O8qB+Mnj2dNBzm+lZIS3sIlm+nO9sg=\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIICrjCCAjSgAwIBAgIRAPAlEk8VJPmEzVRRaWvTh2AwCgYIKoZIzj0EAwMwgZYx\nCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMu\nMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTEvMC0GA1UEAwwmQW1h\nem9uIFJEUyB1cy1lYXN0LTEgUm9vdCBDQSBFQ0MzODQgRzExEDAOBgNVBAcMB1Nl\nYXR0bGUwIBcNMjEwNTI1MjI0MTU1WhgPMjEyMTA1MjUyMzQxNTVaMIGWMQswCQYD\nVQQGEwJVUzEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5jLjETMBEG\nA1UECwwKQW1hem9uIFJEUzELMAkGA1UECAwCV0ExLzAtBgNVBAMMJkFtYXpvbiBS\nRFMgdXMtZWFzdC0xIFJvb3QgQ0EgRUNDMzg0IEcxMRAwDgYDVQQHDAdTZWF0dGxl\nMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEx5xjrup8II4HOJw15NTnS3H5yMrQGlbj\nEDA5MMGnE9DmHp5dACIxmPXPMe/99nO7wNdl7G71OYPCgEvWm0FhdvVUeTb3LVnV\nBnaXt32Ek7/oxGk1T+Df03C+W0vmuJ+wo0IwQDAPBgNVHRMBAf8EBTADAQH/MB0G\nA1UdDgQWBBTGXmqBWN/1tkSea4pNw0oHrjk2UDAOBgNVHQ8BAf8EBAMCAYYwCgYI\nKoZIzj0EAwMDaAAwZQIxAIqqZWCSrIkZ7zsv/FygtAusW6yvlL935YAWYPVXU30m\njkMFLM+/RJ9GMvnO8jHfCgIwB+whlkcItzE9CRQ6CsMo/d5cEHDUu/QW6jSIh9BR\nOGh9pTYPVkUbBiKPA7lVVhre\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIF/zCCA+egAwIBAgIRAJGY9kZITwfSRaAS/bSBOw8wDQYJKoZIhvcNAQEMBQAw\ngZcxCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJ\nbmMuMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTEwMC4GA1UEAwwn\nQW1hem9uIFJEUyBzYS1lYXN0LTEgUm9vdCBDQSBSU0E0MDk2IEcxMRAwDgYDVQQH\nDAdTZWF0dGxlMCAXDTIxMDUxOTE4MTEyMFoYDzIxMjEwNTE5MTkxMTIwWjCBlzEL\nMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4x\nEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTAwLgYDVQQDDCdBbWF6\nb24gUkRTIHNhLWVhc3QtMSBSb290IENBIFJTQTQwOTYgRzExEDAOBgNVBAcMB1Nl\nYXR0bGUwggIiMA0GCSqGSIb3DQEBAQUAA4ICDwAwggIKAoICAQDe2vlDp6Eo4WQi\nWi32YJOgdXHhxTFrLjB9SRy22DYoMaWfginJIwJcSR8yse8ZDQuoNhERB9LRggAE\neng23mhrfvtL1yQkMlZfBu4vG1nOb22XiPFzk7X2wqz/WigdYNBCqa1kK3jrLqPx\nYUy7jk2oZle4GLVRTNGuMfcid6S2hs3UCdXfkJuM2z2wc3WUlvHoVNk37v2/jzR/\nhSCHZv5YHAtzL/kLb/e64QkqxKll5QmKhyI6d7vt6Lr1C0zb+DmwxUoJhseAS0hI\ndRk5DklMb4Aqpj6KN0ss0HAYqYERGRIQM7KKA4+hxDMUkJmt8KqWKZkAlCZgflzl\nm8NZ31o2cvBzf6g+VFHx+6iVrSkohVQydkCxx7NJ743iPKsh8BytSM4qU7xx4OnD\nH2yNXcypu+D5bZnVZr4Pywq0w0WqbTM2bpYthG9IC4JeVUvZ2mDc01lqOlbMeyfT\nog5BRPLDXdZK8lapo7se2teh64cIfXtCmM2lDSwm1wnH2iSK+AWZVIM3iE45WSGc\nvZ+drHfVgjJJ5u1YrMCWNL5C2utFbyF9Obw9ZAwm61MSbPQL9JwznhNlCh7F2ANW\nZHWQPNcOAJqzE4uVcJB1ZeVl28ORYY1668lx+s9yYeMXk3QQdj4xmdnvoBFggqRB\nZR6Z0D7ZohADXe024RzEo1TukrQgKQIDAQABo0IwQDAPBgNVHRMBAf8EBTADAQH/\nMB0GA1UdDgQWBBT7Vs4Y5uG/9aXnYGNMEs6ycPUT3jAOBgNVHQ8BAf8EBAMCAYYw\nDQYJKoZIhvcNAQEMBQADggIBACN4Htp2PvGcQA0/sAS+qUVWWJoAXSsu8Pgc6Gar\n7tKVlNJ/4W/a6pUV2Xo/Tz3msg4yiE8sMESp2k+USosD5n9Alai5s5qpWDQjrqrh\n76AGyF2nzve4kIN19GArYhm4Mz/EKEG1QHYvBDGgXi3kNvL/a2Zbybp+3LevG+q7\nxtx4Sz9yIyMzuT/6Y7ijtiMZ9XbuxGf5wab8UtwT3Xq1UradJy0KCkzRJAz/Wy/X\nHbTkEvKSaYKExH6sLo0jqdIjV/d2Io31gt4e0Ly1ER2wPyFa+pc/swu7HCzrN+iz\nA2ZM4+KX9nBvFyfkHLix4rALg+WTYJa/dIsObXkdZ3z8qPf5A9PXlULiaa1mcP4+\nrokw74IyLEYooQ8iSOjxumXhnkTS69MAdGzXYE5gnHokABtGD+BB5qLhtLt4fqAp\n8AyHpQWMyV42M9SJLzQ+iOz7kAgJOBOaVtJI3FV/iAg/eqWVm3yLuUTWDxSHrKuL\nN19+pSjF6TNvUSFXwEa2LJkfDqIOCE32iOuy85QY//3NsgrSQF6UkSPa95eJrSGI\n3hTRYYh3Up2GhBGl1KUy7/o0k3KRZTk4s38fylY8bZ3TakUOH5iIGoHyFVVcp361\nPyy25SzFSmNalWoQd9wZVc/Cps2ldxhcttM+WLkFNzprd0VJa8qTz8vYtHP0ouDN\nnWS0\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIGCTCCA/GgAwIBAgIRAOY7gfcBZgR2tqfBzMbFQCUwDQYJKoZIhvcNAQEMBQAw\ngZwxCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJ\nbmMuMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTE1MDMGA1UEAwws\nQW1hem9uIFJEUyBhcC1zb3V0aGVhc3QtNCBSb290IENBIFJTQTQwOTYgRzExEDAO\nBgNVBAcMB1NlYXR0bGUwIBcNMjIwNTI1MTY1NDU5WhgPMjEyMjA1MjUxNzU0NTla\nMIGcMQswCQYDVQQGEwJVUzEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywg\nSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzELMAkGA1UECAwCV0ExNTAzBgNVBAMM\nLEFtYXpvbiBSRFMgYXAtc291dGhlYXN0LTQgUm9vdCBDQSBSU0E0MDk2IEcxMRAw\nDgYDVQQHDAdTZWF0dGxlMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEA\nlfxER43FuLRdL08bddF0YhbCP+XXKj1A/TFMXmd2My8XDei8rPXFYyyjMig9+xZw\nuAsIxLwz8uiA26CKA8bCZKg5VG2kTeOJAfvBJaLv1CZefs3Z4Uf1Sjvm6MF2yqEj\nGoORfyfL9HiZFTDuF/hcjWoKYCfMuG6M/wO8IbdICrX3n+BiYQJu/pFO660Mg3h/\n8YBBWYDbHoCiH/vkqqJugQ5BM3OI5nsElW51P1icEEqti4AZ7JmtSv9t7fIFBVyR\noaEyOgpp0sm193F/cDJQdssvjoOnaubsSYm1ep3awZAUyGN/X8MBrPY95d0hLhfH\nEhc5Icyg+hsosBljlAyksmt4hFQ9iBnWIz/ZTfGMck+6p3HVL9RDgvluez+rWv59\n8q7omUGsiPApy5PDdwI/Wt/KtC34/2sjslIJfvgifdAtkRPkhff1WEwER00ADrN9\neGGInaCpJfb1Rq8cV2n00jxg7DcEd65VR3dmIRb0bL+jWK62ni/WdEyomAOMfmGj\naWf78S/4rasHllWJ+QwnaUYY3u6N8Cgio0/ep4i34FxMXqMV3V0/qXdfhyabi/LM\nwCxNo1Dwt+s6OtPJbwO92JL+829QAxydfmaMTeHBsgMPkG7RwAekeuatKGHNsc2Z\nx2Q4C2wVvOGAhcHwxfM8JfZs3nDSZJndtVVnFlUY0UECAwEAAaNCMEAwDwYDVR0T\nAQH/BAUwAwEB/zAdBgNVHQ4EFgQUpnG7mWazy6k97/tb5iduRB3RXgQwDgYDVR0P\nAQH/BAQDAgGGMA0GCSqGSIb3DQEBDAUAA4ICAQCDLqq1Wwa9Tkuv7vxBnIeVvvFF\necTn+P+wJxl9Qa2ortzqTHZsBDyJO62d04AgBwiDXkJ9a+bthgG0H1J7Xee8xqv1\nxyX2yKj24ygHjspLotKP4eDMdDi5TYq+gdkbPmm9Q69B1+W6e049JVGXvWG8/7kU\nigxeuCYwtCCdUPRLf6D8y+1XMGgVv3/DSOHWvTg3MJ1wJ3n3+eve3rjGdRYWZeJu\nk21HLSZYzVrCtUsh2YAeLnUbSxVuT2Xr4JehYe9zW5HEQ8Je/OUfnCy9vzoN/ITw\nosAH+EBJQey7RxEDqMwCaRefH0yeHFcnOll0OXg/urnQmwbEYzQ1uutJaBPsjU0J\nQf06sMxI7GiB5nPE+CnI2sM6A9AW9kvwexGXpNJiLxF8dvPQthpOKGcYu6BFvRmt\n6ctfXd9b7JJoVqMWuf5cCY6ihpk1e9JTlAqu4Eb/7JNyGiGCR40iSLvV28un9wiE\nplrdYxwcNYq851BEu3r3AyYWw/UW1AKJ5tM+/Gtok+AphMC9ywT66o/Kfu44mOWm\nL3nSLSWEcgfUVgrikpnyGbUnGtgCmHiMlUtNVexcE7OtCIZoVAlCGKNu7tyuJf10\nQlk8oIIzfSIlcbHpOYoN79FkLoDNc2er4Gd+7w1oPQmdAB0jBJnA6t0OUBPKdDdE\nUfff2jrbfbzECn1ELg==\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIGCDCCA/CgAwIBAgIQIuO1A8LOnmc7zZ/vMm3TrDANBgkqhkiG9w0BAQwFADCB\nnDELMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIElu\nYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTUwMwYDVQQDDCxB\nbWF6b24gUkRTIGFwLXNvdXRoZWFzdC0yIFJvb3QgQ0EgUlNBNDA5NiBHMTEQMA4G\nA1UEBwwHU2VhdHRsZTAgFw0yMTA1MjQyMDQ2MThaGA8yMTIxMDUyNDIxNDYxOFow\ngZwxCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJ\nbmMuMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTE1MDMGA1UEAwws\nQW1hem9uIFJEUyBhcC1zb3V0aGVhc3QtMiBSb290IENBIFJTQTQwOTYgRzExEDAO\nBgNVBAcMB1NlYXR0bGUwggIiMA0GCSqGSIb3DQEBAQUAA4ICDwAwggIKAoICAQDq\nqRHKbG8ZK6/GkGm2cenznEF06yHwI1gD5sdsHjTgekDZ2Dl9RwtDmUH2zFuIQwGj\nSeC7E2iKwrJRA5wYzL9/Vk8NOILEKQOP8OIKUHbc7q8rEtjs401KcU6pFBBEdO9G\nCTiRhogq+8mhC13AM/UriZJbKhwgM2UaDOzAneGMhQAGjH8z83NsNcPxpYVE7tqM\nsch5yLtIJLkJRusrmQQTeHUev16YNqyUa+LuFclFL0FzFCimkcxUhXlbfEKXbssS\nyPzjiv8wokGyo7+gA0SueceMO2UjfGfute3HlXZDcNvBbkSY+ver41jPydyRD6Qq\noEkh0tyIbPoa3oU74kwipJtz6KBEA3u3iq61OUR0ENhR2NeP7CSKrC24SnQJZ/92\nqxusrbyV/0w+U4m62ug/o4hWNK1lUcc2AqiBOvCSJ7qpdteTFxcEIzDwYfERDx6a\nd9+3IPvzMb0ZCxBIIUFMxLTF7yAxI9s6KZBBXSZ6tDcCCYIgEysEPRWMRAcG+ye/\nfZVn9Vnzsj4/2wchC2eQrYpb1QvG4eMXA4M5tFHKi+/8cOPiUzJRgwS222J8YuDj\nyEBval874OzXk8H8Mj0JXJ/jH66WuxcBbh5K7Rp5oJn7yju9yqX6qubY8gVeMZ1i\nu4oXCopefDqa35JplQNUXbWwSebi0qJ4EK0V8F9Q+QIDAQABo0IwQDAPBgNVHRMB\nAf8EBTADAQH/MB0GA1UdDgQWBBT4ysqCxaPe7y+g1KUIAenqu8PAgzAOBgNVHQ8B\nAf8EBAMCAYYwDQYJKoZIhvcNAQEMBQADggIBALU8WN35KAjPZEX65tobtCDQFkIO\nuJjv0alD7qLB0i9eY80C+kD87HKqdMDJv50a5fZdqOta8BrHutgFtDm+xo5F/1M3\nu5/Vva5lV4xy5DqPajcF4Mw52czYBmeiLRTnyPJsU93EQIC2Bp4Egvb6LI4cMOgm\n4pY2hL8DojOC5PXt4B1/7c1DNcJX3CMzHDm4SMwiv2MAxSuC/cbHXcWMk+qXdrVx\n+ayLUSh8acaAOy3KLs1MVExJ6j9iFIGsDVsO4vr4ZNsYQiyHjp+L8ops6YVBO5AT\nk/pI+axHIVsO5qiD4cFWvkGqmZ0gsVtgGUchZaacboyFsVmo6QPrl28l6LwxkIEv\nGGJYvIBW8sfqtGRspjfX5TlNy5IgW/VOwGBdHHsvg/xpRo31PR3HOFw7uPBi7cAr\nFiZRLJut7af98EB2UvovZnOh7uIEGPeecQWeOTQfJeWet2FqTzFYd0NUMgqPuJx1\nvLKferP+ajAZLJvVnW1J7Vccx/pm0rMiUJEf0LRb/6XFxx7T2RGjJTi0EzXODTYI\ngnLfBBjnolQqw+emf4pJ4pAtly0Gq1KoxTG2QN+wTd4lsCMjnelklFDjejwnl7Uy\nvtxzRBAu/hi/AqDkDFf94m6j+edIrjbi9/JDFtQ9EDlyeqPgw0qwi2fwtJyMD45V\nfejbXelUSJSzDIdY\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIGCTCCA/GgAwIBAgIRAN7Y9G9i4I+ZaslPobE7VL4wDQYJKoZIhvcNAQEMBQAw\ngZwxCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJ\nbmMuMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTE1MDMGA1UEAwws\nQW1hem9uIFJEUyBhcC1ub3J0aGVhc3QtMiBSb290IENBIFJTQTQwOTYgRzExEDAO\nBgNVBAcMB1NlYXR0bGUwIBcNMjEwNTIwMTYzMzIzWhgPMjEyMTA1MjAxNzMzMjNa\nMIGcMQswCQYDVQQGEwJVUzEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywg\nSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzELMAkGA1UECAwCV0ExNTAzBgNVBAMM\nLEFtYXpvbiBSRFMgYXAtbm9ydGhlYXN0LTIgUm9vdCBDQSBSU0E0MDk2IEcxMRAw\nDgYDVQQHDAdTZWF0dGxlMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEA\n4BEPCiIfiK66Q/qa8k+eqf1Q3qsa6Xuu/fPkpuStXVBShhtXd3eqrM0iT4Xxs420\nVa0vSB3oZ7l86P9zYfa60n6PzRxdYFckYX330aI7L/oFIdaodB/C9szvROI0oLG+\n6RwmIF2zcprH0cTby8MiM7G3v9ykpq27g4WhDC1if2j8giOQL3oHpUaByekZNIHF\ndIllsI3RkXmR3xmmxoOxJM1B9MZi7e1CvuVtTGOnSGpNCQiqofehTGwxCN2wFSK8\nxysaWlw48G0VzZs7cbxoXMH9QbMpb4tpk0d+T8JfAPu6uWO9UwCLWWydf0CkmA/+\nD50/xd1t33X9P4FEaPSg5lYbHXzSLWn7oLbrN2UqMLaQrkoEBg/VGvzmfN0mbflw\n+T87bJ/VEOVNlG+gepyCTf89qIQVWOjuYMox4sK0PjzZGsYEuYiq1+OUT3vk/e5K\nag1fCcq2Isy4/iwB2xcXrsQ6ljwdk1fc+EmOnjGKrhuOHJY3S+RFv4ToQBsVyYhC\nXGaC3EkqIX0xaCpDimxYhFjWhpDXAjG/zJ+hRLDAMCMhl/LPGRk/D1kzSbPmdjpl\nlEMK5695PeBvEBTQdBQdOiYgOU3vWU6tzwwHfiM2/wgvess/q0FDAHfJhppbgbb9\n3vgsIUcsvoC5o29JvMsUxsDRvsAfEmMSDGkJoA/X6GECAwEAAaNCMEAwDwYDVR0T\nAQH/BAUwAwEB/zAdBgNVHQ4EFgQUgEWm1mZCbGD6ytbwk2UU1aLaOUUwDgYDVR0P\nAQH/BAQDAgGGMA0GCSqGSIb3DQEBDAUAA4ICAQBb4+ABTGBGwxK1U/q4g8JDqTQM\n1Wh8Oz8yAk4XtPJMAmCctxbd81cRnSnePWw/hxViLVtkZ/GsemvXfqAQyOn1coN7\nQeYSw+ZOlu0j2jEJVynmgsR7nIRqE7QkCyZAU+d2FTJUfmee+IiBiGyFGgxz9n7A\nJhBZ/eahBbiuoOik/APW2JWLh0xp0W0GznfJ8lAlaQTyDa8iDXmVtbJg9P9qzkvl\nFgPXQttzEOyooF8Pb2LCZO4kUz+1sbU7tHdr2YE+SXxt6D3SBv+Yf0FlvyWLiqVk\nGDEOlPPTDSjAWgKnqST8UJ0RDcZK/v1ixs7ayqQJU0GUQm1I7LGTErWXHMnCuHKe\nUKYuiSZwmTcJ06NgdhcCnGZgPq13ryMDqxPeltQc3n5eO7f1cL9ERYLDLOzm6A9P\noQ3MfcVOsbHgGHZWaPSeNrQRN9xefqBXH0ZPasgcH9WJdsLlEjVUXoultaHOKx3b\nUCCb+d3EfqF6pRT488ippOL6bk7zNubwhRa/+y4wjZtwe3kAX78ACJVcjPobH9jZ\nErySads5zdQeaoee5wRKdp3TOfvuCe4bwLRdhOLCHWzEcXzY3g/6+ppLvNom8o+h\nBh5X26G6KSfr9tqhQ3O9IcbARjnuPbvtJnoPY0gz3EHHGPhy0RNW8i2gl3nUp0ah\nPtjwbKW0hYAhIttT0Q==\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIICtzCCAj2gAwIBAgIQQRBQTs6Y3H1DDbpHGta3lzAKBggqhkjOPQQDAzCBmzEL\nMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4x\nEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTQwMgYDVQQDDCtBbWF6\nb24gUkRTIGFwLXNvdXRoZWFzdC0zIFJvb3QgQ0EgRUNDMzg0IEcxMRAwDgYDVQQH\nDAdTZWF0dGxlMCAXDTIxMDYxMTAwMTI0M1oYDzIxMjEwNjExMDExMjQzWjCBmzEL\nMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4x\nEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTQwMgYDVQQDDCtBbWF6\nb24gUkRTIGFwLXNvdXRoZWFzdC0zIFJvb3QgQ0EgRUNDMzg0IEcxMRAwDgYDVQQH\nDAdTZWF0dGxlMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEs0942Xj4m/gKA+WA6F5h\nAHYuek9eGpzTRoLJddM4rEV1T3eSueytMVKOSlS3Ub9IhyQrH2D8EHsLYk9ktnGR\npATk0kCYTqFbB7onNo070lmMJmGT/Q7NgwC8cySChFxbo0IwQDAPBgNVHRMBAf8E\nBTADAQH/MB0GA1UdDgQWBBQ20iKBKiNkcbIZRu0y1uoF1yJTEzAOBgNVHQ8BAf8E\nBAMCAYYwCgYIKoZIzj0EAwMDaAAwZQIwYv0wTSrpQTaPaarfLN8Xcqrqu3hzl07n\nFrESIoRw6Cx77ZscFi2/MV6AFyjCV/TlAjEAhpwJ3tpzPXpThRML8DMJYZ3YgMh3\nCMuLqhPpla3cL0PhybrD27hJWl29C4el6aMO\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIICrDCCAjOgAwIBAgIQGcztRyV40pyMKbNeSN+vXTAKBggqhkjOPQQDAzCBljEL\nMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4x\nEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMS8wLQYDVQQDDCZBbWF6\nb24gUkRTIHVzLWVhc3QtMiBSb290IENBIEVDQzM4NCBHMTEQMA4GA1UEBwwHU2Vh\ndHRsZTAgFw0yMTA1MjEyMzE1NTZaGA8yMTIxMDUyMjAwMTU1NlowgZYxCzAJBgNV\nBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMuMRMwEQYD\nVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTEvMC0GA1UEAwwmQW1hem9uIFJE\nUyB1cy1lYXN0LTIgUm9vdCBDQSBFQ0MzODQgRzExEDAOBgNVBAcMB1NlYXR0bGUw\ndjAQBgcqhkjOPQIBBgUrgQQAIgNiAAQfDcv+GGRESD9wT+I5YIPRsD3L+/jsiIis\nTr7t9RSbFl+gYpO7ZbDXvNbV5UGOC5lMJo/SnqFRTC6vL06NF7qOHfig3XO8QnQz\n6T5uhhrhnX2RSY3/10d2kTyHq3ZZg3+jQjBAMA8GA1UdEwEB/wQFMAMBAf8wHQYD\nVR0OBBYEFLDyD3PRyNXpvKHPYYxjHXWOgfPnMA4GA1UdDwEB/wQEAwIBhjAKBggq\nhkjOPQQDAwNnADBkAjB20HQp6YL7CqYD82KaLGzgw305aUKw2aMrdkBR29J183jY\n6Ocj9+Wcif9xnRMS+7oCMAvrt03rbh4SU9BohpRUcQ2Pjkh7RoY0jDR4Xq4qzjNr\n5UFr3BXpFvACxXF51BksGQ==\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIICrjCCAjWgAwIBAgIQeKbS5zvtqDvRtwr5H48cAjAKBggqhkjOPQQDAzCBlzEL\nMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4x\nEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTAwLgYDVQQDDCdBbWF6\nb24gUkRTIG1lLXNvdXRoLTEgUm9vdCBDQSBFQ0MzODQgRzExEDAOBgNVBAcMB1Nl\nYXR0bGUwIBcNMjEwNTIwMTcxOTU1WhgPMjEyMTA1MjAxODE5NTVaMIGXMQswCQYD\nVQQGEwJVUzEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5jLjETMBEG\nA1UECwwKQW1hem9uIFJEUzELMAkGA1UECAwCV0ExMDAuBgNVBAMMJ0FtYXpvbiBS\nRFMgbWUtc291dGgtMSBSb290IENBIEVDQzM4NCBHMTEQMA4GA1UEBwwHU2VhdHRs\nZTB2MBAGByqGSM49AgEGBSuBBAAiA2IABEKjgUaAPmUlRMEQdBC7BScAGosJ1zRV\nLDd38qTBjzgmwBfQJ5ZfGIvyEK5unB09MB4e/3qqK5I/L6Qn5Px/n5g4dq0c7MQZ\nu7G9GBYm90U3WRJBf7lQrPStXaRnS4A/O6NCMEAwDwYDVR0TAQH/BAUwAwEB/zAd\nBgNVHQ4EFgQUNKcAbGEIn03/vkwd8g6jNyiRdD4wDgYDVR0PAQH/BAQDAgGGMAoG\nCCqGSM49BAMDA2cAMGQCMHIeTrjenCSYuGC6txuBt/0ZwnM/ciO9kHGWVCoK8QLs\njGghb5/YSFGZbmQ6qpGlSAIwVOQgdFfTpEfe5i+Vs9frLJ4QKAfc27cTNYzRIM0I\nE+AJgK4C4+DiyyMzOpiCfmvq\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIGCDCCA/CgAwIBAgIQSFkEUzu9FYgC5dW+5lnTgjANBgkqhkiG9w0BAQwFADCB\nnDELMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIElu\nYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTUwMwYDVQQDDCxB\nbWF6b24gUkRTIGFwLXNvdXRoZWFzdC0zIFJvb3QgQ0EgUlNBNDA5NiBHMTEQMA4G\nA1UEBwwHU2VhdHRsZTAgFw0yMTA2MTEwMDA4MzZaGA8yMTIxMDYxMTAxMDgzNlow\ngZwxCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJ\nbmMuMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTE1MDMGA1UEAwws\nQW1hem9uIFJEUyBhcC1zb3V0aGVhc3QtMyBSb290IENBIFJTQTQwOTYgRzExEDAO\nBgNVBAcMB1NlYXR0bGUwggIiMA0GCSqGSIb3DQEBAQUAA4ICDwAwggIKAoICAQDx\nmy5Qmd8zdwaI/KOKV9Xar9oNbhJP5ED0JCiigkuvCkg5qM36klszE8JhsUj40xpp\nvQw9wkYW4y+C8twBpzKGBvakqMnoaVUV7lOCKx0RofrnNwkZCboTBB4X/GCZ3fIl\nYTybS7Ehi1UuiaZspIT5A2jidoA8HiBPk+mTg1UUkoWS9h+MEAPa8L4DY6fGf4pO\nJ1Gk2cdePuNzzIrpm2yPto+I8MRROwZ3ha7ooyymOXKtz2c7jEHHJ314boCXAv9G\ncdo27WiebewZkHHH7Zx9iTIVuuk2abyVSzvLVeGv7Nuy4lmSqa5clWYqWsGXxvZ2\n0fZC5Gd+BDUMW1eSpW7QDTk3top6x/coNoWuLSfXiC5ZrJkIKimSp9iguULgpK7G\nabMMN4PR+O+vhcB8E879hcwmS2yd3IwcPTl3QXxufqeSV58/h2ibkqb/W4Bvggf6\n5JMHQPlPHOqMCVFIHP1IffIo+Of7clb30g9FD2j3F4qgV3OLwEDNg/zuO1DiAvH1\nL+OnmGHkfbtYz+AVApkAZrxMWwoYrwpauyBusvSzwRE24vLTd2i80ZDH422QBLXG\nrN7Zas8rwIiBKacJLYtBYETw8mfsNt8gb72aIQX6cZOsphqp6hUtKaiMTVgGazl7\ntBXqbB+sIv3S9X6bM4cZJKkMJOXbnyCCLZFYv8TurwIDAQABo0IwQDAPBgNVHRMB\nAf8EBTADAQH/MB0GA1UdDgQWBBTOVtaS1b/lz6yJDvNk65vEastbQTAOBgNVHQ8B\nAf8EBAMCAYYwDQYJKoZIhvcNAQEMBQADggIBABEONg+TmMZM/PrYGNAfB4S41zp1\n3CVjslZswh/pC4kgXSf8cPJiUOzMwUevuFQj7tCqxQtJEygJM2IFg4ViInIah2kh\nxlRakEGGw2dEVlxZAmmLWxlL1s1lN1565t5kgVwM0GVfwYM2xEvUaby6KDVJIkD3\naM6sFDBshvVA70qOggM6kU6mwTbivOROzfoIQDnVaT+LQjHqY/T+ok6IN0YXXCWl\nFavai8RDjzLDFwXSRvgIK+1c49vlFFY4W9Efp7Z9tPSZU1TvWUcKdAtV8P2fPHAS\nvAZ+g9JuNfeawhEibjXkwg6Z/yFUueQCQOs9TRXYogzp5CMMkfdNJF8byKYqHscs\nUosIcETnHwqwban99u35sWcoDZPr6aBIrz7LGKTJrL8Nis8qHqnqQBXu/fsQEN8u\nzJ2LBi8sievnzd0qI0kaWmg8GzZmYH1JCt1GXSqOFkI8FMy2bahP7TUQR1LBUKQ3\nhrOSqldkhN+cSAOnvbQcFzLr+iEYEk34+NhcMIFVE+51KJ1n6+zISOinr6mI3ckX\n6p2tmiCD4Shk2Xx/VTY/KGvQWKFcQApWezBSvDNlGe0yV71LtLf3dr1pr4ofo7cE\nrYucCJ40bfxEU/fmzYdBF32xP7AOD9U0FbOR3Mcthc6Z6w20WFC+zru8FGY08gPf\nWT1QcNdw7ntUJP/w\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIICrzCCAjWgAwIBAgIQARky6+5PNFRkFVOp3Ob1CTAKBggqhkjOPQQDAzCBlzEL\nMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4x\nEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTAwLgYDVQQDDCdBbWF6\nb24gUkRTIGV1LXNvdXRoLTIgUm9vdCBDQSBFQ0MzODQgRzExEDAOBgNVBAcMB1Nl\nYXR0bGUwIBcNMjIwNTIzMTg0MTI4WhgPMjEyMjA1MjMxOTQxMjdaMIGXMQswCQYD\nVQQGEwJVUzEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5jLjETMBEG\nA1UECwwKQW1hem9uIFJEUzELMAkGA1UECAwCV0ExMDAuBgNVBAMMJ0FtYXpvbiBS\nRFMgZXUtc291dGgtMiBSb290IENBIEVDQzM4NCBHMTEQMA4GA1UEBwwHU2VhdHRs\nZTB2MBAGByqGSM49AgEGBSuBBAAiA2IABNVGL5oF7cfIBxKyWd2PVK/S5yQfaJY3\nQFHWvEdt6951n9JhiiPrHzfVHsxZp1CBjILRMzjgRbYWmc8qRoLkgGE7htGdwudJ\nFa/WuKzO574Prv4iZXUnVGTboC7JdvKbh6NCMEAwDwYDVR0TAQH/BAUwAwEB/zAd\nBgNVHQ4EFgQUgDeIIEKynwUbNXApdIPnmRWieZwwDgYDVR0PAQH/BAQDAgGGMAoG\nCCqGSM49BAMDA2gAMGUCMEOOJfucrST+FxuqJkMZyCM3gWGZaB+/w6+XUAJC6hFM\nuSTY0F44/bERkA4XhH+YGAIxAIpJQBakCA1/mXjsTnQ+0El9ty+LODp8ibkn031c\n8DKDS7pR9UK7ZYdR6zFg3ZCjQw==\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIICrjCCAjOgAwIBAgIQJvkWUcYLbnxtuwnyjMmntDAKBggqhkjOPQQDAzCBljEL\nMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4x\nEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMS8wLQYDVQQDDCZBbWF6\nb24gUkRTIGV1LXdlc3QtMyBSb290IENBIEVDQzM4NCBHMTEQMA4GA1UEBwwHU2Vh\ndHRsZTAgFw0yMTA1MjUyMjI2MTJaGA8yMTIxMDUyNTIzMjYxMlowgZYxCzAJBgNV\nBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMuMRMwEQYD\nVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTEvMC0GA1UEAwwmQW1hem9uIFJE\nUyBldS13ZXN0LTMgUm9vdCBDQSBFQ0MzODQgRzExEDAOBgNVBAcMB1NlYXR0bGUw\ndjAQBgcqhkjOPQIBBgUrgQQAIgNiAARENn8uHCyjn1dFax4OeXxvbV861qsXFD9G\nDshumTmFzWWHN/69WN/AOsxy9XN5S7Cgad4gQgeYYYgZ5taw+tFo/jQvCLY//uR5\nuihcLuLJ78opvRPvD9kbWZ6oXfBtFkWjQjBAMA8GA1UdEwEB/wQFMAMBAf8wHQYD\nVR0OBBYEFKiK3LpoF+gDnqPldGSwChBPCYciMA4GA1UdDwEB/wQEAwIBhjAKBggq\nhkjOPQQDAwNpADBmAjEA+7qfvRlnvF1Aosyp9HzxxCbN7VKu+QXXPhLEBWa5oeWW\nUOcifunf/IVLC4/FGCsLAjEAte1AYp+iJyOHDB8UYkhBE/1sxnFaTiEPbvQBU0wZ\nSuwWVLhu2wWDuSW+K7tTuL8p\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIID/zCCAuegAwIBAgIRAKeDpqX5WFCGNo94M4v69sUwDQYJKoZIhvcNAQELBQAw\ngZcxCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJ\nbmMuMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTEwMC4GA1UEAwwn\nQW1hem9uIFJEUyBldS13ZXN0LTMgUm9vdCBDQSBSU0EyMDQ4IEcxMRAwDgYDVQQH\nDAdTZWF0dGxlMCAXDTIxMDUyNTIyMTgzM1oYDzIwNjEwNTI1MjMxODMzWjCBlzEL\nMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4x\nEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTAwLgYDVQQDDCdBbWF6\nb24gUkRTIGV1LXdlc3QtMyBSb290IENBIFJTQTIwNDggRzExEDAOBgNVBAcMB1Nl\nYXR0bGUwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQCcKOTEMTfzvs4H\nWtJR8gI7GXN6xesulWtZPv21oT+fLGwJ+9Bv8ADCGDDrDxfeH/HxJmzG9hgVAzVn\n4g97Bn7q07tGZM5pVi96/aNp11velZT7spOJKfJDZTlGns6DPdHmx48whpdO+dOb\n6+eR0VwCIv+Vl1fWXgoACXYCoKjhxJs+R+fwY//0JJ1YG8yjZ+ghLCJmvlkOJmE1\nTCPUyIENaEONd6T+FHGLVYRRxC2cPO65Jc4yQjsXvvQypoGgx7FwD5voNJnFMdyY\n754JGPOOe/SZdepN7Tz7UEq8kn7NQSbhmCsgA/Hkjkchz96qN/YJ+H/okiQUTNB0\neG9ogiVFAgMBAAGjQjBAMA8GA1UdEwEB/wQFMAMBAf8wHQYDVR0OBBYEFFjayw9Y\nMjbxfF14XAhMM2VPl0PfMA4GA1UdDwEB/wQEAwIBhjANBgkqhkiG9w0BAQsFAAOC\nAQEAAtmx6d9+9CWlMoU0JCirtp4dSS41bBfb9Oor6GQ8WIr2LdfZLL6uES/ubJPE\n1Sh5Vu/Zon5/MbqLMVrfniv3UpQIof37jKXsjZJFE1JVD/qQfRzG8AlBkYgHNEiS\nVtD4lFxERmaCkY1tjKB4Dbd5hfhdrDy29618ZjbSP7NwAfnwb96jobCmMKgxVGiH\nUqsLSiEBZ33b2hI7PJ6iTJnYBWGuiDnsWzKRmheA4nxwbmcQSfjbrNwa93w3caL2\nv/4u54Kcasvcu3yFsUwJygt8z43jsGAemNZsS7GWESxVVlW93MJRn6M+MMakkl9L\ntWaXdHZ+KUV7LhfYLb0ajvb40w==\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIEBDCCAuygAwIBAgIQJ5oxPEjefCsaESSwrxk68DANBgkqhkiG9w0BAQsFADCB\nmjELMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIElu\nYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTMwMQYDVQQDDCpB\nbWF6b24gUkRTIGV1LWNlbnRyYWwtMiBSb290IENBIFJTQTIwNDggRzExEDAOBgNV\nBAcMB1NlYXR0bGUwIBcNMjIwNjA2MjExNzA1WhgPMjA2MjA2MDYyMjE3MDVaMIGa\nMQswCQYDVQQGEwJVUzEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5j\nLjETMBEGA1UECwwKQW1hem9uIFJEUzELMAkGA1UECAwCV0ExMzAxBgNVBAMMKkFt\nYXpvbiBSRFMgZXUtY2VudHJhbC0yIFJvb3QgQ0EgUlNBMjA0OCBHMTEQMA4GA1UE\nBwwHU2VhdHRsZTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBALTQt5eX\ng+VP3BjO9VBkWJhE0GfLrU/QIk32I6WvrnejayTrlup9H1z4QWlXF7GNJrqScRMY\nKhJHlcP05aPsx1lYco6pdFOf42ybXyWHHJdShj4A5glU81GTT+VrXGzHSarLmtua\neozkQgPpDsSlPt0RefyTyel7r3Cq+5K/4vyjCTcIqbfgaGwTU36ffjM1LaPCuE4O\nnINMeD6YuImt2hU/mFl20FZ+IZQUIFZZU7pxGLqTRz/PWcH8tDDxnkYg7tNuXOeN\nJbTpXrw7St50/E9ZQ0llGS+MxJD8jGRAa/oL4G/cwnV8P2OEPVVkgN9xDDQeieo0\n3xkzolkDkmeKOnUCAwEAAaNCMEAwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQU\nbwu8635iQGQMRanekesORM8Hkm4wDgYDVR0PAQH/BAQDAgGGMA0GCSqGSIb3DQEB\nCwUAA4IBAQAgN6LE9mUgjsj6xGCX1afYE69fnmCjjb0rC6eEe1mb/QZNcyw4XBIW\n6+zTXo4mjZ4ffoxb//R0/+vdTE7IvaLgfAZgFsLKJCtYDDstXZj8ujQnGR9Pig3R\nW+LpNacvOOSJSawNQq0Xrlcu55AU4buyD5VjcICnfF1dqBMnGTnh27m/scd/ZMx/\nkapHZ/fMoK2mAgSX/NvUKF3UkhT85vSSM2BTtET33DzCPDQTZQYxFBa4rFRmFi4c\nBLlmIReiCGyh3eJhuUUuYAbK6wLaRyPsyEcIOLMQmZe1+gAFm1+1/q5Ke9ugBmjf\nPbTWjsi/lfZ5CdVAhc5lmZj/l5aKqwaS\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIICrjCCAjSgAwIBAgIRAKKPTYKln9L4NTx9dpZGUjowCgYIKoZIzj0EAwMwgZYx\nCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMu\nMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTEvMC0GA1UEAwwmQW1h\nem9uIFJEUyBldS13ZXN0LTIgUm9vdCBDQSBFQ0MzODQgRzExEDAOBgNVBAcMB1Nl\nYXR0bGUwIBcNMjEwNTIxMjI1NTIxWhgPMjEyMTA1MjEyMzU1MjFaMIGWMQswCQYD\nVQQGEwJVUzEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5jLjETMBEG\nA1UECwwKQW1hem9uIFJEUzELMAkGA1UECAwCV0ExLzAtBgNVBAMMJkFtYXpvbiBS\nRFMgZXUtd2VzdC0yIFJvb3QgQ0EgRUNDMzg0IEcxMRAwDgYDVQQHDAdTZWF0dGxl\nMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAE/owTReDvaRqdmbtTzXbyRmEpKCETNj6O\nhZMKH0F8oU9Tmn8RU7kQQj6xUKEyjLPrFBN7c+26TvrVO1KmJAvbc8bVliiJZMbc\nC0yV5PtJTalvlMZA1NnciZuhxaxrzlK1o0IwQDAPBgNVHRMBAf8EBTADAQH/MB0G\nA1UdDgQWBBT4i5HaoHtrs7Mi8auLhMbKM1XevDAOBgNVHQ8BAf8EBAMCAYYwCgYI\nKoZIzj0EAwMDaAAwZQIxAK9A+8/lFdX4XJKgfP+ZLy5ySXC2E0Spoy12Gv2GdUEZ\np1G7c1KbWVlyb1d6subzkQIwKyH0Naf/3usWfftkmq8SzagicKz5cGcEUaULq4tO\nGzA/AMpr63IDBAqkZbMDTCmH\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIICrzCCAjWgAwIBAgIQTgIvwTDuNWQo0Oe1sOPQEzAKBggqhkjOPQQDAzCBlzEL\nMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4x\nEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTAwLgYDVQQDDCdBbWF6\nb24gUkRTIGV1LW5vcnRoLTEgUm9vdCBDQSBFQ0MzODQgRzExEDAOBgNVBAcMB1Nl\nYXR0bGUwIBcNMjEwNTI0MjEwNjM4WhgPMjEyMTA1MjQyMjA2MzhaMIGXMQswCQYD\nVQQGEwJVUzEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5jLjETMBEG\nA1UECwwKQW1hem9uIFJEUzELMAkGA1UECAwCV0ExMDAuBgNVBAMMJ0FtYXpvbiBS\nRFMgZXUtbm9ydGgtMSBSb290IENBIEVDQzM4NCBHMTEQMA4GA1UEBwwHU2VhdHRs\nZTB2MBAGByqGSM49AgEGBSuBBAAiA2IABJuzXLU8q6WwSKXBvx8BbdIi3mPhb7Xo\nrNJBfuMW1XRj5BcKH1ZoGaDGw+BIIwyBJg8qNmCK8kqIb4cH8/Hbo3Y+xBJyoXq/\ncuk8aPrxiNoRsKWwiDHCsVxaK9L7GhHHAqNCMEAwDwYDVR0TAQH/BAUwAwEB/zAd\nBgNVHQ4EFgQUYgcsdU4fm5xtuqLNppkfTHM2QMYwDgYDVR0PAQH/BAQDAgGGMAoG\nCCqGSM49BAMDA2gAMGUCMQDz/Rm89+QJOWJecYAmYcBWCcETASyoK1kbr4vw7Hsg\n7Ew3LpLeq4IRmTyuiTMl0gMCMAa0QSjfAnxBKGhAnYxcNJSntUyyMpaXzur43ec0\n3D8npJghwC4DuICtKEkQiI5cSg==\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIGATCCA+mgAwIBAgIRAORIGqQXLTcbbYT2upIsSnQwDQYJKoZIhvcNAQEMBQAw\ngZgxCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJ\nbmMuMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTExMC8GA1UEAwwo\nQW1hem9uIFJEUyBldS1zb3V0aC0yIFJvb3QgQ0EgUlNBNDA5NiBHMTEQMA4GA1UE\nBwwHU2VhdHRsZTAgFw0yMjA1MjMxODM0MjJaGA8yMTIyMDUyMzE5MzQyMlowgZgx\nCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMu\nMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTExMC8GA1UEAwwoQW1h\nem9uIFJEUyBldS1zb3V0aC0yIFJvb3QgQ0EgUlNBNDA5NiBHMTEQMA4GA1UEBwwH\nU2VhdHRsZTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAPKukwsW2s/h\n1k+Hf65pOP0knVBnOnMQyT1mopp2XHGdXznj9xS49S30jYoUnWccyXgD983A1bzu\nw4fuJRHg4MFdz/NWTgXvy+zy0Roe83OPIJjUmXnnzwUHQcBa9vl6XUO65iQ3pbSi\nfQfNDFXD8cvuXbkezeADoy+iFAlzhXTzV9MD44GTuo9Z3qAXNGHQCrgRSCL7uRYt\nt1nfwboCbsVRnElopn2cTigyVXE62HzBUmAw1GTbAZeFAqCn5giBWYAfHwTUldRL\n6eEa6atfsS2oPNus4ZENa1iQxXq7ft+pMdNt0qKXTCZiiCZjmLkY0V9kWwHTRRF8\nr+75oSL//3di43QnuSCgjwMRIeWNtMud5jf3eQzSBci+9njb6DrrSUbx7blP0srg\n94/C/fYOp/0/EHH34w99Th14VVuGWgDgKahT9/COychLOubXUT6vD1As47S9KxTv\nyYleVKwJnF9cVjepODN72fNlEf74BwzgSIhUmhksmZSeJBabrjSUj3pdyo/iRZN/\nCiYz9YPQ29eXHPQjBZVIUqWbOVfdwsx0/Xu5T1e7yyXByQ3/oDulahtcoKPAFQ3J\nee6NJK655MdS7pM9hJnU2Rzu3qZ/GkM6YK7xTlMXVouPUZov/VbiaCKbqYDs8Dg+\nUKdeNXAT6+BMleGQzly1X7vjhgeA8ugVAgMBAAGjQjBAMA8GA1UdEwEB/wQFMAMB\nAf8wHQYDVR0OBBYEFJdaPwpCf78UolFTEn6GO85/QwUIMA4GA1UdDwEB/wQEAwIB\nhjANBgkqhkiG9w0BAQwFAAOCAgEAWkxHIT3mers5YnZRSVjmpxCLivGj1jMB9VYC\niKqTAeIvD0940L0YaZgivQll5pue8UUcQ6M2uCdVVAsNJdmQ5XHIYiGOknYPtxzO\naO+bnZp7VIZw/vJ49hvH6RreA2bbxYMZO/ossYdcWsWbOKHFrRmAw0AhtK/my51g\nobV7eQg+WmlE5Iqc75ycUsoZdc3NimkjBi7LQoNP1HMvlLHlF71UZhQDdq+/WdV7\n0zmg+epkki1LjgMmuPyb+xWuYkFKT1/faX+Xs62hIm5BY+aI4if4RuQ+J//0pOSs\nUajrjTo+jLGB8A96jAe8HaFQenbwMjlaHRDAF0wvbkYrMr5a6EbneAB37V05QD0Y\nRh4L4RrSs9DX2hbSmS6iLDuPEjanHKzglF5ePEvnItbRvGGkynqDVlwF+Bqfnw8l\n0i8Hr1f1/LP1c075UjkvsHlUnGgPbLqA0rDdcxF8Fdlv1BunUjX0pVlz10Ha5M6P\nAdyWUOneOfaA5G7jjv7i9qg3r99JNs1/Lmyg/tV++gnWTAsSPFSSEte81kmPhlK3\n2UtAO47nOdTtk+q4VIRAwY1MaOR7wTFZPfer1mWs4RhKNu/odp8urEY87iIzbMWT\nQYO/4I6BGj9rEWNGncvR5XTowwIthMCj2KWKM3Z/JxvjVFylSf+s+FFfO1bNIm6h\nu3UBpZI=\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIICtDCCAjmgAwIBAgIQenQbcP/Zbj9JxvZ+jXbRnTAKBggqhkjOPQQDAzCBmTEL\nMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4x\nEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTIwMAYDVQQDDClBbWF6\nb24gUkRTIGV1LWNlbnRyYWwtMSBSb290IENBIEVDQzM4NCBHMTEQMA4GA1UEBwwH\nU2VhdHRsZTAgFw0yMTA1MjEyMjMzMjRaGA8yMTIxMDUyMTIzMzMyNFowgZkxCzAJ\nBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMuMRMw\nEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTEyMDAGA1UEAwwpQW1hem9u\nIFJEUyBldS1jZW50cmFsLTEgUm9vdCBDQSBFQ0MzODQgRzExEDAOBgNVBAcMB1Nl\nYXR0bGUwdjAQBgcqhkjOPQIBBgUrgQQAIgNiAATlBHiEM9LoEb1Hdnd5j2VpCDOU\n5nGuFoBD8ROUCkFLFh5mHrHfPXwBc63heW9WrP3qnDEm+UZEUvW7ROvtWCTPZdLz\nZ4XaqgAlSqeE2VfUyZOZzBSgUUJk7OlznXfkCMOjQjBAMA8GA1UdEwEB/wQFMAMB\nAf8wHQYDVR0OBBYEFDT/ThjQZl42Nv/4Z/7JYaPNMly2MA4GA1UdDwEB/wQEAwIB\nhjAKBggqhkjOPQQDAwNpADBmAjEAnZWmSgpEbmq+oiCa13l5aGmxSlfp9h12Orvw\nDq/W5cENJz891QD0ufOsic5oGq1JAjEAp5kSJj0MxJBTHQze1Aa9gG4sjHBxXn98\n4MP1VGsQuhfndNHQb4V0Au7OWnOeiobq\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIID/zCCAuegAwIBAgIRAMgnyikWz46xY6yRgiYwZ3swDQYJKoZIhvcNAQELBQAw\ngZcxCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJ\nbmMuMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTEwMC4GA1UEAwwn\nQW1hem9uIFJEUyBldS13ZXN0LTEgUm9vdCBDQSBSU0EyMDQ4IEcxMRAwDgYDVQQH\nDAdTZWF0dGxlMCAXDTIxMDUyMDE2NDkxMloYDzIwNjEwNTIwMTc0OTEyWjCBlzEL\nMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4x\nEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTAwLgYDVQQDDCdBbWF6\nb24gUkRTIGV1LXdlc3QtMSBSb290IENBIFJTQTIwNDggRzExEDAOBgNVBAcMB1Nl\nYXR0bGUwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQCi8JYOc9cYSgZH\ngYPxLk6Xcc7HqzamvsnjYU98Dcb98y6iDqS46Ra2Ne02MITtU5MDL+qjxb8WGDZV\nRUA9ZS69tkTO3gldW8QdiSh3J6hVNJQW81F0M7ZWgV0gB3n76WCmfT4IWos0AXHM\n5v7M/M4tqVmCPViQnZb2kdVlM3/Xc9GInfSMCgNfwHPTXl+PXX+xCdNBePaP/A5C\n5S0oK3HiXaKGQAy3K7VnaQaYdiv32XUatlM4K2WS4AMKt+2cw3hTCjlmqKRHvYFQ\nveWCXAuc+U5PQDJ9SuxB1buFJZhT4VP3JagOuZbh5NWpIbOTxlAJOb5pGEDuJTKi\n1gQQQVEFAgMBAAGjQjBAMA8GA1UdEwEB/wQFMAMBAf8wHQYDVR0OBBYEFNXm+N87\nOFxK9Af/bjSxDCiulGUzMA4GA1UdDwEB/wQEAwIBhjANBgkqhkiG9w0BAQsFAAOC\nAQEAkqIbkgZ45spvrgRQ6n9VKzDLvNg+WciLtmVrqyohwwJbj4pYvWwnKQCkVc7c\nhUOSBmlSBa5REAPbH5o8bdt00FPRrD6BdXLXhaECKgjsHe1WW08nsequRKD8xVmc\n8bEX6sw/utBeBV3mB+3Zv7ejYAbDFM4vnRsWtO+XqgReOgrl+cwdA6SNQT9oW3e5\nrSQ+VaXgJtl9NhkiIysq9BeYigxqS/A13pHQp0COMwS8nz+kBPHhJTsajHCDc8F4\nHfLi6cgs9G0gaRhT8FCH66OdGSqn196sE7Y3bPFFFs/3U+vxvmQgoZC6jegQXAg5\nPrxd+VNXtNI/azitTysQPumH7A==\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIEBTCCAu2gAwIBAgIRAO8bekN7rUReuNPG8pSTKtEwDQYJKoZIhvcNAQELBQAw\ngZoxCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJ\nbmMuMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTEzMDEGA1UEAwwq\nQW1hem9uIFJEUyBldS1jZW50cmFsLTEgUm9vdCBDQSBSU0EyMDQ4IEcxMRAwDgYD\nVQQHDAdTZWF0dGxlMCAXDTIxMDUyMTIyMjM0N1oYDzIwNjEwNTIxMjMyMzQ3WjCB\nmjELMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIElu\nYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTMwMQYDVQQDDCpB\nbWF6b24gUkRTIGV1LWNlbnRyYWwtMSBSb290IENBIFJTQTIwNDggRzExEDAOBgNV\nBAcMB1NlYXR0bGUwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQCTTYds\nTray+Q9VA5j5jTh5TunHKFQzn68ZbOzdqaoi/Rq4ohfC0xdLrxCpfqn2TGDHN6Zi\n2qGK1tWJZEd1H0trhzd9d1CtGK+3cjabUmz/TjSW/qBar7e9MA67/iJ74Gc+Ww43\nA0xPNIWcL4aLrHaLm7sHgAO2UCKsrBUpxErOAACERScVYwPAfu79xeFcX7DmcX+e\nlIqY16pQAvK2RIzrekSYfLFxwFq2hnlgKHaVgZ3keKP+nmXcXmRSHQYUUr72oYNZ\nHcNYl2+gxCc9ccPEHM7xncVEKmb5cWEWvVoaysgQ+osi5f5aQdzgC2X2g2daKbyA\nXL/z5FM9GHpS5BJjAgMBAAGjQjBAMA8GA1UdEwEB/wQFMAMBAf8wHQYDVR0OBBYE\nFBDAiJ7Py9/A9etNa/ebOnx5l5MGMA4GA1UdDwEB/wQEAwIBhjANBgkqhkiG9w0B\nAQsFAAOCAQEALMh/+81fFPdJV/RrJUeoUvFCGMp8iaANu97NpeJyKitNOv7RoeVP\nWjivS0KcCqZaDBs+p6IZ0sLI5ZH098LDzzytcfZg0PsGqUAb8a0MiU/LfgDCI9Ee\njsOiwaFB8k0tfUJK32NPcIoQYApTMT2e26lPzYORSkfuntme2PTHUnuC7ikiQrZk\nP+SZjWgRuMcp09JfRXyAYWIuix4Gy0eZ4rpRuaTK6mjAb1/LYoNK/iZ/gTeIqrNt\nl70OWRsWW8jEmSyNTIubGK/gGGyfuZGSyqoRX6OKHESkP6SSulbIZHyJ5VZkgtXo\n2XvyRyJ7w5pFyoofrL3Wv0UF8yt/GDszmg==\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIF/zCCA+egAwIBAgIRAMDk/F+rrhdn42SfE+ghPC8wDQYJKoZIhvcNAQEMBQAw\ngZcxCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJ\nbmMuMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTEwMC4GA1UEAwwn\nQW1hem9uIFJEUyBldS13ZXN0LTIgUm9vdCBDQSBSU0E0MDk2IEcxMRAwDgYDVQQH\nDAdTZWF0dGxlMCAXDTIxMDUyMTIyNTEyMloYDzIxMjEwNTIxMjM1MTIyWjCBlzEL\nMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4x\nEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTAwLgYDVQQDDCdBbWF6\nb24gUkRTIGV1LXdlc3QtMiBSb290IENBIFJTQTQwOTYgRzExEDAOBgNVBAcMB1Nl\nYXR0bGUwggIiMA0GCSqGSIb3DQEBAQUAA4ICDwAwggIKAoICAQC2twMALVg9vRVu\nVNqsr6N8thmp3Dy8jEGTsm3GCQ+C5P2YcGlD/T/5icfWW84uF7Sx3ezcGlvsqFMf\nUkj9sQyqtz7qfFFugyy7pa/eH9f48kWFHLbQYm9GEgbYBIrWMp1cy3vyxuMCwQN4\nDCncqU+yNpy0CprQJEha3PzY+3yJOjDQtc3zr99lyECCFJTDUucxHzyQvX89eL74\nuh8la0lKH3v9wPpnEoftbrwmm5jHNFdzj7uXUHUJ41N7af7z7QUfghIRhlBDiKtx\n5lYZemPCXajTc3ryDKUZC/b+B6ViXZmAeMdmQoPE0jwyEp/uaUcdp+FlUQwCfsBk\nayPFEApTWgPiku2isjdeTVmEgL8bJTDUZ6FYFR7ZHcYAsDzcwHgIu3GGEMVRS3Uf\nILmioiyly9vcK4Sa01ondARmsi/I0s7pWpKflaekyv5boJKD/xqwz9lGejmJHelf\n8Od2TyqJScMpB7Q8c2ROxBwqwB72jMCEvYigB+Wnbb8RipliqNflIGx938FRCzKL\nUQUBmNAznR/yRRL0wHf9UAE/8v9a09uZABeiznzOFAl/frHpgdAbC00LkFlnwwgX\ng8YfEFlkp4fLx5B7LtoO6uVNFVimLxtwirpyKoj3G4M/kvSTux8bTw0heBCmWmKR\n57MS6k7ODzbv+Kpeht2hqVZCNFMxoQIDAQABo0IwQDAPBgNVHRMBAf8EBTADAQH/\nMB0GA1UdDgQWBBRuMnDhJjoj7DcKALj+HbxEqj3r6jAOBgNVHQ8BAf8EBAMCAYYw\nDQYJKoZIhvcNAQEMBQADggIBALSnXfx72C3ldhBP5kY4Mo2DDaGQ8FGpTOOiD95d\n0rf7I9LrsBGVqu/Nir+kqqP80PB70+Jy9fHFFigXwcPBX3MpKGxK8Cel7kVf8t1B\n4YD6A6bqlzP+OUL0uGWfZpdpDxwMDI2Flt4NEldHgXWPjvN1VblEKs0+kPnKowyg\njhRMgBbD/y+8yg0fIcjXUDTAw/+INcp21gWaMukKQr/8HswqC1yoqW9in2ijQkpK\n2RB9vcQ0/gXR0oJUbZQx0jn0OH8Agt7yfMAnJAdnHO4M3gjvlJLzIC5/4aGrRXZl\nJoZKfJ2fZRnrFMi0nhAYDeInoS+Rwx+QzaBk6fX5VPyCj8foZ0nmqvuYoydzD8W5\nmMlycgxFqS+DUmO+liWllQC4/MnVBlHGB1Cu3wTj5kgOvNs/k+FW3GXGzD3+rpv0\nQTLuwSbMr+MbEThxrSZRSXTCQzKfehyC+WZejgLb+8ylLJUA10e62o7H9PvCrwj+\nZDVmN7qj6amzvndCP98sZfX7CFZPLfcBd4wVIjHsFjSNEwWHOiFyLPPG7cdolGKA\nlOFvonvo4A1uRc13/zFeP0Xi5n5OZ2go8aOOeGYdI2vB2sgH9R2IASH/jHmr0gvY\n0dfBCcfXNgrS0toq0LX/y+5KkKOxh52vEYsJLdhqrveuZhQnsFEm/mFwjRXkyO7c\n2jpC\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIGADCCA+igAwIBAgIQYe0HgSuFFP9ivYM2vONTrTANBgkqhkiG9w0BAQwFADCB\nmDELMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIElu\nYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTEwLwYDVQQDDChB\nbWF6b24gUkRTIGV1LXNvdXRoLTEgUm9vdCBDQSBSU0E0MDk2IEcxMRAwDgYDVQQH\nDAdTZWF0dGxlMCAXDTIxMDUxOTE4MzMyMVoYDzIxMjEwNTE5MTkzMzIxWjCBmDEL\nMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4x\nEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTEwLwYDVQQDDChBbWF6\nb24gUkRTIGV1LXNvdXRoLTEgUm9vdCBDQSBSU0E0MDk2IEcxMRAwDgYDVQQHDAdT\nZWF0dGxlMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAuO7QPKfPMTo2\nPOQWvzDLwi5f++X98hGjORI1zkN9kotCYH5pAzSBwBPoMNaIfedgmsIxGHj2fq5G\n4oXagNhNuGP79Zl6uKW5H7S74W7aWM8C0s8zuxMOI4GZy5h2IfQk3m/3AzZEX5w8\nUtNPkzo2feDVOkerHT+j+vjXgAxZ4wHnuMDcRT+K4r9EXlAH6X9b/RO0JlfEwmNz\nxlqqGxocq9qRC66N6W0HF2fNEAKP84n8H80xcZBOBthQORRi8HSmKcPdmrvwCuPz\nM+L+j18q6RAVaA0ABbD0jMWcTf0UvjUfBStn5mvu/wGlLjmmRkZsppUTRukfwqXK\nyltUsTq0tOIgCIpne5zA4v+MebbR5JBnsvd4gdh5BI01QH470yB7BkUefZ9bobOm\nOseAAVXcYFJKe4DAA6uLDrqOfFSxV+CzVvEp3IhLRaik4G5MwI/h2c/jEYDqkg2J\nHMflxc2gcSMdk7E5ByLz5f6QrFfSDFk02ZJTs4ssbbUEYohht9znPMQEaWVqATWE\n3n0VspqZyoBNkH/agE5GiGZ/k/QyeqzMNj+c9kr43Upu8DpLrz8v2uAp5xNj3YVg\nihaeD6GW8+PQoEjZ3mrCmH7uGLmHxh7Am59LfEyNrDn+8Rq95WvkmbyHSVxZnBmo\nh/6O3Jk+0/QhIXZ2hryMflPcYWeRGH0CAwEAAaNCMEAwDwYDVR0TAQH/BAUwAwEB\n/zAdBgNVHQ4EFgQU2eFK7+R3x/me8roIBNxBrplkM6EwDgYDVR0PAQH/BAQDAgGG\nMA0GCSqGSIb3DQEBDAUAA4ICAQB5gWFe5s7ObQFj1fTO9L6gYgtFhnwdmxU0q8Ke\nHWCrdFmyXdC39qdAFOwM5/7fa9zKmiMrZvy9HNvCXEp4Z7z9mHhBmuqPZQx0qPgU\nuLdP8wGRuWryzp3g2oqkX9t31Z0JnkbIdp7kfRT6ME4I4VQsaY5Y3mh+hIHOUvcy\np+98i3UuEIcwJnVAV9wTTzrWusZl9iaQ1nSYbmkX9bBssJ2GmtW+T+VS/1hJ/Q4f\nAlE3dOQkLFoPPb3YRWBHr2n1LPIqMVwDNAuWavRA2dSfaLl+kzbn/dua7HTQU5D4\nb2Fu2vLhGirwRJe+V7zdef+tI7sngXqjgObyOeG5O2BY3s+um6D4fS0Th3QchMO7\n0+GwcIgSgcjIjlrt6/xJwJLE8cRkUUieYKq1C4McpZWTF30WnzOPUzRzLHkcNzNA\n0A7sKMK6QoYWo5Rmo8zewUxUqzc9oQSrYADP7PEwGncLtFe+dlRFx+PA1a+lcIgo\n1ZGfXigYtQ3VKkcknyYlJ+hN4eCMBHtD81xDy9iP2MLE41JhLnoB2rVEtewO5diF\n7o95Mwl84VMkLhhHPeGKSKzEbBtYYBifHNct+Bst8dru8UumTltgfX6urH3DN+/8\nJF+5h3U8oR2LL5y76cyeb+GWDXXy9zoQe2QvTyTy88LwZq1JzujYi2k8QiLLhFIf\nFEv9Bg==\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIICsDCCAjagAwIBAgIRAMgApnfGYPpK/fD0dbN2U4YwCgYIKoZIzj0EAwMwgZcx\nCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMu\nMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTEwMC4GA1UEAwwnQW1h\nem9uIFJEUyBldS1zb3V0aC0xIFJvb3QgQ0EgRUNDMzg0IEcxMRAwDgYDVQQHDAdT\nZWF0dGxlMCAXDTIxMDUxOTE4MzgxMVoYDzIxMjEwNTE5MTkzODExWjCBlzELMAkG\nA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4xEzAR\nBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTAwLgYDVQQDDCdBbWF6b24g\nUkRTIGV1LXNvdXRoLTEgUm9vdCBDQSBFQ0MzODQgRzExEDAOBgNVBAcMB1NlYXR0\nbGUwdjAQBgcqhkjOPQIBBgUrgQQAIgNiAAQfEWl6d4qSuIoECdZPp+39LaKsfsX7\nTHs3/RrtT0+h/jl3bjZ7Qc68k16x+HGcHbaayHfqD0LPdzH/kKtNSfQKqemdxDQh\nZ4pwkixJu8T1VpXZ5zzCvBXCl75UqgEFS92jQjBAMA8GA1UdEwEB/wQFMAMBAf8w\nHQYDVR0OBBYEFFPrSNtWS5JU+Tvi6ABV231XbjbEMA4GA1UdDwEB/wQEAwIBhjAK\nBggqhkjOPQQDAwNoADBlAjEA+a7hF1IrNkBd2N/l7IQYAQw8chnRZDzh4wiGsZsC\n6A83maaKFWUKIb3qZYXFSi02AjAbp3wxH3myAmF8WekDHhKcC2zDvyOiKLkg9Y6v\nZVmyMR043dscQbcsVoacOYv198c=\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIICtDCCAjqgAwIBAgIRAPhVkIsQ51JFhD2kjFK5uAkwCgYIKoZIzj0EAwMwgZkx\nCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMu\nMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTEyMDAGA1UEAwwpQW1h\nem9uIFJEUyBldS1jZW50cmFsLTIgUm9vdCBDQSBFQ0MzODQgRzExEDAOBgNVBAcM\nB1NlYXR0bGUwIBcNMjIwNjA2MjEyOTE3WhgPMjEyMjA2MDYyMjI5MTdaMIGZMQsw\nCQYDVQQGEwJVUzEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5jLjET\nMBEGA1UECwwKQW1hem9uIFJEUzELMAkGA1UECAwCV0ExMjAwBgNVBAMMKUFtYXpv\nbiBSRFMgZXUtY2VudHJhbC0yIFJvb3QgQ0EgRUNDMzg0IEcxMRAwDgYDVQQHDAdT\nZWF0dGxlMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEA5xnIEBtG5b2nmbj49UEwQza\nyX0844fXjccYzZ8xCDUe9dS2XOUi0aZlGblgSe/3lwjg8fMcKXLObGGQfgIx1+5h\nAIBjORis/dlyN5q/yH4U5sjS8tcR0GDGVHrsRUZCo0IwQDAPBgNVHRMBAf8EBTAD\nAQH/MB0GA1UdDgQWBBRK+lSGutXf4DkTjR3WNfv4+KeNFTAOBgNVHQ8BAf8EBAMC\nAYYwCgYIKoZIzj0EAwMDaAAwZQIxAJ4NxQ1Gerqr70ZrnUqc62Vl8NNqTzInamCG\nKce3FTsMWbS9qkgrjZkO9QqOcGIw/gIwSLrwUT+PKr9+H9eHyGvpq9/3AIYSnFkb\nCf3dyWPiLKoAtLFwjzB/CkJlsAS1c8dS\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIF/jCCA+agAwIBAgIQGZH12Q7x41qIh9vDu9ikTjANBgkqhkiG9w0BAQwFADCB\nlzELMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIElu\nYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTAwLgYDVQQDDCdB\nbWF6b24gUkRTIGV1LXdlc3QtMyBSb290IENBIFJTQTQwOTYgRzExEDAOBgNVBAcM\nB1NlYXR0bGUwIBcNMjEwNTI1MjIyMjMzWhgPMjEyMTA1MjUyMzIyMzNaMIGXMQsw\nCQYDVQQGEwJVUzEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5jLjET\nMBEGA1UECwwKQW1hem9uIFJEUzELMAkGA1UECAwCV0ExMDAuBgNVBAMMJ0FtYXpv\nbiBSRFMgZXUtd2VzdC0zIFJvb3QgQ0EgUlNBNDA5NiBHMTEQMA4GA1UEBwwHU2Vh\ndHRsZTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAMqE47sHXWzdpuqj\nJHb+6jM9tDbQLDFnYjDWpq4VpLPZhb7xPNh9gnYYTPKG4avG421EblAHqzy9D2pN\n1z90yKbIfUb/Sy2MhQbmZomsObhONEra06fJ0Dydyjswf1iYRp2kwpx5AgkVoNo7\n3dlws73zFjD7ImKvUx2C7B75bhnw2pJWkFnGcswl8fZt9B5Yt95sFOKEz2MSJE91\nkZlHtya19OUxZ/cSGci4MlOySzqzbGwUqGxEIDlY8I39VMwXaYQ8uXUN4G780VcL\nu46FeyRGxZGz2n3hMc805WAA1V5uir87vuirTvoSVREET97HVRGVVNJJ/FM6GXr1\nVKtptybbo81nefYJg9KBysxAa2Ao2x2ry/2ZxwhS6VZ6v1+90bpZA1BIYFEDXXn/\ndW07HSCFnYSlgPtSc+Muh15mdr94LspYeDqNIierK9i4tB6ep7llJAnq0BU91fM2\nJPeqyoTtc3m06QhLf68ccSxO4l8Hmq9kLSHO7UXgtdjfRVaffngopTNk8qK7bIb7\nLrgkqhiQw/PRCZjUdyXL153/fUcsj9nFNe25gM4vcFYwH6c5trd2tUl31NTi1MfG\nMgp3d2dqxQBIYANkEjtBDMy3SqQLIo9EymqmVP8xx2A/gCBgaxvMAsI6FSWRoC7+\nhqJ8XH4mFnXSHKtYMe6WPY+/XZgtAgMBAAGjQjBAMA8GA1UdEwEB/wQFMAMBAf8w\nHQYDVR0OBBYEFIkXqTnllT/VJnI2NqipA4XV8rh1MA4GA1UdDwEB/wQEAwIBhjAN\nBgkqhkiG9w0BAQwFAAOCAgEAKjSle8eenGeHgT8pltWCw/HzWyQruVKhfYIBfKJd\nMhV4EnH5BK7LxBIvpXGsFUrb0ThzSw0fn0zoA9jBs3i/Sj6KyeZ9qUF6b8ycDXd+\nwHonmJiQ7nk7UuMefaYAfs06vosgl1rI7eBHC0itexIQmKh0aX+821l4GEgEoSMf\nloMFTLXv2w36fPHHCsZ67ODldgcZbKNnpCTX0YrCwEYO3Pz/L398btiRcWGrewrK\njdxAAyietra8DRno1Zl87685tfqc6HsL9v8rVw58clAo9XAQvT+fmSOFw/PogRZ7\nOMHUat3gu/uQ1M5S64nkLLFsKu7jzudBuoNmcJysPlzIbqJ7vYc82OUGe9ucF3wi\n3tbKQ983hdJiTExVRBLX/fYjPsGbG3JtPTv89eg2tjWHlPhCDMMxyRKl6isu2RTq\n6VT489Z2zQrC33MYF8ZqO1NKjtyMAMIZwxVu4cGLkVsqFmEV2ScDHa5RadDyD3Ok\nm+mqybhvEVm5tPgY6p0ILPMN3yvJsMSPSvuBXhO/X5ppNnpw9gnxpwbjQKNhkFaG\nM5pkADZ14uRguOLM4VthSwUSEAr5VQYCFZhEwK+UOyJAGiB/nJz6IxL5XBNUXmRM\nHl8Xvz4riq48LMQbjcVQj0XvH941yPh+P8xOi00SGaQRaWp55Vyr4YKGbV0mEDz1\nr1o=\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIF/zCCA+egAwIBAgIRAKwYju1QWxUZpn6D1gOtwgQwDQYJKoZIhvcNAQEMBQAw\ngZcxCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJ\nbmMuMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTEwMC4GA1UEAwwn\nQW1hem9uIFJEUyBldS13ZXN0LTEgUm9vdCBDQSBSU0E0MDk2IEcxMRAwDgYDVQQH\nDAdTZWF0dGxlMCAXDTIxMDUyMDE2NTM1NFoYDzIxMjEwNTIwMTc1MzU0WjCBlzEL\nMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4x\nEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTAwLgYDVQQDDCdBbWF6\nb24gUkRTIGV1LXdlc3QtMSBSb290IENBIFJTQTQwOTYgRzExEDAOBgNVBAcMB1Nl\nYXR0bGUwggIiMA0GCSqGSIb3DQEBAQUAA4ICDwAwggIKAoICAQCKdBP1U4lqWWkc\nCb25/BKRTsvNVnISiKocva8GAzJyKfcGRa85gmgu41U+Hz6+39K+XkRfM0YS4BvQ\nF1XxWT0bNyypuvwCvmYShSTjN1TY0ltncDddahTajE/4MdSOZb/c98u0yt03cH+G\nhVwRyT50h0v/UEol50VfwcVAEZEgcQQYhf1IFUFlIvKpmDOqLuFakOnc7c9akK+i\nivST+JO1tgowbnNkn2iLlSSgUWgb1gjaOsNfysagv1RXdlyPw3EyfwkFifAQvF2P\nQ0ayYZfYS640cccv7efM1MSVyFHR9PrrDsF/zr2S2sGPbeHr7R/HwLl+S5J/l9N9\ny0rk6IHAWV4dEkOvgpnuJKURwA48iu1Hhi9e4moNS6eqoK2KmY3VFpuiyWcA73nH\nGSmyaH+YuMrF7Fnuu7GEHZL/o6+F5cL3mj2SJJhL7sz0ryf5Cs5R4yN9BIEj/f49\nwh84pM6nexoI0Q4wiSFCxWiBpjSmOK6h7z6+2utaB5p20XDZHhxAlmlx4vMuWtjh\nXckgRFxc+ZpVMU3cAHUpVEoO49e/+qKEpPzp8Xg4cToKw2+AfTk3cmyyXQfGwXMQ\nZUHNZ3w9ILMWihGCM2aGUsLcGDRennvNmnmin/SENsOQ8Ku0/a3teEzwV9cmmdYz\n5iYs1YtgPvKFobY6+T2RXXh+A5kprwIDAQABo0IwQDAPBgNVHRMBAf8EBTADAQH/\nMB0GA1UdDgQWBBSyUrsQVnKmA8z6/2Ech0rCvqpNmTAOBgNVHQ8BAf8EBAMCAYYw\nDQYJKoZIhvcNAQEMBQADggIBAFlj3IFmgiFz5lvTzFTRizhVofhTJsGr14Yfkuc7\nUrXPuXOwJomd4uot2d/VIeGJpfnuS84qGdmQyGewGTJ9inatHsGZgHl9NHNWRwKZ\nlTKTbBiq7aqgtUSFa06v202wpzU+1kadxJJePrbABxiXVfOmIW/a1a4hPNcT3syH\nFIEg1+CGsp71UNjBuwg3JTKWna0sLSKcxLOSOvX1fzxK5djzVpEsvQMB4PSAzXca\nvENgg2ErTwgTA+4s6rRtiBF9pAusN1QVuBahYP3ftrY6f3ycS4K65GnqscyfvKt5\nYgjtEKO3ZeeX8NpubMbzC+0Z6tVKfPFk/9TXuJtwvVeqow0YMrLLyRiYvK7EzJ97\nrrkxoKnHYQSZ+rH2tZ5SE392/rfk1PJL0cdHnkpDkUDO+8cKsFjjYKAQSNC52sKX\n74AVh6wMwxYwVZZJf2/2XxkjMWWhKNejsZhUkTISSmiLs+qPe3L67IM7GyKm9/m6\nR3r8x6NGjhTsKH64iYJg7AeKeax4b2e4hBb6GXFftyOs7unpEOIVkJJgM6gh3mwn\nR7v4gwFbLKADKt1vHuerSZMiTuNTGhSfCeDM53XI/mjZl2HeuCKP1mCDLlaO+gZR\nQ/G+E0sBKgEX4xTkAc3kgkuQGfExdGtnN2U2ehF80lBHB8+2y2E+xWWXih/ZyIcW\nwOx+\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIGBDCCA+ygAwIBAgIQM4C8g5iFRucSWdC8EdqHeDANBgkqhkiG9w0BAQwFADCB\nmjELMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIElu\nYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTMwMQYDVQQDDCpB\nbWF6b24gUkRTIGV1LWNlbnRyYWwtMSBSb290IENBIFJTQTQwOTYgRzExEDAOBgNV\nBAcMB1NlYXR0bGUwIBcNMjEwNTIxMjIyODI2WhgPMjEyMTA1MjEyMzI4MjZaMIGa\nMQswCQYDVQQGEwJVUzEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5j\nLjETMBEGA1UECwwKQW1hem9uIFJEUzELMAkGA1UECAwCV0ExMzAxBgNVBAMMKkFt\nYXpvbiBSRFMgZXUtY2VudHJhbC0xIFJvb3QgQ0EgUlNBNDA5NiBHMTEQMA4GA1UE\nBwwHU2VhdHRsZTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBANeTsD/u\n6saPiY4Sg0GlJlMXMBltnrcGAEkwq34OKQ0bCXqcoNJ2rcAMmuFC5x9Ho1Y3YzB7\nNO2GpIh6bZaO76GzSv4cnimcv9n/sQSYXsGbPD+bAtnN/RvNW1avt4C0q0/ghgF1\nVFS8JihIrgPYIArAmDtGNEdl5PUrdi9y6QGggbRfidMDdxlRdZBe1C18ZdgERSEv\nUgSTPRlVczONG5qcQkUGCH83MMqL5MKQiby/Br5ZyPq6rxQMwRnQ7tROuElzyYzL\n7d6kke+PNzG1mYy4cbYdjebwANCtZ2qYRSUHAQsOgybRcSoarv2xqcjO9cEsDiRU\nl97ToadGYa4VVERuTaNZxQwrld4mvzpyKuirqZltOqg0eoy8VUsaRPL3dc5aChR0\ndSrBgRYmSAClcR2/2ZCWpXemikwgt031Dsc0A/+TmVurrsqszwbr0e5xqMow9LzO\nMI/JtLd0VFtoOkL/7GG2tN8a+7gnLFxpv+AQ0DH5n4k/BY/IyS+H1erqSJhOTQ11\nvDOFTM5YplB9hWV9fp5PRs54ILlHTlZLpWGs3I2BrJwzRtg/rOlvsosqcge9ryai\nAKm2j+JBg5wJ19R8oxRy8cfrNTftZePpISaLTyV2B16w/GsSjqixjTQe9LRN2DHk\ncC+HPqYyzW2a3pUVyTGHhW6a7YsPBs9yzt6hAgMBAAGjQjBAMA8GA1UdEwEB/wQF\nMAMBAf8wHQYDVR0OBBYEFIqA8QkOs2cSirOpCuKuOh9VDfJfMA4GA1UdDwEB/wQE\nAwIBhjANBgkqhkiG9w0BAQwFAAOCAgEAOUI90mEIsa+vNJku0iUwdBMnHiO4gm7E\n5JloP7JG0xUr7d0hypDorMM3zVDAL+aZRHsq8n934Cywj7qEp1304UF6538ByGdz\ntkfacJsUSYfdlNJE9KbA4T+U+7SNhj9jvePpVjdQbhgzxITE9f8CxY/eM40yluJJ\nPhbaWvOiRagzo74wttlcDerzLT6Y/JrVpWhnB7IY8HvzK+BwAdaCsBUPC3HF+kth\nCIqLq7J3YArTToejWZAp5OOI6DLPM1MEudyoejL02w0jq0CChmZ5i55ElEMnapRX\n7GQTARHmjgAOqa95FjbHEZzRPqZ72AtZAWKFcYFNk+grXSeWiDgPFOsq6mDg8DDB\n0kfbYwKLFFCC9YFmYzR2YrWw2NxAScccUc2chOWAoSNHiqBbHR8ofrlJSWrtmKqd\nYRCXzn8wqXnTS3NNHNccqJ6dN+iMr9NGnytw8zwwSchiev53Fpc1mGrJ7BKTWH0t\nZrA6m32wzpMymtKozlOPYoE5mtZEzrzHEXfa44Rns7XIHxVQSXVWyBHLtIsZOrvW\nU5F41rQaFEpEeUQ7sQvqUoISfTUVRNDn6GK6YaccEhCji14APLFIvhRQUDyYMIiM\n4vll0F/xgVRHTgDVQ8b8sxdhSYlqB4Wc2Ym41YRz+X2yPqk3typEZBpc4P5Tt1/N\n89cEIGdbjsA=\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIEADCCAuigAwIBAgIQYjbPSg4+RNRD3zNxO1fuKDANBgkqhkiG9w0BAQsFADCB\nmDELMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIElu\nYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTEwLwYDVQQDDChB\nbWF6b24gUkRTIGV1LW5vcnRoLTEgUm9vdCBDQSBSU0EyMDQ4IEcxMRAwDgYDVQQH\nDAdTZWF0dGxlMCAXDTIxMDUyNDIwNTkyMVoYDzIwNjEwNTI0MjE1OTIxWjCBmDEL\nMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4x\nEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTEwLwYDVQQDDChBbWF6\nb24gUkRTIGV1LW5vcnRoLTEgUm9vdCBDQSBSU0EyMDQ4IEcxMRAwDgYDVQQHDAdT\nZWF0dGxlMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA179eQHxcV0YL\nXMkqEmhSBazHhnRVd8yICbMq82PitE3BZcnv1Z5Zs/oOgNmMkOKae4tCXO/41JCX\nwAgbs/eWWi+nnCfpQ/FqbLPg0h3dqzAgeszQyNl9IzTzX4Nd7JFRBVJXPIIKzlRf\n+GmFsAhi3rYgDgO27pz3ciahVSN+CuACIRYnA0K0s9lhYdddmrW/SYeWyoB7jPa2\nLmWpAs7bDOgS4LlP2H3eFepBPgNufRytSQUVA8f58lsE5w25vNiUSnrdlvDrIU5n\nQwzc7NIZCx4qJpRbSKWrUtbyJriWfAkGU7i0IoainHLn0eHp9bWkwb9D+C/tMk1X\nERZw2PDGkwIDAQABo0IwQDAPBgNVHRMBAf8EBTADAQH/MB0GA1UdDgQWBBSFmR7s\ndAblusFN+xhf1ae0KUqhWTAOBgNVHQ8BAf8EBAMCAYYwDQYJKoZIhvcNAQELBQAD\nggEBAHsXOpjPMyH9lDhPM61zYdja1ebcMVgfUvsDvt+w0xKMKPhBzYDMs/cFOi1N\nQ8LV79VNNfI2NuvFmGygcvTIR+4h0pqqZ+wjWl3Kk5jVxCrbHg3RBX02QLumKd/i\nkwGcEtTUvTssn3SM8bgM0/1BDXgImZPC567ciLvWDo0s/Fe9dJJC3E0G7d/4s09n\nOMdextcxFuWBZrBm/KK3QF0ByA8MG3//VXaGO9OIeeOJCpWn1G1PjT1UklYhkg61\nEbsTiZVA2DLd1BGzfU4o4M5mo68l0msse/ndR1nEY6IywwpgIFue7+rEleDh6b9d\nPYkG1rHVw2I0XDG4o17aOn5E94I=\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIEADCCAuigAwIBAgIQC6W4HFghUkkgyQw14a6JljANBgkqhkiG9w0BAQsFADCB\nmDELMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIElu\nYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTEwLwYDVQQDDChB\nbWF6b24gUkRTIGV1LXNvdXRoLTIgUm9vdCBDQSBSU0EyMDQ4IEcxMRAwDgYDVQQH\nDAdTZWF0dGxlMCAXDTIyMDUyMzE4MTYzMloYDzIwNjIwNTIzMTkxNjMyWjCBmDEL\nMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4x\nEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTEwLwYDVQQDDChBbWF6\nb24gUkRTIGV1LXNvdXRoLTIgUm9vdCBDQSBSU0EyMDQ4IEcxMRAwDgYDVQQHDAdT\nZWF0dGxlMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAiM/t4FV2R9Nx\nUQG203UY83jInTa/6TMq0SPyg617FqYZxvz2kkx09x3dmxepUg9ttGMlPgjsRZM5\nLCFEi1FWk+hxHzt7vAdhHES5tdjwds3aIkgNEillmRDVrUsbrDwufLaa+MMDO2E1\nwQ/JYFXw16WBCCi2g1EtyQ2Xp+tZDX5IWOTnvhZpW8vVDptZ2AcJ5rMhfOYO3OsK\n5EF0GGA5ldzuezP+BkrBYGJ4wVKGxeaq9+5AT8iVZrypjwRkD7Y5CurywK3+aBwm\ns9Q5Nd8t45JCOUzYp92rFKsCriD86n/JnEvgDfdP6Hvtm0/DkwXK40Wz2q0Zrd0k\nmjP054NRPwIDAQABo0IwQDAPBgNVHRMBAf8EBTADAQH/MB0GA1UdDgQWBBRR7yqd\nSfKcX2Q8GzhcVucReIpewTAOBgNVHQ8BAf8EBAMCAYYwDQYJKoZIhvcNAQELBQAD\nggEBAEszBRDwXcZyNm07VcFwI1Im94oKwKccuKYeJEsizTBsVon8VpEiMwDs+yGu\n3p8kBhvkLwWybkD/vv6McH7T5b9jDX2DoOudqYnnaYeypsPH/00Vh3LvKagqzQza\norWLx+0tLo8xW4BtU+Wrn3JId8LvAhxyYXTn9bm+EwPcStp8xGLwu53OPD1RXYuy\nuu+3ps/2piP7GVfou7H6PRaqbFHNfiGg6Y+WA0HGHiJzn8uLmrRJ5YRdIOOG9/xi\nqTmAZloUNM7VNuurcMM2hWF494tQpsQ6ysg2qPjbBqzlGoOt3GfBTOZmqmwmqtam\nK7juWM/mdMQAJ3SMlE5wI8nVdx4=\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIICrjCCAjSgAwIBAgIRAL9SdzVPcpq7GOpvdGoM80IwCgYIKoZIzj0EAwMwgZYx\nCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMu\nMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTEvMC0GA1UEAwwmQW1h\nem9uIFJEUyBldS13ZXN0LTEgUm9vdCBDQSBFQ0MzODQgRzExEDAOBgNVBAcMB1Nl\nYXR0bGUwIBcNMjEwNTIwMTY1ODA3WhgPMjEyMTA1MjAxNzU4MDdaMIGWMQswCQYD\nVQQGEwJVUzEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5jLjETMBEG\nA1UECwwKQW1hem9uIFJEUzELMAkGA1UECAwCV0ExLzAtBgNVBAMMJkFtYXpvbiBS\nRFMgZXUtd2VzdC0xIFJvb3QgQ0EgRUNDMzg0IEcxMRAwDgYDVQQHDAdTZWF0dGxl\nMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEJWDgXebvwjR+Ce+hxKOLbnsfN5W5dOlP\nZn8kwWnD+SLkU81Eac/BDJsXGrMk6jFD1vg16PEkoSevsuYWlC8xR6FmT6F6pmeh\nfsMGOyJpfK4fyoEPhKeQoT23lFIc5Orjo0IwQDAPBgNVHRMBAf8EBTADAQH/MB0G\nA1UdDgQWBBSVNAN1CHAz0eZ77qz2adeqjm31TzAOBgNVHQ8BAf8EBAMCAYYwCgYI\nKoZIzj0EAwMDaAAwZQIxAMlQeHbcjor49jqmcJ9gRLWdEWpXG8thIf6zfYQ/OEAg\nd7GDh4fR/OUk0VfjsBUN/gIwZB0bGdXvK38s6AAE/9IT051cz/wMe9GIrX1MnL1T\n1F5OqnXJdiwfZRRTHsRQ/L00\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIGBDCCA+ygAwIBAgIQalr16vDfX4Rsr+gfQ4iVFDANBgkqhkiG9w0BAQwFADCB\nmjELMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIElu\nYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTMwMQYDVQQDDCpB\nbWF6b24gUkRTIGV1LWNlbnRyYWwtMiBSb290IENBIFJTQTQwOTYgRzExEDAOBgNV\nBAcMB1NlYXR0bGUwIBcNMjIwNjA2MjEyNTIzWhgPMjEyMjA2MDYyMjI1MjNaMIGa\nMQswCQYDVQQGEwJVUzEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5j\nLjETMBEGA1UECwwKQW1hem9uIFJEUzELMAkGA1UECAwCV0ExMzAxBgNVBAMMKkFt\nYXpvbiBSRFMgZXUtY2VudHJhbC0yIFJvb3QgQ0EgUlNBNDA5NiBHMTEQMA4GA1UE\nBwwHU2VhdHRsZTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBANbHbFg7\n2VhZor1YNtez0VlNFaobS3PwOMcEn45BE3y7HONnElIIWXGQa0811M8V2FnyqnE8\nZ5aO1EuvijvWf/3D8DPZkdmAkIfh5hlZYY6Aatr65kEOckwIAm7ZZzrwFogYuaFC\nz/q0CW+8gxNK+98H/zeFx+IxiVoPPPX6UlrLvn+R6XYNERyHMLNgoZbbS5gGHk43\nKhENVv3AWCCcCc85O4rVd+DGb2vMVt6IzXdTQt6Kih28+RGph+WDwYmf+3txTYr8\nxMcCBt1+whyCPlMbC+Yn/ivtCO4LRf0MPZDRQrqTTrFf0h/V0BGEUmMGwuKgmzf5\nKl9ILdWv6S956ioZin2WgAxhcn7+z//sN++zkqLreSf90Vgv+A7xPRqIpTdJ/nWG\nJaAOUofBfsDsk4X4SUFE7xJa1FZAiu2lqB/E+y7jnWOvFRalzxVJ2Y+D/ZfUfrnK\n4pfKtyD1C6ni1celrZrAwLrJ3PoXPSg4aJKh8+CHex477SRsGj8KP19FG8r0P5AG\n8lS1V+enFCNvT5KqEBpDZ/Y5SQAhAYFUX+zH4/n4ql0l/emS+x23kSRrF+yMkB9q\nlhC/fMk6Pi3tICBjrDQ8XAxv56hfud9w6+/ljYB2uQ1iUYtlE3JdIiuE+3ws26O8\ni7PLMD9zQmo+sVi12pLHfBHQ6RRHtdVRXbXRAgMBAAGjQjBAMA8GA1UdEwEB/wQF\nMAMBAf8wHQYDVR0OBBYEFBFot08ipEL9ZUXCG4lagmF53C0/MA4GA1UdDwEB/wQE\nAwIBhjANBgkqhkiG9w0BAQwFAAOCAgEAi2mcZi6cpaeqJ10xzMY0F3L2eOKYnlEQ\nh6QyhmNKCUF05q5u+cok5KtznzqMwy7TFOZtbVHl8uUX+xvgq/MQCxqFAnuStBXm\ngr2dg1h509ZwvTdk7TDxGdftvPCfnPNJBFbMSq4CZtNcOFBg9Rj8c3Yj+Qvwd56V\nzWs65BUkDNJrXmxdvhJZjUkMa9vi/oFN+M84xXeZTaC5YDYNZZeW9706QqDbAVES\n5ulvKLavB8waLI/lhRBK5/k0YykCMl0A8Togt8D1QsQ0eWWbIM8/HYJMPVFhJ8Wj\nvT1p/YVeDA3Bo1iKDOttgC5vILf5Rw1ZEeDxjf/r8A7VS13D3OLjBmc31zxRTs3n\nXvHKP9MieQHn9GE44tEYPjK3/yC6BDFzCBlvccYHmqGb+jvDEXEBXKzimdC9mcDl\nf4BBQWGJBH5jkbU9p6iti19L/zHhz7qU6UJWbxY40w92L9jS9Utljh4A0LCTjlnR\nNQUgjnGC6K+jkw8hj0LTC5Ip87oqoT9w7Av5EJ3VJ4hcnmNMXJJ1DkWYdnytcGpO\nDMVITQzzDZRwhbitCVPHagTN2wdi9TEuYE33J0VmFeTc6FSI50wP2aOAZ0Q1/8Aj\nbxeM5jS25eaHc2CQAuhrc/7GLnxOcPwdWQb2XWT8eHudhMnoRikVv/KSK3mf6om4\n1YfpdH2jp30=\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIID/jCCAuagAwIBAgIQTDc+UgTRtYO7ZGTQ8UWKDDANBgkqhkiG9w0BAQsFADCB\nlzELMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIElu\nYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTAwLgYDVQQDDCdB\nbWF6b24gUkRTIGV1LXdlc3QtMiBSb290IENBIFJTQTIwNDggRzExEDAOBgNVBAcM\nB1NlYXR0bGUwIBcNMjEwNTIxMjI0NjI0WhgPMjA2MTA1MjEyMzQ2MjRaMIGXMQsw\nCQYDVQQGEwJVUzEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5jLjET\nMBEGA1UECwwKQW1hem9uIFJEUzELMAkGA1UECAwCV0ExMDAuBgNVBAMMJ0FtYXpv\nbiBSRFMgZXUtd2VzdC0yIFJvb3QgQ0EgUlNBMjA0OCBHMTEQMA4GA1UEBwwHU2Vh\ndHRsZTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAM1oGtthQ1YiVIC2\ni4u4swMAGxAjc/BZp0yq0eP5ZQFaxnxs7zFAPabEWsrjeDzrRhdVO0h7zskrertP\ngblGhfD20JfjvCHdP1RUhy/nzG+T+hn6Takan/GIgs8grlBMRHMgBYHW7tklhjaH\n3F7LujhceAHhhgp6IOrpb6YTaTTaJbF3GTmkqxSJ3l1LtEoWz8Al/nL/Ftzxrtez\nVs6ebpvd7sw37sxmXBWX2OlvUrPCTmladw9OrllGXtCFw4YyLe3zozBlZ3cHzQ0q\nlINhpRcajTMfZrsiGCkQtoJT+AqVJPS2sHjqsEH8yiySW9Jbq4zyMbM1yqQ2vnnx\nMJgoYMcCAwEAAaNCMEAwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQUaQG88UnV\nJPTI+Pcti1P+q3H7pGYwDgYDVR0PAQH/BAQDAgGGMA0GCSqGSIb3DQEBCwUAA4IB\nAQBAkgr75V0sEJimC6QRiTVWEuj2Khy7unjSfudbM6zumhXEU2/sUaVLiYy6cA/x\n3v0laDle6T07x9g64j5YastE/4jbzrGgIINFlY0JnaYmR3KZEjgi1s1fkRRf3llL\nPJm9u4Q1mbwAMQK/ZjLuuRcL3uRIHJek18nRqT5h43GB26qXyvJqeYYpYfIjL9+/\nYiZAbSRRZG+Li23cmPWrbA1CJY121SB+WybCbysbOXzhD3Sl2KSZRwSw4p2HrFtV\n1Prk0dOBtZxCG9luf87ultuDZpfS0w6oNBAMXocgswk24ylcADkkFxBWW+7BETn1\nEpK+t1Lm37mU4sxtuha00XAi\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIEADCCAuigAwIBAgIQcY44/8NUvBwr6LlHfRy7KjANBgkqhkiG9w0BAQsFADCB\nmDELMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIElu\nYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTEwLwYDVQQDDChB\nbWF6b24gUkRTIGV1LXNvdXRoLTEgUm9vdCBDQSBSU0EyMDQ4IEcxMRAwDgYDVQQH\nDAdTZWF0dGxlMCAXDTIxMDUxOTE4MjcxOFoYDzIwNjEwNTE5MTkyNzE4WjCBmDEL\nMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4x\nEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTEwLwYDVQQDDChBbWF6\nb24gUkRTIGV1LXNvdXRoLTEgUm9vdCBDQSBSU0EyMDQ4IEcxMRAwDgYDVQQHDAdT\nZWF0dGxlMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0UaBeC+Usalu\nEtXnV7+PnH+gi7/71tI/jkKVGKuhD2JDVvqLVoqbMHRh3+wGMvqKCjbHPcC2XMWv\n566fpAj4UZ9CLB5fVzss+QVNTl+FH2XhEzigopp+872ajsNzcZxrMkifxGb4i0U+\nt0Zi+UrbL5tsfP2JonKR1crOrbS6/DlzHBjIiJazGOQcMsJjNuTOItLbMohLpraA\n/nApa3kOvI7Ufool1/34MG0+wL3UUA4YkZ6oBJVxjZvvs6tI7Lzz/SnhK2widGdc\nsnbLqBpHNIZQSorVoiwcFaRBGYX/uzYkiw44Yfa4cK2V/B5zgu1Fbr0gbI2am4eh\nyVYyg4jPawIDAQABo0IwQDAPBgNVHRMBAf8EBTADAQH/MB0GA1UdDgQWBBS9gM1m\nIIjyh9O5H/7Vj0R/akI7UzAOBgNVHQ8BAf8EBAMCAYYwDQYJKoZIhvcNAQELBQAD\nggEBAF0Sm9HC2AUyedBVnwgkVXMibnYChOzz7T+0Y+fOLXYAEXex2s8oqGeZdGYX\nJHkjBn7JXu7LM+TpTbPbFFDoc1sgMguD/ls+8XsqAl1CssW+amryIL+jfcfbgQ+P\nICwEUD9hGdjBgJ5WcuS+qqxHsEIlFNci3HxcxfBa9VsWs5TjI7Vsl4meL5lf7ZyL\nwDV7dHRuU+cImqG1MIvPRIlvPnT7EghrCYi2VCPhP2pM/UvShuwVnkz4MJ29ebIk\nWR9kpblFxFdE92D5UUvMCjC2kmtgzNiErvTcwIvOO9YCbBHzRB1fFiWrXUHhJWq9\nIkaxR5icb/IpAV0A1lYZEWMVsfQ=\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIGATCCA+mgAwIBAgIRAMa0TPL+QgbWfUPpYXQkf8wwDQYJKoZIhvcNAQEMBQAw\ngZgxCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJ\nbmMuMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTExMC8GA1UEAwwo\nQW1hem9uIFJEUyBldS1ub3J0aC0xIFJvb3QgQ0EgUlNBNDA5NiBHMTEQMA4GA1UE\nBwwHU2VhdHRsZTAgFw0yMTA1MjQyMTAzMjBaGA8yMTIxMDUyNDIyMDMyMFowgZgx\nCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMu\nMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTExMC8GA1UEAwwoQW1h\nem9uIFJEUyBldS1ub3J0aC0xIFJvb3QgQ0EgUlNBNDA5NiBHMTEQMA4GA1UEBwwH\nU2VhdHRsZTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBANhS9LJVJyWp\n6Rudy9t47y6kzvgnFYDrvJVtgEK0vFn5ifdlHE7xqMz4LZqWBFTnS+3oidwVRqo7\ntqsuuElsouStO8m315/YUzKZEPmkw8h5ufWt/lg3NTCoUZNkB4p4skr7TspyMUwE\nVdlKQuWTCOLtofwmWT+BnFF3To6xTh3XPlT3ssancw27Gob8kJegD7E0TSMVsecP\nB8je65+3b8CGwcD3QB3kCTGLy87tXuS2+07pncHvjMRMBdDQQQqhXWsRSeUNg0IP\nxdHTWcuwMldYPWK5zus9M4dCNBDlmZjKdcZZVUOKeBBAm7Uo7CbJCk8r/Fvfr6mw\nnXXDtuWhqn/WhJiI/y0QU27M+Hy5CQMxBwFsfAjJkByBpdXmyYxUgTmMpLf43p7H\noWfH1xN0cT0OQEVmAQjMakauow4AQLNkilV+X6uAAu3STQVFRSrpvMen9Xx3EPC3\nG9flHueTa71bU65Xe8ZmEmFhGeFYHY0GrNPAFhq9RThPRY0IPyCZe0Th8uGejkek\njQjm0FHPOqs5jc8CD8eJs4jSEFt9lasFLVDcAhx0FkacLKQjGHvKAnnbRwhN/dF3\nxt4oL8Z4JGPCLau056gKnYaEyviN7PgO+IFIVOVIdKEBu2ASGE8/+QJB5bcHefNj\n04hEkDW0UYJbSfPpVbGAR0gFI/QpycKnAgMBAAGjQjBAMA8GA1UdEwEB/wQFMAMB\nAf8wHQYDVR0OBBYEFFMXvvjoaGGUcul8GA3FT05DLbZcMA4GA1UdDwEB/wQEAwIB\nhjANBgkqhkiG9w0BAQwFAAOCAgEAQLwFhd2JKn4K/6salLyIA4mP58qbA/9BTB/r\nD9l0bEwDlVPSdY7R3gZCe6v7SWLfA9RjE5tdWDrQMi5IU6W2OVrVsZS/yGJfwnwe\na/9iUAYprA5QYKDg37h12XhVsDKlYCekHdC+qa5WwB1SL3YUprDLPWeaIQdg+Uh2\n+LxvpZGoxoEbca0fc7flwq9ke/3sXt/3V4wJDyY6AL2YNdjFzC+FtYjHHx8rYxHs\naesP7yunuN17KcfOZBBnSFRrx96k+Xm95VReTEEpwiBqAECqEpMbd+R0mFAayMb1\ncE77GaK5yeC2f67NLYGpkpIoPbO9p9rzoXLE5GpSizMjimnz6QCbXPFAFBDfSzim\nu6azp40kEUO6kWd7rBhqRwLc43D3TtNWQYxMve5mTRG4Od+eMKwYZmQz89BQCeqm\naZiJP9y9uwJw4p/A5V3lYHTDQqzmbOyhGUk6OdpdE8HXs/1ep1xTT20QDYOx3Ekt\nr4mmNYfH/8v9nHNRlYJOqFhmoh1i85IUl5IHhg6OT5ZTTwsGTSxvgQQXrmmHVrgZ\nrZIqyBKllCgVeB9sMEsntn4bGLig7CS/N1y2mYdW/745yCLZv2gj0NXhPqgEIdVV\nf9DhFD4ohE1C63XP0kOQee+LYg/MY5vH8swpCSWxQgX5icv5jVDz8YTdCKgUc5u8\nrM2p0kk=\n-----END CERTIFICATE-----\n"
+    ];
+  }
+});
+
+// node_modules/aws-ssl-profiles/lib/profiles/ca/proxies.js
+var require_proxies = __commonJS({
+  "node_modules/aws-ssl-profiles/lib/profiles/ca/proxies.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.proxies = void 0;
+    exports2.proxies = [
+      "-----BEGIN CERTIFICATE-----\nMIIDQTCCAimgAwIBAgITBmyfz5m/jAo54vB4ikPmljZbyjANBgkqhkiG9w0BAQsF\nADA5MQswCQYDVQQGEwJVUzEPMA0GA1UEChMGQW1hem9uMRkwFwYDVQQDExBBbWF6\nb24gUm9vdCBDQSAxMB4XDTE1MDUyNjAwMDAwMFoXDTM4MDExNzAwMDAwMFowOTEL\nMAkGA1UEBhMCVVMxDzANBgNVBAoTBkFtYXpvbjEZMBcGA1UEAxMQQW1hem9uIFJv\nb3QgQ0EgMTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBALJ4gHHKeNXj\nca9HgFB0fW7Y14h29Jlo91ghYPl0hAEvrAIthtOgQ3pOsqTQNroBvo3bSMgHFzZM\n9O6II8c+6zf1tRn4SWiw3te5djgdYZ6k/oI2peVKVuRF4fn9tBb6dNqcmzU5L/qw\nIFAGbHrQgLKm+a/sRxmPUDgH3KKHOVj4utWp+UhnMJbulHheb4mjUcAwhmahRWa6\nVOujw5H5SNz/0egwLX0tdHA114gk957EWW67c4cX8jJGKLhD+rcdqsq08p8kDi1L\n93FcXmn/6pUCyziKrlA4b9v7LWIbxcceVOF34GfID5yHI9Y/QCB/IIDEgEw+OyQm\njgSubJrIqg0CAwEAAaNCMEAwDwYDVR0TAQH/BAUwAwEB/zAOBgNVHQ8BAf8EBAMC\nAYYwHQYDVR0OBBYEFIQYzIU07LwMlJQuCFmcx7IQTgoIMA0GCSqGSIb3DQEBCwUA\nA4IBAQCY8jdaQZChGsV2USggNiMOruYou6r4lK5IpDB/G/wkjUu0yKGX9rbxenDI\nU5PMCCjjmCXPI6T53iHTfIUJrU6adTrCC2qJeHZERxhlbI1Bjjt/msv0tadQ1wUs\nN+gDS63pYaACbvXy8MWy7Vu33PqUXHeeE6V/Uq2V8viTO96LXFvKWlJbYK8U90vv\no/ufQJVtMVT8QtPHRh8jrdkPSHCa2XV4cdFyQzR1bldZwgJcJmApzyMZFo6IQ6XU\n5MsI+yMRQ+hDKXJioaldXgjUkK642M4UwtBV8ob2xJNDd2ZhwLnoQdeXeGADbkpy\nrqXRfboQnoZsG4q5WTP468SQvvG5\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIFQTCCAymgAwIBAgITBmyf0pY1hp8KD+WGePhbJruKNzANBgkqhkiG9w0BAQwF\nADA5MQswCQYDVQQGEwJVUzEPMA0GA1UEChMGQW1hem9uMRkwFwYDVQQDExBBbWF6\nb24gUm9vdCBDQSAyMB4XDTE1MDUyNjAwMDAwMFoXDTQwMDUyNjAwMDAwMFowOTEL\nMAkGA1UEBhMCVVMxDzANBgNVBAoTBkFtYXpvbjEZMBcGA1UEAxMQQW1hem9uIFJv\nb3QgQ0EgMjCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAK2Wny2cSkxK\ngXlRmeyKy2tgURO8TW0G/LAIjd0ZEGrHJgw12MBvIITplLGbhQPDW9tK6Mj4kHbZ\nW0/jTOgGNk3Mmqw9DJArktQGGWCsN0R5hYGCrVo34A3MnaZMUnbqQ523BNFQ9lXg\n1dKmSYXpN+nKfq5clU1Imj+uIFptiJXZNLhSGkOQsL9sBbm2eLfq0OQ6PBJTYv9K\n8nu+NQWpEjTj82R0Yiw9AElaKP4yRLuH3WUnAnE72kr3H9rN9yFVkE8P7K6C4Z9r\n2UXTu/Bfh+08LDmG2j/e7HJV63mjrdvdfLC6HM783k81ds8P+HgfajZRRidhW+me\nz/CiVX18JYpvL7TFz4QuK/0NURBs+18bvBt+xa47mAExkv8LV/SasrlX6avvDXbR\n8O70zoan4G7ptGmh32n2M8ZpLpcTnqWHsFcQgTfJU7O7f/aS0ZzQGPSSbtqDT6Zj\nmUyl+17vIWR6IF9sZIUVyzfpYgwLKhbcAS4y2j5L9Z469hdAlO+ekQiG+r5jqFoz\n7Mt0Q5X5bGlSNscpb/xVA1wf+5+9R+vnSUeVC06JIglJ4PVhHvG/LopyboBZ/1c6\n+XUyo05f7O0oYtlNc/LMgRdg7c3r3NunysV+Ar3yVAhU/bQtCSwXVEqY0VThUWcI\n0u1ufm8/0i2BWSlmy5A5lREedCf+3euvAgMBAAGjQjBAMA8GA1UdEwEB/wQFMAMB\nAf8wDgYDVR0PAQH/BAQDAgGGMB0GA1UdDgQWBBSwDPBMMPQFWAJI/TPlUq9LhONm\nUjANBgkqhkiG9w0BAQwFAAOCAgEAqqiAjw54o+Ci1M3m9Zh6O+oAA7CXDpO8Wqj2\nLIxyh6mx/H9z/WNxeKWHWc8w4Q0QshNabYL1auaAn6AFC2jkR2vHat+2/XcycuUY\n+gn0oJMsXdKMdYV2ZZAMA3m3MSNjrXiDCYZohMr/+c8mmpJ5581LxedhpxfL86kS\nk5Nrp+gvU5LEYFiwzAJRGFuFjWJZY7attN6a+yb3ACfAXVU3dJnJUH/jWS5E4ywl\n7uxMMne0nxrpS10gxdr9HIcWxkPo1LsmmkVwXqkLN1PiRnsn/eBG8om3zEK2yygm\nbtmlyTrIQRNg91CMFa6ybRoVGld45pIq2WWQgj9sAq+uEjonljYE1x2igGOpm/Hl\nurR8FLBOybEfdF849lHqm/osohHUqS0nGkWxr7JOcQ3AWEbWaQbLU8uz/mtBzUF+\nfUwPfHJ5elnNXkoOrJupmHN5fLT0zLm4BwyydFy4x2+IoZCn9Kr5v2c69BoVYh63\nn749sSmvZ6ES8lgQGVMDMBu4Gon2nL2XA46jCfMdiyHxtN/kHNGfZQIG6lzWE7OE\n76KlXIx3KadowGuuQNKotOrN8I1LOJwZmhsoVLiJkO/KdYE+HvJkJMcYr07/R54H\n9jVlpNMKVv/1F2Rs76giJUmTtt8AF9pYfl3uxRuw0dFfIRDH+fO6AgonB8Xx1sfT\n4PsJYGw=\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIBtjCCAVugAwIBAgITBmyf1XSXNmY/Owua2eiedgPySjAKBggqhkjOPQQDAjA5\nMQswCQYDVQQGEwJVUzEPMA0GA1UEChMGQW1hem9uMRkwFwYDVQQDExBBbWF6b24g\nUm9vdCBDQSAzMB4XDTE1MDUyNjAwMDAwMFoXDTQwMDUyNjAwMDAwMFowOTELMAkG\nA1UEBhMCVVMxDzANBgNVBAoTBkFtYXpvbjEZMBcGA1UEAxMQQW1hem9uIFJvb3Qg\nQ0EgMzBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABCmXp8ZBf8ANm+gBG1bG8lKl\nui2yEujSLtf6ycXYqm0fc4E7O5hrOXwzpcVOho6AF2hiRVd9RFgdszflZwjrZt6j\nQjBAMA8GA1UdEwEB/wQFMAMBAf8wDgYDVR0PAQH/BAQDAgGGMB0GA1UdDgQWBBSr\nttvXBp43rDCGB5Fwx5zEGbF4wDAKBggqhkjOPQQDAgNJADBGAiEA4IWSoxe3jfkr\nBqWTrBqYaGFy+uGh0PsceGCmQ5nFuMQCIQCcAu/xlJyzlvnrxir4tiz+OpAUFteM\nYyRIHN8wfdVoOw==\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIIB8jCCAXigAwIBAgITBmyf18G7EEwpQ+Vxe3ssyBrBDjAKBggqhkjOPQQDAzA5\nMQswCQYDVQQGEwJVUzEPMA0GA1UEChMGQW1hem9uMRkwFwYDVQQDExBBbWF6b24g\nUm9vdCBDQSA0MB4XDTE1MDUyNjAwMDAwMFoXDTQwMDUyNjAwMDAwMFowOTELMAkG\nA1UEBhMCVVMxDzANBgNVBAoTBkFtYXpvbjEZMBcGA1UEAxMQQW1hem9uIFJvb3Qg\nQ0EgNDB2MBAGByqGSM49AgEGBSuBBAAiA2IABNKrijdPo1MN/sGKe0uoe0ZLY7Bi\n9i0b2whxIdIA6GO9mif78DluXeo9pcmBqqNbIJhFXRbb/egQbeOc4OO9X4Ri83Bk\nM6DLJC9wuoihKqB1+IGuYgbEgds5bimwHvouXKNCMEAwDwYDVR0TAQH/BAUwAwEB\n/zAOBgNVHQ8BAf8EBAMCAYYwHQYDVR0OBBYEFNPsxzplbszh2naaVvuc84ZtV+WB\nMAoGCCqGSM49BAMDA2gAMGUCMDqLIfG9fhGt0O9Yli/W651+kI0rz2ZVwyzjKKlw\nCkcO8DdZEv8tmZQoTipPNU0zWgIxAOp1AE47xDqUEpHJWEadIRNyp4iciuRMStuW\n1KyLa2tJElMzrdfkviT8tQp21KW8EA==\n-----END CERTIFICATE-----\n",
+      "-----BEGIN CERTIFICATE-----\nMIID7zCCAtegAwIBAgIBADANBgkqhkiG9w0BAQsFADCBmDELMAkGA1UEBhMCVVMx\nEDAOBgNVBAgTB0FyaXpvbmExEzARBgNVBAcTClNjb3R0c2RhbGUxJTAjBgNVBAoT\nHFN0YXJmaWVsZCBUZWNobm9sb2dpZXMsIEluYy4xOzA5BgNVBAMTMlN0YXJmaWVs\nZCBTZXJ2aWNlcyBSb290IENlcnRpZmljYXRlIEF1dGhvcml0eSAtIEcyMB4XDTA5\nMDkwMTAwMDAwMFoXDTM3MTIzMTIzNTk1OVowgZgxCzAJBgNVBAYTAlVTMRAwDgYD\nVQQIEwdBcml6b25hMRMwEQYDVQQHEwpTY290dHNkYWxlMSUwIwYDVQQKExxTdGFy\nZmllbGQgVGVjaG5vbG9naWVzLCBJbmMuMTswOQYDVQQDEzJTdGFyZmllbGQgU2Vy\ndmljZXMgUm9vdCBDZXJ0aWZpY2F0ZSBBdXRob3JpdHkgLSBHMjCCASIwDQYJKoZI\nhvcNAQEBBQADggEPADCCAQoCggEBANUMOsQq+U7i9b4Zl1+OiFOxHz/Lz58gE20p\nOsgPfTz3a3Y4Y9k2YKibXlwAgLIvWX/2h/klQ4bnaRtSmpDhcePYLQ1Ob/bISdm2\n8xpWriu2dBTrz/sm4xq6HZYuajtYlIlHVv8loJNwU4PahHQUw2eeBGg6345AWh1K\nTs9DkTvnVtYAcMtS7nt9rjrnvDH5RfbCYM8TWQIrgMw0R9+53pBlbQLPLJGmpufe\nhRhJfGZOozptqbXuNC66DQO4M99H67FrjSXZm86B0UVGMpZwh94CDklDhbZsc7tk\n6mFBrMnUVN+HL8cisibMn1lUaJ/8viovxFUcdUBgF4UCVTmLfwUCAwEAAaNCMEAw\nDwYDVR0TAQH/BAUwAwEB/zAOBgNVHQ8BAf8EBAMCAQYwHQYDVR0OBBYEFJxfAN+q\nAdcwKziIorhtSpzyEZGDMA0GCSqGSIb3DQEBCwUAA4IBAQBLNqaEd2ndOxmfZyMI\nbw5hyf2E3F/YNoHN2BtBLZ9g3ccaaNnRbobhiCPPE95Dz+I0swSdHynVv/heyNXB\nve6SbzJ08pGCL72CQnqtKrcgfU28elUSwhXqvfdqlS5sdJ/PHLTyxQGjhdByPq1z\nqwubdQxtRbeOlKyWN7Wg0I8VRw7j6IPdj/3vQQF3zCepYoUz8jcI73HPdwbeyBkd\niEDPfUYd/x7H4c7/I9vG+o1VTqkC50cRRj70/b17KSa7qWFiNyi2LSr2EIZkyXCn\n0q23KXB56jzaYyWf/Wi3MOxw+3WKt21gZ7IeyLnp2KhvAotnDU0mV3HaIPzBSlCN\nsSi6\n-----END CERTIFICATE-----\n"
+    ];
+  }
+});
+
+// node_modules/aws-ssl-profiles/lib/index.js
+var require_lib4 = __commonJS({
+  "node_modules/aws-ssl-profiles/lib/index.js"(exports2, module2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    var defaults_js_1 = require_defaults();
+    var proxies_js_1 = require_proxies();
+    var proxyBundle = {
+      ca: proxies_js_1.proxies
+    };
+    var profiles = {
+      ca: [...defaults_js_1.defaults, ...proxies_js_1.proxies]
+    };
+    module2.exports = profiles;
+    module2.exports.proxyBundle = proxyBundle;
+    module2.exports.default = profiles;
+  }
+});
+
+// node_modules/mysql2/lib/constants/ssl_profiles.js
+var require_ssl_profiles = __commonJS({
+  "node_modules/mysql2/lib/constants/ssl_profiles.js"(exports2) {
+    "use strict";
+    var awsCaBundle = require_lib4();
     exports2["Amazon RDS"] = {
-      ca: [
-        "-----BEGIN CERTIFICATE-----\nMIID9DCCAtygAwIBAgIBQjANBgkqhkiG9w0BAQUFADCBijELMAkGA1UEBhMCVVMx\nEzARBgNVBAgMCldhc2hpbmd0b24xEDAOBgNVBAcMB1NlYXR0bGUxIjAgBgNVBAoM\nGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMx\nGzAZBgNVBAMMEkFtYXpvbiBSRFMgUm9vdCBDQTAeFw0xNTAyMDUwOTExMzFaFw0y\nMDAzMDUwOTExMzFaMIGKMQswCQYDVQQGEwJVUzETMBEGA1UECAwKV2FzaGluZ3Rv\nbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNl\ncywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzEbMBkGA1UEAwwSQW1hem9uIFJE\nUyBSb290IENBMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuD8nrZ8V\nu+VA8yVlUipCZIKPTDcOILYpUe8Tct0YeQQr0uyl018StdBsa3CjBgvwpDRq1HgF\nJi2N3+39+shCNspQeE6aYU+BHXhKhIIStt3r7gl/4NqYiDDMWKHxHq0nsGDFfArf\nAOcjZdJagOMqb3fF46flc8k2E7THTm9Sz4L7RY1WdABMuurpICLFE3oHcGdapOb9\nT53pQR+xpHW9atkcf3pf7gbO0rlKVSIoUenBlZipUlp1VZl/OD/E+TtRhDDNdI2J\nP/DSMM3aEsq6ZQkfbz/Ilml+Lx3tJYXUDmp+ZjzMPLk/+3beT8EhrwtcG3VPpvwp\nBIOqsqVVTvw/CwIDAQABo2MwYTAOBgNVHQ8BAf8EBAMCAQYwDwYDVR0TAQH/BAUw\nAwEB/zAdBgNVHQ4EFgQUTgLurD72FchM7Sz1BcGPnIQISYMwHwYDVR0jBBgwFoAU\nTgLurD72FchM7Sz1BcGPnIQISYMwDQYJKoZIhvcNAQEFBQADggEBAHZcgIio8pAm\nMjHD5cl6wKjXxScXKtXygWH2BoDMYBJF9yfyKO2jEFxYKbHePpnXB1R04zJSWAw5\n2EUuDI1pSBh9BA82/5PkuNlNeSTB3dXDD2PEPdzVWbSKvUB8ZdooV+2vngL0Zm4r\n47QPyd18yPHrRIbtBtHR/6CwKevLZ394zgExqhnekYKIqqEX41xsUV0Gm6x4vpjf\n2u6O/+YE2U+qyyxHE5Wd5oqde0oo9UUpFETJPVb6Q2cEeQib8PBAyi0i6KnF+kIV\nA9dY7IHSubtCK/i8wxMVqfd5GtbA8mmpeJFwnDvm9rBEsHybl08qlax9syEwsUYr\n/40NawZfTUU=\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIIEATCCAumgAwIBAgIBRDANBgkqhkiG9w0BAQUFADCBijELMAkGA1UEBhMCVVMx\nEzARBgNVBAgMCldhc2hpbmd0b24xEDAOBgNVBAcMB1NlYXR0bGUxIjAgBgNVBAoM\nGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMx\nGzAZBgNVBAMMEkFtYXpvbiBSRFMgUm9vdCBDQTAeFw0xNTAyMDUyMjAzMDZaFw0y\nMDAzMDUyMjAzMDZaMIGUMQswCQYDVQQGEwJVUzETMBEGA1UECAwKV2FzaGluZ3Rv\nbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNl\ncywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzElMCMGA1UEAwwcQW1hem9uIFJE\nUyBhcC1ub3J0aGVhc3QtMSBDQTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoC\nggEBAMmM2B4PfTXCZjbZMWiDPyxvk/eeNwIRJAhfzesiGUiLozX6CRy3rwC1ZOPV\nAcQf0LB+O8wY88C/cV+d4Q2nBDmnk+Vx7o2MyMh343r5rR3Na+4izd89tkQVt0WW\nvO21KRH5i8EuBjinboOwAwu6IJ+HyiQiM0VjgjrmEr/YzFPL8MgHD/YUHehqjACn\nC0+B7/gu7W4qJzBL2DOf7ub2qszGtwPE+qQzkCRDwE1A4AJmVE++/FLH2Zx78Egg\nfV1sUxPtYgjGH76VyyO6GNKM6rAUMD/q5mnPASQVIXgKbupr618bnH+SWHFjBqZq\nHvDGPMtiiWII41EmGUypyt5AbysCAwEAAaNmMGQwDgYDVR0PAQH/BAQDAgEGMBIG\nA1UdEwEB/wQIMAYBAf8CAQAwHQYDVR0OBBYEFIiKM0Q6n1K4EmLxs3ZXxINbwEwR\nMB8GA1UdIwQYMBaAFE4C7qw+9hXITO0s9QXBj5yECEmDMA0GCSqGSIb3DQEBBQUA\nA4IBAQBezGbE9Rw/k2e25iGjj5n8r+M3dlye8ORfCE/dijHtxqAKasXHgKX8I9Tw\nJkBiGWiuzqn7gO5MJ0nMMro1+gq29qjZnYX1pDHPgsRjUX8R+juRhgJ3JSHijRbf\n4qNJrnwga7pj94MhcLq9u0f6dxH6dXbyMv21T4TZMTmcFduf1KgaiVx1PEyJjC6r\nM+Ru+A0eM+jJ7uCjUoZKcpX8xkj4nmSnz9NMPog3wdOSB9cAW7XIc5mHa656wr7I\nWJxVcYNHTXIjCcng2zMKd1aCcl2KSFfy56sRfT7J5Wp69QSr+jq8KM55gw8uqAwi\nVPrXn2899T1rcTtFYFP16WXjGuc0\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIIEATCCAumgAwIBAgIBRTANBgkqhkiG9w0BAQUFADCBijELMAkGA1UEBhMCVVMx\nEzARBgNVBAgMCldhc2hpbmd0b24xEDAOBgNVBAcMB1NlYXR0bGUxIjAgBgNVBAoM\nGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMx\nGzAZBgNVBAMMEkFtYXpvbiBSRFMgUm9vdCBDQTAeFw0xNTAyMDUyMjAzMTlaFw0y\nMDAzMDUyMjAzMTlaMIGUMQswCQYDVQQGEwJVUzETMBEGA1UECAwKV2FzaGluZ3Rv\nbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNl\ncywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzElMCMGA1UEAwwcQW1hem9uIFJE\nUyBhcC1zb3V0aGVhc3QtMSBDQTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoC\nggEBANaXElmSEYt/UtxHFsARFhSUahTf1KNJzR0Dmay6hqOXQuRVbKRwPd19u5vx\nDdF1sLT7D69IK3VDnUiQScaCv2Dpu9foZt+rLx+cpx1qiQd1UHrvqq8xPzQOqCdC\nRFStq6yVYZ69yfpfoI67AjclMOjl2Vph3ftVnqP0IgVKZdzeC7fd+umGgR9xY0Qr\nUbhd/lWdsbNvzK3f1TPWcfIKQnpvSt85PIEDJir6/nuJUKMtmJRwTymJf0i+JZ4x\n7dJa341p2kHKcHMgOPW7nJQklGBA70ytjUV6/qebS3yIugr/28mwReflg3TJzVDl\nEOvi6pqbqNbkMuEwGDCmEQIVqgkCAwEAAaNmMGQwDgYDVR0PAQH/BAQDAgEGMBIG\nA1UdEwEB/wQIMAYBAf8CAQAwHQYDVR0OBBYEFAu93/4k5xbWOsgdCdn+/KdiRuit\nMB8GA1UdIwQYMBaAFE4C7qw+9hXITO0s9QXBj5yECEmDMA0GCSqGSIb3DQEBBQUA\nA4IBAQBlcjSyscpPjf5+MgzMuAsCxByqUt+WFspwcMCpwdaBeHOPSQrXNqX2Sk6P\nkth6oCivA64trWo8tFMvPYlUA1FYVD5WpN0kCK+P5pD4KHlaDsXhuhClJzp/OP8t\npOyUr5109RHLxqoKB5J5m1XA7rgcFjnMxwBSWFe3/4uMk/+4T53YfCVXuc6QV3i7\nI/2LAJwFf//pTtt6fZenYfCsahnr2nvrNRNyAxcfvGZ/4Opn/mJtR6R/AjvQZHiR\nbkRNKF2GW0ueK5W4FkZVZVhhX9xh1Aj2Ollb+lbOqADaVj+AT3PoJPZ3MPQHKCXm\nxwG0LOLlRr/TfD6li1AfOVTAJXv9\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIIEATCCAumgAwIBAgIBRjANBgkqhkiG9w0BAQUFADCBijELMAkGA1UEBhMCVVMx\nEzARBgNVBAgMCldhc2hpbmd0b24xEDAOBgNVBAcMB1NlYXR0bGUxIjAgBgNVBAoM\nGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMx\nGzAZBgNVBAMMEkFtYXpvbiBSRFMgUm9vdCBDQTAeFw0xNTAyMDUyMjAzMjRaFw0y\nMDAzMDUyMjAzMjRaMIGUMQswCQYDVQQGEwJVUzETMBEGA1UECAwKV2FzaGluZ3Rv\nbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNl\ncywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzElMCMGA1UEAwwcQW1hem9uIFJE\nUyBhcC1zb3V0aGVhc3QtMiBDQTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoC\nggEBAJqBAJutz69hFOh3BtLHZTbwE8eejGGKayn9hu98YMDPzWzGXWCmW+ZYWELA\ncY3cNWNF8K4FqKXFr2ssorBYim1UtYFX8yhydT2hMD5zgQ2sCGUpuidijuPA6zaq\nZ3tdhVR94f0q8mpwpv2zqR9PcqaGDx2VR1x773FupRPRo7mEW1vC3IptHCQlP/zE\n7jQiLl28bDIH2567xg7e7E9WnZToRnhlYdTaDaJsHTzi5mwILi4cihSok7Shv/ME\nhnukvxeSPUpaVtFaBhfBqq055ePq9I+Ns4KGreTKMhU0O9fkkaBaBmPaFgmeX/XO\nn2AX7gMouo3mtv34iDTZ0h6YCGkCAwEAAaNmMGQwDgYDVR0PAQH/BAQDAgEGMBIG\nA1UdEwEB/wQIMAYBAf8CAQAwHQYDVR0OBBYEFIlQnY0KHYWn1jYumSdJYfwj/Nfw\nMB8GA1UdIwQYMBaAFE4C7qw+9hXITO0s9QXBj5yECEmDMA0GCSqGSIb3DQEBBQUA\nA4IBAQA0wVU6/l41cTzHc4azc4CDYY2Wd90DFWiH9C/mw0SgToYfCJ/5Cfi0NT/Y\nPRnk3GchychCJgoPA/k9d0//IhYEAIiIDjyFVgjbTkKV3sh4RbdldKVOUB9kumz/\nZpShplsGt3z4QQiVnKfrAgqxWDjR0I0pQKkxXa6Sjkicos9LQxVtJ0XA4ieG1E7z\nzJr+6t80wmzxvkInSaWP3xNJK9azVRTrgQZQlvkbpDbExl4mNTG66VD3bAp6t3Wa\nB49//uDdfZmPkqqbX+hsxp160OH0rxJppwO3Bh869PkDnaPEd/Pxw7PawC+li0gi\nNRV8iCEx85aFxcyOhqn0WZOasxee\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIID/zCCAuegAwIBAgIBRzANBgkqhkiG9w0BAQUFADCBijELMAkGA1UEBhMCVVMx\nEzARBgNVBAgMCldhc2hpbmd0b24xEDAOBgNVBAcMB1NlYXR0bGUxIjAgBgNVBAoM\nGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMx\nGzAZBgNVBAMMEkFtYXpvbiBSRFMgUm9vdCBDQTAeFw0xNTAyMDUyMjAzMzFaFw0y\nMDAzMDUyMjAzMzFaMIGSMQswCQYDVQQGEwJVUzETMBEGA1UECAwKV2FzaGluZ3Rv\nbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNl\ncywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzEjMCEGA1UEAwwaQW1hem9uIFJE\nUyBldS1jZW50cmFsLTEgQ0EwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIB\nAQDFtP2dhSLuaPOI4ZrrPWsK4OY9ocQBp3yApH1KJYmI9wpQKZG/KCH2E6Oo7JAw\nQORU519r033T+FO2Z7pFPlmz1yrxGXyHpJs8ySx3Yo5S8ncDCdZJCLmtPiq/hahg\n5/0ffexMFUCQaYicFZsrJ/cStdxUV+tSw2JQLD7UxS9J97LQWUPyyG+ZrjYVTVq+\nzudnFmNSe4QoecXMhAFTGJFQXxP7nhSL9Ao5FGgdXy7/JWeWdQIAj8ku6cBDKPa6\nY6kP+ak+In+Lye8z9qsCD/afUozfWjPR2aA4JoIZVF8dNRShIMo8l0XfgfM2q0+n\nApZWZ+BjhIO5XuoUgHS3D2YFAgMBAAGjZjBkMA4GA1UdDwEB/wQEAwIBBjASBgNV\nHRMBAf8ECDAGAQH/AgEAMB0GA1UdDgQWBBRm4GsWIA/M6q+tK8WGHWDGh2gcyTAf\nBgNVHSMEGDAWgBROAu6sPvYVyEztLPUFwY+chAhJgzANBgkqhkiG9w0BAQUFAAOC\nAQEAHpMmeVQNqcxgfQdbDIi5UIy+E7zZykmtAygN1XQrvga9nXTis4kOTN6g5/+g\nHCx7jIXeNJzAbvg8XFqBN84Quqgpl/tQkbpco9Jh1HDs558D5NnZQxNqH5qXQ3Mm\nuPgCw0pYcPOa7bhs07i+MdVwPBsX27CFDtsgAIru8HvKxY1oTZrWnyIRo93tt/pk\nWuItVMVHjaQZVfTCow0aDUbte6Vlw82KjUFq+n2NMSCJDiDKsDDHT6BJc4AJHIq3\n/4Z52MSC9KMr0yAaaoWfW/yMEj9LliQauAgwVjArF4q78rxpfKTG9Rfd8U1BZANP\n7FrFMN0ThjfA1IvmOYcgskY5bQ==\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIID/DCCAuSgAwIBAgIBSDANBgkqhkiG9w0BAQUFADCBijELMAkGA1UEBhMCVVMx\nEzARBgNVBAgMCldhc2hpbmd0b24xEDAOBgNVBAcMB1NlYXR0bGUxIjAgBgNVBAoM\nGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMx\nGzAZBgNVBAMMEkFtYXpvbiBSRFMgUm9vdCBDQTAeFw0xNTAyMDUyMjAzMzVaFw0y\nMDAzMDUyMjAzMzVaMIGPMQswCQYDVQQGEwJVUzETMBEGA1UECAwKV2FzaGluZ3Rv\nbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNl\ncywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzEgMB4GA1UEAwwXQW1hem9uIFJE\nUyBldS13ZXN0LTEgQ0EwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQCx\nPdbqQ0HKRj79Pmocxvjc+P6i4Ux24kgFIl+ckiir1vzkmesc3a58gjrMlCksEObt\nYihs5IhzEq1ePT0gbfS9GYFp34Uj/MtPwlrfCBWG4d2TcrsKRHr1/EXUYhWqmdrb\nRhX8XqoRhVkbF/auzFSBhTzcGGvZpQ2KIaxRcQfcXlMVhj/pxxAjh8U4F350Fb0h\nnX1jw4/KvEreBL0Xb2lnlGTkwVxaKGSgXEnOgIyOFdOQc61vdome0+eeZsP4jqeR\nTGYJA9izJsRbe2YJxHuazD+548hsPlM3vFzKKEVURCha466rAaYAHy3rKur3HYQx\nYt+SoKcEz9PXuSGj96ejAgMBAAGjZjBkMA4GA1UdDwEB/wQEAwIBBjASBgNVHRMB\nAf8ECDAGAQH/AgEAMB0GA1UdDgQWBBTebg//h2oeXbZjQ4uuoiuLYzuiPDAfBgNV\nHSMEGDAWgBROAu6sPvYVyEztLPUFwY+chAhJgzANBgkqhkiG9w0BAQUFAAOCAQEA\nTikPaGeZasTPw+4RBemlsyPAjtFFQLo7ddaFdORLgdEysVf8aBqndvbA6MT/v4lj\nGtEtUdF59ZcbWOrVm+fBZ2h/jYJ59dYF/xzb09nyRbdMSzB9+mkSsnOMqluq5y8o\nDY/PfP2vGhEg/2ZncRC7nlQU1Dm8F4lFWEiQ2fi7O1cW852Vmbq61RIfcYsH/9Ma\nkpgk10VZ75b8m3UhmpZ/2uRY+JEHImH5WpcTJ7wNiPNJsciZMznGtrgOnPzYco8L\ncDleOASIZifNMQi9PKOJKvi0ITz0B/imr8KBsW0YjZVJ54HMa7W1lwugSM7aMAs+\nE3Sd5lS+SHwWaOCHwhOEVA==\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIID/DCCAuSgAwIBAgIBSTANBgkqhkiG9w0BAQUFADCBijELMAkGA1UEBhMCVVMx\nEzARBgNVBAgMCldhc2hpbmd0b24xEDAOBgNVBAcMB1NlYXR0bGUxIjAgBgNVBAoM\nGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMx\nGzAZBgNVBAMMEkFtYXpvbiBSRFMgUm9vdCBDQTAeFw0xNTAyMDUyMjAzNDBaFw0y\nMDAzMDUyMjAzNDBaMIGPMQswCQYDVQQGEwJVUzETMBEGA1UECAwKV2FzaGluZ3Rv\nbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNl\ncywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzEgMB4GA1UEAwwXQW1hem9uIFJE\nUyBzYS1lYXN0LTEgQ0EwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQCU\nX4OBnQ5xA6TLJAiFEI6l7bUWjoVJBa/VbMdCCSs2i2dOKmqUaXu2ix2zcPILj3lZ\nGMk3d/2zvTK/cKhcFrewHUBamTeVHdEmynhMQamqNmkM4ptYzFcvEUw1TGxHT4pV\nQ6gSN7+/AJewQvyHexHo8D0+LDN0/Wa9mRm4ixCYH2CyYYJNKaZt9+EZfNu+PPS4\n8iB0TWH0DgQkbWMBfCRgolLLitAZklZ4dvdlEBS7evN1/7ttBxUK6SvkeeSx3zBl\nww3BlXqc3bvTQL0A+RRysaVyFbvtp9domFaDKZCpMmDFAN/ntx215xmQdrSt+K3F\ncXdGQYHx5q410CAclGnbAgMBAAGjZjBkMA4GA1UdDwEB/wQEAwIBBjASBgNVHRMB\nAf8ECDAGAQH/AgEAMB0GA1UdDgQWBBT6iVWnm/uakS+tEX2mzIfw+8JL0zAfBgNV\nHSMEGDAWgBROAu6sPvYVyEztLPUFwY+chAhJgzANBgkqhkiG9w0BAQUFAAOCAQEA\nFmDD+QuDklXn2EgShwQxV13+txPRuVdOSrutHhoCgMwFWCMtPPtBAKs6KPY7Guvw\nDpJoZSehDiOfsgMirjOWjvfkeWSNvKfjWTVneX7pZD9W5WPnsDBvTbCGezm+v87z\nb+ZM2ZMo98m/wkMcIEAgdSKilR2fuw8rLkAjhYFfs0A7tDgZ9noKwgHvoE4dsrI0\nKZYco6DlP/brASfHTPa2puBLN9McK3v+h0JaSqqm5Ro2Bh56tZkQh8AWy/miuDuK\n3+hNEVdxosxlkM1TPa1DGj0EzzK0yoeerXuH2HX7LlCrrxf6/wdKnjR12PMrLQ4A\npCqkcWw894z6bV9MAvKe6A==\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIID/DCCAuSgAwIBAgIBQzANBgkqhkiG9w0BAQUFADCBijELMAkGA1UEBhMCVVMx\nEzARBgNVBAgMCldhc2hpbmd0b24xEDAOBgNVBAcMB1NlYXR0bGUxIjAgBgNVBAoM\nGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMx\nGzAZBgNVBAMMEkFtYXpvbiBSRFMgUm9vdCBDQTAeFw0xNTAyMDUyMTU0MDRaFw0y\nMDAzMDUyMTU0MDRaMIGPMQswCQYDVQQGEwJVUzETMBEGA1UECAwKV2FzaGluZ3Rv\nbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNl\ncywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzEgMB4GA1UEAwwXQW1hem9uIFJE\nUyB1cy1lYXN0LTEgQ0EwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDI\nUIuwh8NusKHk1SqPXcP7OqxY3S/M2ZyQWD3w7Bfihpyyy/fc1w0/suIpX3kbMhAV\n2ESwged2/2zSx4pVnjp/493r4luhSqQYzru78TuPt9bhJIJ51WXunZW2SWkisSaf\nUSYUzVN9ezR/bjXTumSUQaLIouJt3OHLX49s+3NAbUyOI8EdvgBQWD68H1epsC0n\nCI5s+pIktyOZ59c4DCDLQcXErQ+tNbDC++oct1ANd/q8p9URonYwGCGOBy7sbCYq\n9eVHh1Iy2M+SNXddVOGw5EuruvHoCIQyOz5Lz4zSuZA9dRbrfztNOpezCNYu6NKM\nn+hzcvdiyxv77uNm8EaxAgMBAAGjZjBkMA4GA1UdDwEB/wQEAwIBBjASBgNVHRMB\nAf8ECDAGAQH/AgEAMB0GA1UdDgQWBBQSQG3TmMe6Sa3KufaPBa72v4QFDzAfBgNV\nHSMEGDAWgBROAu6sPvYVyEztLPUFwY+chAhJgzANBgkqhkiG9w0BAQUFAAOCAQEA\nL/mOZfB3187xTmjOHMqN2G2oSKHBKiQLM9uv8+97qT+XR+TVsBT6b3yoPpMAGhHA\nPc7nxAF5gPpuzatx0OTLPcmYucFmfqT/1qA5WlgCnMNtczyNMH97lKFTNV7Njtek\njWEzAEQSyEWrkNpNlC4j6kMYyPzVXQeXUeZTgJ9FNnVZqmvfjip2N22tawMjrCn5\n7KN/zN65EwY2oO9XsaTwwWmBu3NrDdMbzJnbxoWcFWj4RBwanR1XjQOVNhDwmCOl\n/1Et13b8CPyj69PC8BOVU6cfTSx8WUVy0qvYOKHNY9Bqa5BDnIL3IVmUkeTlM1mt\nenRpyBj+Bk9rh/ICdiRKmA==\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIID/DCCAuSgAwIBAgIBSjANBgkqhkiG9w0BAQUFADCBijELMAkGA1UEBhMCVVMx\nEzARBgNVBAgMCldhc2hpbmd0b24xEDAOBgNVBAcMB1NlYXR0bGUxIjAgBgNVBAoM\nGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMx\nGzAZBgNVBAMMEkFtYXpvbiBSRFMgUm9vdCBDQTAeFw0xNTAyMDUyMjAzNDVaFw0y\nMDAzMDUyMjAzNDVaMIGPMQswCQYDVQQGEwJVUzETMBEGA1UECAwKV2FzaGluZ3Rv\nbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNl\ncywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzEgMB4GA1UEAwwXQW1hem9uIFJE\nUyB1cy13ZXN0LTEgQ0EwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDE\nDhw+uw/ycaiIhhyu2pXFRimq0DlB8cNtIe8hdqndH8TV/TFrljNgR8QdzOgZtZ9C\nzzQ2GRpInN/qJF6slEd6wO+6TaDBQkPY+07TXNt52POFUhdVkhJXHpE2BS7Xn6J7\n7RFAOeG1IZmc2DDt+sR1BgXzUqHslQGfFYNS0/MBO4P+ya6W7IhruB1qfa4HiYQS\ndbe4MvGWnv0UzwAqdR7OF8+8/5c58YXZIXCO9riYF2ql6KNSL5cyDPcYK5VK0+Q9\nVI6vuJHSMYcF7wLePw8jtBktqAFE/wbdZiIHhZvNyiNWPPNTGUmQbaJ+TzQEHDs5\n8en+/W7JKnPyBOkxxENbAgMBAAGjZjBkMA4GA1UdDwEB/wQEAwIBBjASBgNVHRMB\nAf8ECDAGAQH/AgEAMB0GA1UdDgQWBBS0nw/tFR9bCjgqWTPJkyy4oOD8bzAfBgNV\nHSMEGDAWgBROAu6sPvYVyEztLPUFwY+chAhJgzANBgkqhkiG9w0BAQUFAAOCAQEA\nCXGAY3feAak6lHdqj6+YWjy6yyUnLK37bRxZDsyDVXrPRQaXRzPTzx79jvDwEb/H\nQ/bdQ7zQRWqJcbivQlwhuPJ4kWPUZgSt3JUUuqkMsDzsvj/bwIjlrEFDOdHGh0mi\neVIngFEjUXjMh+5aHPEF9BlQnB8LfVtKj18e15UDTXFa+xJPFxUR7wDzCfo4WI1m\nsUMG4q1FkGAZgsoyFPZfF8IVvgCuGdR8z30VWKklFxttlK0eGLlPAyIO0CQxPQlo\nsaNJrHf4tLOgZIWk+LpDhNd9Et5EzvJ3aURUsKY4pISPPF5WdvM9OE59bERwUErd\nnuOuQWQeeadMceZnauRzJQ==\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIID/DCCAuSgAwIBAgIBSzANBgkqhkiG9w0BAQUFADCBijELMAkGA1UEBhMCVVMx\nEzARBgNVBAgMCldhc2hpbmd0b24xEDAOBgNVBAcMB1NlYXR0bGUxIjAgBgNVBAoM\nGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMx\nGzAZBgNVBAMMEkFtYXpvbiBSRFMgUm9vdCBDQTAeFw0xNTAyMDUyMjAzNTBaFw0y\nMDAzMDUyMjAzNTBaMIGPMQswCQYDVQQGEwJVUzETMBEGA1UECAwKV2FzaGluZ3Rv\nbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNl\ncywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzEgMB4GA1UEAwwXQW1hem9uIFJE\nUyB1cy13ZXN0LTIgQ0EwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDM\nH58SR48U6jyERC1vYTnub34smf5EQVXyzaTmspWGWGzT31NLNZGSDFaa7yef9kdO\nmzJsgebR5tXq6LdwlIoWkKYQ7ycUaadtVKVYdI40QcI3cHn0qLFlg2iBXmWp/B+i\nZ34VuVlCh31Uj5WmhaBoz8t/GRqh1V/aCsf3Wc6jCezH3QfuCjBpzxdOOHN6Ie2v\nxX09O5qmZTvMoRBAvPkxdaPg/Mi7fxueWTbEVk78kuFbF1jHYw8U1BLILIAhcqlq\nx4u8nl73t3O3l/soNUcIwUDK0/S+Kfqhwn9yQyPlhb4Wy3pfnZLJdkyHldktnQav\n9TB9u7KH5Lk0aAYslMLxAgMBAAGjZjBkMA4GA1UdDwEB/wQEAwIBBjASBgNVHRMB\nAf8ECDAGAQH/AgEAMB0GA1UdDgQWBBT8roM4lRnlFHWMPWRz0zkwFZog1jAfBgNV\nHSMEGDAWgBROAu6sPvYVyEztLPUFwY+chAhJgzANBgkqhkiG9w0BAQUFAAOCAQEA\nJwrxwgwmPtcdaU7O7WDdYa4hprpOMamI49NDzmE0s10oGrqmLwZygcWU0jT+fJ+Y\npJe1w0CVfKaeLYNsOBVW3X4ZPmffYfWBheZiaiEflq/P6t7/Eg81gaKYnZ/x1Dfa\nsUYkzPvCkXe9wEz5zdUTOCptDt89rBR9CstL9vE7WYUgiVVmBJffWbHQLtfjv6OF\nNMb0QME981kGRzc2WhgP71YS2hHd1kXtsoYP1yTu4vThSKsoN4bkiHsaC1cRkLoy\n0fFA4wpB3WloMEvCDaUvvH1LZlBXTNlwi9KtcwD4tDxkkBt4tQczKLGpQ/nF/W9n\n8YDWk3IIc1sd0bkZqoau2Q==\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIIEATCCAumgAwIBAgIBTDANBgkqhkiG9w0BAQUFADCBijELMAkGA1UEBhMCVVMx\nEzARBgNVBAgMCldhc2hpbmd0b24xEDAOBgNVBAcMB1NlYXR0bGUxIjAgBgNVBAoM\nGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMx\nGzAZBgNVBAMMEkFtYXpvbiBSRFMgUm9vdCBDQTAeFw0xNTExMDYwMDA1NDZaFw0y\nMDAzMDUwMDA1NDZaMIGUMQswCQYDVQQGEwJVUzETMBEGA1UECAwKV2FzaGluZ3Rv\nbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNl\ncywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzElMCMGA1UEAwwcQW1hem9uIFJE\nUyBhcC1ub3J0aGVhc3QtMiBDQTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoC\nggEBAKSwd+RVUzTRH0FgnbwoTK8TMm/zMT4+2BvALpAUe6YXbkisg2goycWuuWLg\njOpFBB3GtyvXZnkqi7MkDWUmj1a2kf8l2oLyoaZ+Hm9x/sV+IJzOqPvj1XVUGjP6\nyYYnPJmUYqvZeI7fEkIGdFkP2m4/sgsSGsFvpD9FK1bL1Kx2UDpYX0kHTtr18Zm/\n1oN6irqWALSmXMDydb8hE0FB2A1VFyeKE6PnoDj/Y5cPHwPPdEi6/3gkDkSaOG30\nrWeQfL3pOcKqzbHaWTxMphd0DSL/quZ64Nr+Ly65Q5PRcTrtr55ekOUziuqXwk+o\n9QpACMwcJ7ROqOznZTqTzSFVXFECAwEAAaNmMGQwDgYDVR0PAQH/BAQDAgEGMBIG\nA1UdEwEB/wQIMAYBAf8CAQAwHQYDVR0OBBYEFM6Nox/QWbhzWVvzoJ/y0kGpNPK+\nMB8GA1UdIwQYMBaAFE4C7qw+9hXITO0s9QXBj5yECEmDMA0GCSqGSIb3DQEBBQUA\nA4IBAQCTkWBqNvyRf3Y/W21DwFx3oT/AIWrHt0BdGZO34tavummXemTH9LZ/mqv9\naljt6ZuDtf5DEQjdsAwXMsyo03ffnP7doWm8iaF1+Mui77ot0TmTsP/deyGwukvJ\ntkxX8bZjDh+EaNauWKr+CYnniNxCQLfFtXYJsfOdVBzK3xNL+Z3ucOQRhr2helWc\nCDQgwfhP1+3pRVKqHvWCPC4R3fT7RZHuRmZ38kndv476GxRntejh+ePffif78bFI\n3rIZCPBGobrrUMycafSbyXteoGca/kA+/IqrAPlk0pWQ4aEL0yTWN2h2dnjoD7oX\nbyIuL/g9AGRh97+ssn7D6bDRPTbW\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIID/TCCAuWgAwIBAgIBTTANBgkqhkiG9w0BAQsFADCBijELMAkGA1UEBhMCVVMx\nEzARBgNVBAgMCldhc2hpbmd0b24xEDAOBgNVBAcMB1NlYXR0bGUxIjAgBgNVBAoM\nGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMx\nGzAZBgNVBAMMEkFtYXpvbiBSRFMgUm9vdCBDQTAeFw0xNjA1MDMyMTI5MjJaFw0y\nMDAzMDUyMTI5MjJaMIGQMQswCQYDVQQGEwJVUzETMBEGA1UECAwKV2FzaGluZ3Rv\nbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNl\ncywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzEhMB8GA1UEAwwYQW1hem9uIFJE\nUyBhcC1zb3V0aC0xIENBMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA\n06eWGLE0TeqL9kyWOLkS8q0fXO97z+xyBV3DKSB2lg2GkgBz3B98MkmkeB0SZy3G\nCe4uCpCPbFKiFEdiUclOlhZsrBuCeaimxLM3Ig2wuenElO/7TqgaYHYUbT3d+VQW\nGUbLn5GRZJZe1OAClYdOWm7A1CKpuo+cVV1vxbY2nGUQSJPpVn2sT9gnwvjdE60U\nJGYU/RLCTm8zmZBvlWaNIeKDnreIc4rKn6gUnJ2cQn1ryCVleEeyc3xjYDSrjgdn\nFLYGcp9mphqVT0byeQMOk0c7RHpxrCSA0V5V6/CreFV2LteK50qcDQzDSM18vWP/\np09FoN8O7QrtOeZJzH/lmwIDAQABo2YwZDAOBgNVHQ8BAf8EBAMCAQYwEgYDVR0T\nAQH/BAgwBgEB/wIBADAdBgNVHQ4EFgQU2i83QHuEl/d0keXF+69HNJph7cMwHwYD\nVR0jBBgwFoAUTgLurD72FchM7Sz1BcGPnIQISYMwDQYJKoZIhvcNAQELBQADggEB\nACqnH2VjApoDqoSQOky52QBwsGaj+xWYHW5Gm7EvCqvQuhWMkeBuD6YJmMvNyA9G\nI2lh6/o+sUk/RIsbYbxPRdhNPTOgDR9zsNRw6qxaHztq/CEC+mxDCLa3O1hHBaDV\nBmB3nCZb93BvO0EQSEk7aytKq/f+sjyxqOcs385gintdHGU9uM7gTZHnU9vByJsm\n/TL07Miq67X0NlhIoo3jAk+xHaeKJdxdKATQp0448P5cY20q4b8aMk1twcNaMvCP\ndG4M5doaoUA8OQ/0ukLLae/LBxLeTw04q1/a2SyFaVUX2Twbb1S3xVWwLA8vsyGr\nigXx7B5GgP+IHb6DTjPJAi0=\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIID/DCCAuSgAwIBAgIBTjANBgkqhkiG9w0BAQsFADCBijELMAkGA1UEBhMCVVMx\nEzARBgNVBAgMCldhc2hpbmd0b24xEDAOBgNVBAcMB1NlYXR0bGUxIjAgBgNVBAoM\nGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMx\nGzAZBgNVBAMMEkFtYXpvbiBSRFMgUm9vdCBDQTAeFw0xNjA4MTExOTU4NDVaFw0y\nMDAzMDUxOTU4NDVaMIGPMQswCQYDVQQGEwJVUzETMBEGA1UECAwKV2FzaGluZ3Rv\nbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNl\ncywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzEgMB4GA1UEAwwXQW1hem9uIFJE\nUyB1cy1lYXN0LTIgQ0EwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQCp\nWnnUX7wM0zzstccX+4iXKJa9GR0a2PpvB1paEX4QRCgfhEdQWDaSqyrWNgdVCKkt\n1aQkWu5j6VAC2XIG7kKoonm1ZdBVyBLqW5lXNywlaiU9yhJkwo8BR+/OqgE+PLt/\nEO1mlN0PQudja/XkExCXTO29TG2j7F/O7hox6vTyHNHc0H88zS21uPuBE+jivViS\nyzj/BkyoQ85hnkues3f9R6gCGdc+J51JbZnmgzUkvXjAEuKhAm9JksVOxcOKUYe5\nERhn0U9zjzpfbAITIkul97VVa5IxskFFTHIPJbvRKHJkiF6wTJww/tc9wm+fSCJ1\n+DbQTGZgkQ3bJrqRN29/AgMBAAGjZjBkMA4GA1UdDwEB/wQEAwIBBjASBgNVHRMB\nAf8ECDAGAQH/AgEAMB0GA1UdDgQWBBSAHQzUYYZbepwKEMvGdHp8wzHnfDAfBgNV\nHSMEGDAWgBROAu6sPvYVyEztLPUFwY+chAhJgzANBgkqhkiG9w0BAQsFAAOCAQEA\nMbaEzSYZ+aZeTBxf8yi0ta8K4RdwEJsEmP6IhFFQHYUtva2Cynl4Q9tZg3RMsybT\n9mlnSQQlbN/wqIIXbkrcgFcHoXG9Odm/bDtUwwwDaiEhXVfeQom3G77QHOWMTCGK\nqadwuh5msrb17JdXZoXr4PYHDKP7j0ONfAyFNER2+uecblHfRSpVq5UeF3L6ZJb8\nfSw/GtAV6an+/0r+Qm+PiI2H5XuZ4GmRJYnGMhqWhBYrY7p3jtVnKcsh39wgfUnW\nAvZEZG/yhFyAZW0Essa39LiL5VSq14Y1DOj0wgnhSY/9WHxaAo1HB1T9OeZknYbD\nfl/EGSZ0TEvZkENrXcPlVA==\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIID/zCCAuegAwIBAgIBTzANBgkqhkiG9w0BAQsFADCBijELMAkGA1UEBhMCVVMx\nEzARBgNVBAgMCldhc2hpbmd0b24xEDAOBgNVBAcMB1NlYXR0bGUxIjAgBgNVBAoM\nGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMx\nGzAZBgNVBAMMEkFtYXpvbiBSRFMgUm9vdCBDQTAeFw0xNjA5MTUwMDEwMTFaFw0y\nMDAzMDUwMDEwMTFaMIGSMQswCQYDVQQGEwJVUzETMBEGA1UECAwKV2FzaGluZ3Rv\nbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNl\ncywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzEjMCEGA1UEAwwaQW1hem9uIFJE\nUyBjYS1jZW50cmFsLTEgQ0EwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIB\nAQCZYI/iQ6DrS3ny3t1EwX1wAD+3LMgh7Fd01EW5LIuaK2kYIIQpsVKhxLCit/V5\nAGc/1qiJS1Qz9ODLTh0Na6bZW6EakRzuHJLe32KJtoFYPC7Z09UqzXrpA/XL+1hM\nP0ZmCWsU7Nn/EmvfBp9zX3dZp6P6ATrvDuYaVFr+SA7aT3FXpBroqBS1fyzUPs+W\nc6zTR6+yc4zkHX0XQxC5RH6xjgpeRkoOajA/sNo7AQF7KlWmKHbdVF44cvvAhRKZ\nXaoVs/C4GjkaAEPTCbopYdhzg+KLx9eB2BQnYLRrIOQZtRfbQI2Nbj7p3VsRuOW1\ntlcks2w1Gb0YC6w6SuIMFkl1AgMBAAGjZjBkMA4GA1UdDwEB/wQEAwIBBjASBgNV\nHRMBAf8ECDAGAQH/AgEAMB0GA1UdDgQWBBToYWxE1lawl6Ks6NsvpbHQ3GKEtzAf\nBgNVHSMEGDAWgBROAu6sPvYVyEztLPUFwY+chAhJgzANBgkqhkiG9w0BAQsFAAOC\nAQEAG/8tQ0ooi3hoQpa5EJz0/E5VYBsAz3YxA2HoIonn0jJyG16bzB4yZt4vNQMA\nKsNlQ1uwDWYL1nz63axieUUFIxqxl1KmwfhsmLgZ0Hd2mnTPIl2Hw3uj5+wdgGBg\nagnAZ0bajsBYgD2VGQbqjdk2Qn7Fjy3LEWIvGZx4KyZ99OJ2QxB7JOPdauURAtWA\nDKYkP4LLJxtj07DSzG8kuRWb9B47uqUD+eKDIyjfjbnzGtd9HqqzYFau7EX3HVD9\n9Qhnjl7bTZ6YfAEZ3nH2t3Vc0z76XfGh47rd0pNRhMV+xpok75asKf/lNh5mcUrr\nVKwflyMkQpSbDCmcdJ90N2xEXQ==\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIID/DCCAuSgAwIBAgIBUDANBgkqhkiG9w0BAQsFADCBijELMAkGA1UEBhMCVVMx\nEzARBgNVBAgMCldhc2hpbmd0b24xEDAOBgNVBAcMB1NlYXR0bGUxIjAgBgNVBAoM\nGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMx\nGzAZBgNVBAMMEkFtYXpvbiBSRFMgUm9vdCBDQTAeFw0xNjEwMTAxNzQ0NDJaFw0y\nMDAzMDUxNzQ0NDJaMIGPMQswCQYDVQQGEwJVUzETMBEGA1UECAwKV2FzaGluZ3Rv\nbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNl\ncywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzEgMB4GA1UEAwwXQW1hem9uIFJE\nUyBldS13ZXN0LTIgQ0EwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDO\ncttLJfubB4XMMIGWNfJISkIdCMGJyOzLiMJaiWB5GYoXKhEl7YGotpy0qklwW3BQ\na0fmVdcCLX+dIuVQ9iFK+ZcK7zwm7HtdDTCHOCKeOh2IcnU4c/VIokFi6Gn8udM6\nN/Zi5M5OGpVwLVALQU7Yctsn3c95el6MdVx6mJiIPVu7tCVZn88Z2koBQ2gq9P4O\nSb249SHFqOb03lYDsaqy1NDsznEOhaRBw7DPJFpvmw1lA3/Y6qrExRI06H2VYR2i\n7qxwDV50N58fs10n7Ye1IOxTVJsgEA7X6EkRRXqYaM39Z76R894548WHfwXWjUsi\nMEX0RS0/t1GmnUQjvevDAgMBAAGjZjBkMA4GA1UdDwEB/wQEAwIBBjASBgNVHRMB\nAf8ECDAGAQH/AgEAMB0GA1UdDgQWBBQBxmcuRSxERYCtNnSr5xNfySokHjAfBgNV\nHSMEGDAWgBROAu6sPvYVyEztLPUFwY+chAhJgzANBgkqhkiG9w0BAQsFAAOCAQEA\nUyCUQjsF3nUAABjfEZmpksTuUo07aT3KGYt+EMMFdejnBQ0+2lJJFGtT+CDAk1SD\nRSgfEBon5vvKEtlnTf9a3pv8WXOAkhfxnryr9FH6NiB8obISHNQNPHn0ljT2/T+I\nY6ytfRvKHa0cu3V0NXbJm2B4KEOt4QCDiFxUIX9z6eB4Kditwu05OgQh6KcogOiP\nJesWxBMXXGoDC1rIYTFO7szwDyOHlCcVXJDNsTJhc32oDWYdeIbW7o/5I+aQsrXZ\nC96HykZcgWzz6sElrQxUaT3IoMw/5nmw4uWKKnZnxgI9bY4fpQwMeBZ96iHfFxvH\nmqfEEuC7uUoPofXdBp2ObQ==\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIID/DCCAuSgAwIBAgIBUTANBgkqhkiG9w0BAQsFADCBijELMAkGA1UEBhMCVVMx\nEzARBgNVBAgMCldhc2hpbmd0b24xEDAOBgNVBAcMB1NlYXR0bGUxIjAgBgNVBAoM\nGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMx\nGzAZBgNVBAMMEkFtYXpvbiBSRFMgUm9vdCBDQTAeFw0xNzA4MjUyMTM5MjZaFw0y\nMDAzMDUyMTM5MjZaMIGPMQswCQYDVQQGEwJVUzETMBEGA1UECAwKV2FzaGluZ3Rv\nbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNl\ncywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzEgMB4GA1UEAwwXQW1hem9uIFJE\nUyBldS13ZXN0LTMgQ0EwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC+\nxmlEC/3a4cJH+UPwXCE02lC7Zq5NHd0dn6peMeLN8agb6jW4VfSY0NydjRj2DJZ8\nK7wV6sub5NUGT1NuFmvSmdbNR2T59KX0p2dVvxmXHHtIpQ9Y8Aq3ZfhmC5q5Bqgw\ntMA1xayDi7HmoPX3R8kk9ktAZQf6lDeksCvok8idjTu9tiSpDiMwds5BjMsWfyjZ\nd13PTGGNHYVdP692BSyXzSP1Vj84nJKnciW8tAqwIiadreJt5oXyrCXi8ekUMs80\ncUTuGm3aA3Q7PB5ljJMPqz0eVddaiIvmTJ9O3Ez3Du/HpImyMzXjkFaf+oNXf/Hx\n/EW5jCRR6vEiXJcDRDS7AgMBAAGjZjBkMA4GA1UdDwEB/wQEAwIBBjASBgNVHRMB\nAf8ECDAGAQH/AgEAMB0GA1UdDgQWBBRZ9mRtS5fHk3ZKhG20Oack4cAqMTAfBgNV\nHSMEGDAWgBROAu6sPvYVyEztLPUFwY+chAhJgzANBgkqhkiG9w0BAQsFAAOCAQEA\nF/u/9L6ExQwD73F/bhCw7PWcwwqsK1mypIdrjdIsu0JSgwWwGCXmrIspA3n3Dqxq\nsMhAJD88s9Em7337t+naar2VyLO63MGwjj+vA4mtvQRKq8ScIpiEc7xN6g8HUMsd\ngPG9lBGfNjuAZsrGJflrko4HyuSM7zHExMjXLH+CXcv/m3lWOZwnIvlVMa4x0Tz0\nA4fklaawryngzeEjuW6zOiYCzjZtPlP8Fw0SpzppJ8VpQfrZ751RDo4yudmPqoPK\n5EUe36L8U+oYBXnC5TlYs9bpVv9o5wJQI5qA9oQE2eFWxF1E0AyZ4V5sgGUBStaX\nBjDDWul0wSo7rt1Tq7XpnA==\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIIEATCCAumgAwIBAgIBTjANBgkqhkiG9w0BAQUFADCBijELMAkGA1UEBhMCVVMx\nEzARBgNVBAgMCldhc2hpbmd0b24xEDAOBgNVBAcMB1NlYXR0bGUxIjAgBgNVBAoM\nGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMx\nGzAZBgNVBAMMEkFtYXpvbiBSRFMgUm9vdCBDQTAeFw0xNzEyMDEwMDU1NDJaFw0y\nMDAzMDUwMDU1NDJaMIGUMQswCQYDVQQGEwJVUzETMBEGA1UECAwKV2FzaGluZ3Rv\nbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNl\ncywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzElMCMGA1UEAwwcQW1hem9uIFJE\nUyBhcC1ub3J0aGVhc3QtMyBDQTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoC\nggEBAMZtQNnm/XT19mTa10ftHLzg5UhajoI65JHv4TQNdGXdsv+CQdGYU49BJ9Eu\n3bYgiEtTzR2lQe9zGMvtuJobLhOWuavzp7IixoIQcHkFHN6wJ1CvqrxgvJfBq6Hy\nEuCDCiU+PPDLUNA6XM6Qx3IpHd1wrJkjRB80dhmMSpxmRmx849uFafhN+P1QybsM\nTI0o48VON2+vj+mNuQTyLMMP8D4odSQHjaoG+zyJfJGZeAyqQyoOUOFEyQaHC3TT\n3IDSNCQlpxb9LerbCoKu79WFBBq3CS5cYpg8/fsnV2CniRBFFUumBt5z4dhw9RJU\nqlUXXO1ZyzpGd+c5v6FtrfXtnIUCAwEAAaNmMGQwDgYDVR0PAQH/BAQDAgEGMBIG\nA1UdEwEB/wQIMAYBAf8CAQAwHQYDVR0OBBYEFETv7ELNplYy/xTeIOInl6nzeiHg\nMB8GA1UdIwQYMBaAFE4C7qw+9hXITO0s9QXBj5yECEmDMA0GCSqGSIb3DQEBBQUA\nA4IBAQCpKxOQcd0tEKb3OtsOY8q/MPwTyustGk2Rt7t9G68idADp8IytB7M0SDRo\nwWZqynEq7orQVKdVOanhEWksNDzGp0+FPAf/KpVvdYCd7ru3+iI+V4ZEp2JFdjuZ\nZz0PIjS6AgsZqE5Ri1J+NmfmjGZCPhsHnGZiBaenX6K5VRwwwmLN6xtoqrrfR5zL\nQfBeeZNJG6KiM3R/DxJ5rAa6Fz+acrhJ60L7HprhB7SFtj1RCijau3+ZwiGmUOMr\nyKlMv+VgmzSw7o4Hbxy1WVrA6zQsTHHSGf+vkQn2PHvnFMUEu/ZLbTDYFNmTLK91\nK6o4nMsEvhBKgo4z7H1EqqxXhvN2\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIIEBDCCAuygAwIBAgIBTTANBgkqhkiG9w0BAQUFADCBijELMAkGA1UEBhMCVVMx\nEzARBgNVBAgMCldhc2hpbmd0b24xEDAOBgNVBAcMB1NlYXR0bGUxIjAgBgNVBAoM\nGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMx\nGzAZBgNVBAMMEkFtYXpvbiBSRFMgUm9vdCBDQTAeFw0xNzEyMDYyMjQyMjdaFw0y\nMDAzMDQyMjQyMjdaMIGXMQswCQYDVQQGEwJVUzETMBEGA1UECAwKV2FzaGluZ3Rv\nbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNl\ncywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzEoMCYGA1UEAwwfQW1hem9uIFJE\nUyBwcmV2aWV3LXVzLWVhc3QtMiBDQTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCC\nAQoCggEBAMw0E8k8URanS0c/i1S7wzFf5+XC9H2bm+4pENdElGP5s9rVCybrzJaw\n6zZgVLpOFnS9mJ+sDHIMUexPjj0X4+r7wZ4+hPfy7Rmrgbt23IQwr+PIBxsKAVjj\niaQ3bSm5WQ79an5elfQqEDdZ13ckUcLBJDA8bUDthI8m7gnteGtx0M1D0VS5PDs9\ncf96QlBia9Lx3VcNo3cc0PzP30E4j3h/Ywlb0jXUgB6oVlTxK70BjD3kZa+2xlea\nvKmm4NqGVhPY7BWd4XNdbSYsPDeZ9HxHNWXZxoHcQ7vSU8RKYVPtoBK/zIp3eWOi\ngzZlm5vYPvlkYh2pshttPPVyhZqlEZ8CAwEAAaNmMGQwDgYDVR0PAQH/BAQDAgEG\nMBIGA1UdEwEB/wQIMAYBAf8CAQAwHQYDVR0OBBYEFI93K+FRhste6w3MiD+IK3Tc\ng/BsMB8GA1UdIwQYMBaAFE4C7qw+9hXITO0s9QXBj5yECEmDMA0GCSqGSIb3DQEB\nBQUAA4IBAQAs4RsC8MJVOvrlRi5sgKC9LJ4BvSrrbR5V8CdIEwlPqrVOSsU5t7Py\nj8CHoPUY/ya1azlBSO62BqdZxipFuAR06NdxNG2Gy0fGl71N2udxokwEPW+IEZ81\nG6JeX8HNFjnna8ehimz1VJDDW7qborhg3dCAgEWkgv5PDR9/zoUu6bbmHPV77zbx\nGq7Sybz5OiagC7Nj9N1WgjNXUEmlfY2DHXnJmIVgUGEVrBgu5tGcIU/bQCRznH1N\nJsBH0SalneCbSzMBhQdnzL+L5KOERibWAZvS6ebmomTBwa03kgo/T0DfEccgobTs\nrV6T9/8Vg9T18vEeqURL+LOGs7+lIKmN\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIID/TCCAuWgAwIBAgIBUjANBgkqhkiG9w0BAQsFADCBijELMAkGA1UEBhMCVVMx\nEzARBgNVBAgMCldhc2hpbmd0b24xEDAOBgNVBAcMB1NlYXR0bGUxIjAgBgNVBAoM\nGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMx\nGzAZBgNVBAMMEkFtYXpvbiBSRFMgUm9vdCBDQTAeFw0xODA5MjgxNzM0NTJaFw0y\nMDAzMDUxNzM0NTJaMIGQMQswCQYDVQQGEwJVUzETMBEGA1UECAwKV2FzaGluZ3Rv\nbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNl\ncywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzEhMB8GA1UEAwwYQW1hem9uIFJE\nUyBldS1ub3J0aC0xIENBMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA\nwvHfpoixHNy1jvcq/WNhXDHlsFVbEOX7mp01YQeK0wWqlpFvjs2HFJ1sRnnmyhdT\nsv4VQuXnQw2V2iFAO2HveDi8pcJ+eIXY+wloSVBytgYLTMcNpn5LmqIeyGO+Lr6p\nKUr78I4uE0mnabxyILA96CYrYtgwpLCtpEXSdSJPwOSK9nX9++molxLcJ5v4fiPS\nj46PETsbFoFdXXwYCdiJKpzO4zUAkKzzvzbF7cXg9R4noJuytjEKbluxugDHdnwl\nSctGZ3moju2I0OpPbJKUI3wHsUMtY5v15X74MOED5lbtaW5+/6JIERggve0b23Ni\n4nlYSt0Bb3z3Zwc83twCUwIDAQABo2YwZDAOBgNVHQ8BAf8EBAMCAQYwEgYDVR0T\nAQH/BAgwBgEB/wIBADAdBgNVHQ4EFgQU4stOy1OAFRyvZCSKNfCiPRD+rPowHwYD\nVR0jBBgwFoAUTgLurD72FchM7Sz1BcGPnIQISYMwDQYJKoZIhvcNAQELBQADggEB\nAHpRIlKh1fqbMHl0+VnJ/52XQy1F5gM2hnw3lYkOLsDyzj9W4V6D1v2EDgYW+ZVH\n0wWqo8m0jS6CDn14W2HqNlyXyHpJK3eh3088zxvJgKqzKS4ghNzafN7axwYIwRN6\n9rrhRWy9MaFHaSPKtgiuTxw9fOekqyJdO+OYpBVEp7KEEyEG9/W5xZcU64zGb6UT\n8/g4+5t+HlT0nYBMvt8HW7w2XbFBetfKKK4WaoPKloOMN+RLO/JgJ6pVWvxM8nhC\nPbVtr43OI1sQAXYk0an7aUDgXT98vGwovWNHI6lFCMGRG+WXhauLtKRsIr4hR1LV\nfES7Q9MWPzPYHQoKELF9Jhk=\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIIEBzCCAu+gAwIBAgICEAAwDQYJKoZIhvcNAQELBQAwgZQxCzAJBgNVBAYTAlVT\nMRAwDgYDVQQHDAdTZWF0dGxlMRMwEQYDVQQIDApXYXNoaW5ndG9uMSIwIAYDVQQK\nDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMuMRMwEQYDVQQLDApBbWF6b24gUkRT\nMSUwIwYDVQQDDBxBbWF6b24gUkRTIGFwLWVhc3QtMSBSb290IENBMB4XDTE5MDIx\nNzAyNDcwMFoXDTIyMDYwMTEyMDAwMFowgY8xCzAJBgNVBAYTAlVTMRMwEQYDVQQI\nDApXYXNoaW5ndG9uMRAwDgYDVQQHDAdTZWF0dGxlMSIwIAYDVQQKDBlBbWF6b24g\nV2ViIFNlcnZpY2VzLCBJbmMuMRMwEQYDVQQLDApBbWF6b24gUkRTMSAwHgYDVQQD\nDBdBbWF6b24gUkRTIGFwLWVhc3QtMSBDQTCCASIwDQYJKoZIhvcNAQEBBQADggEP\nADCCAQoCggEBAOcJAUofyJuBuPr5ISHi/Ha5ed8h3eGdzn4MBp6rytPOg9NVGRQs\nO93fNGCIKsUT6gPuk+1f1ncMTV8Y0Fdf4aqGWme+Khm3ZOP3V1IiGnVq0U2xiOmn\nSQ4Q7LoeQC4lC6zpoCHVJyDjZ4pAknQQfsXb77Togdt/tK5ahev0D+Q3gCwAoBoO\nDHKJ6t820qPi63AeGbJrsfNjLKiXlFPDUj4BGir4dUzjEeH7/hx37na1XG/3EcxP\n399cT5k7sY/CR9kctMlUyEEUNQOmhi/ly1Lgtihm3QfjL6K9aGLFNwX35Bkh9aL2\nF058u+n8DP/dPeKUAcJKiQZUmzuen5n57x8CAwEAAaNmMGQwDgYDVR0PAQH/BAQD\nAgEGMBIGA1UdEwEB/wQIMAYBAf8CAQAwHQYDVR0OBBYEFFlqgF4FQlb9yP6c+Q3E\nO3tXv+zOMB8GA1UdIwQYMBaAFK9T6sY/PBZVbnHcNcQXf58P4OuPMA0GCSqGSIb3\nDQEBCwUAA4IBAQDeXiS3v1z4jWAo1UvVyKDeHjtrtEH1Rida1eOXauFuEQa5tuOk\nE53Os4haZCW4mOlKjigWs4LN+uLIAe1aFXGo92nGIqyJISHJ1L+bopx/JmIbHMCZ\n0lTNJfR12yBma5VQy7vzeFku/SisKwX0Lov1oHD4MVhJoHbUJYkmAjxorcIHORvh\nI3Vj5XrgDWtLDPL8/Id/roul/L+WX5ir+PGScKBfQIIN2lWdZoqdsx8YWqhm/ikL\nC6qNieSwcvWL7C03ri0DefTQMY54r5wP33QU5hJ71JoaZI3YTeT0Nf+NRL4hM++w\nQ0veeNzBQXg1f/JxfeA39IDIX1kiCf71tGlT\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIIEEDCCAvigAwIBAgIJAJF3HxEqKM4lMA0GCSqGSIb3DQEBCwUAMIGUMQswCQYD\nVQQGEwJVUzEQMA4GA1UEBwwHU2VhdHRsZTETMBEGA1UECAwKV2FzaGluZ3RvbjEi\nMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1h\nem9uIFJEUzElMCMGA1UEAwwcQW1hem9uIFJEUyBhcC1lYXN0LTEgUm9vdCBDQTAe\nFw0xOTAyMTcwMjQ2MTFaFw0yNDAyMTYwMjQ2MTFaMIGUMQswCQYDVQQGEwJVUzEQ\nMA4GA1UEBwwHU2VhdHRsZTETMBEGA1UECAwKV2FzaGluZ3RvbjEiMCAGA1UECgwZ\nQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzEl\nMCMGA1UEAwwcQW1hem9uIFJEUyBhcC1lYXN0LTEgUm9vdCBDQTCCASIwDQYJKoZI\nhvcNAQEBBQADggEPADCCAQoCggEBAOCVr1Yj5IW4XWa9QOLGJDSz4pqIM6BAbqQp\ngYvzIO4Lv8c8dEnuuuCY8M/zOrJ1iQJ3cDiKGa32HVBVcH+nUdXzw4Jq5jw0hsb6\n/WW2RD2aUe4jCkRD5wNzmeHM4gTgtMZnXNVHpELgKR4wVhSHEfWFTiMsZi35y8mj\nPL98Mz/m/nMnB/59EjMvcJMrsUljHO6B9BMEcvNkwvre9xza0BQWKyiVRcbOpoj1\nw4BPtYYZ+dW2QKw9AmYXwAmCLeATsxrHIJ/IbzS7obxv2QN2Eh4pJ3ghRCFv1XM9\nXVkm13oiCjj7jsxAwF7o+VggPl/GG+/Gwk+TLuaTFNAtROpPxL8CAwEAAaNjMGEw\nDgYDVR0PAQH/BAQDAgEGMA8GA1UdEwEB/wQFMAMBAf8wHQYDVR0OBBYEFK9T6sY/\nPBZVbnHcNcQXf58P4OuPMB8GA1UdIwQYMBaAFK9T6sY/PBZVbnHcNcQXf58P4OuP\nMA0GCSqGSIb3DQEBCwUAA4IBAQBBY+KATaT7ndYT3Ky0VWaiwNfyl1u3aDxr+MKP\nVeDhtOhlob5u0E+edOXUvEXd4A+ntS+U0HmwvtMXtQbQ2EJbsNRqZnS8KG9YB2Yc\nQ99auphW3wMjwHRtflLO5h14aa9SspqJJgcM1R7Z3pAYeq6bpBDxZSGrYtWI64q4\nh4i67qWAGDFcXSTW1kJ00GMlBCIGTeYiu8LYutdsDWzYKkeezJRjx9VR4w7A7e1G\nWmY4aUg/8aPxCioY2zEQKNl55Ghg6Dwy+6BxaV6RlV9r9EaSCai11p1bgS568WQn\n4WNQK36EGe37l2SOpDB6STrq57/rjREvmq803Ylg/Gf6qqzK\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIIECTCCAvGgAwIBAgICEAAwDQYJKoZIhvcNAQELBQAwgZUxCzAJBgNVBAYTAlVT\nMRAwDgYDVQQHDAdTZWF0dGxlMRMwEQYDVQQIDApXYXNoaW5ndG9uMSIwIAYDVQQK\nDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMuMRMwEQYDVQQLDApBbWF6b24gUkRT\nMSYwJAYDVQQDDB1BbWF6b24gUkRTIG1lLXNvdXRoLTEgUm9vdCBDQTAeFw0xOTA1\nMTAyMTU4NDNaFw0yNTA2MDExMjAwMDBaMIGQMQswCQYDVQQGEwJVUzETMBEGA1UE\nCAwKV2FzaGluZ3RvbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9u\nIFdlYiBTZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzEhMB8GA1UE\nAwwYQW1hem9uIFJEUyBtZS1zb3V0aC0xIENBMIIBIjANBgkqhkiG9w0BAQEFAAOC\nAQ8AMIIBCgKCAQEAudOYPZH+ihJAo6hNYMB5izPVBe3TYhnZm8+X3IoaaYiKtsp1\nJJhkTT0CEejYIQ58Fh4QrMUyWvU8qsdK3diNyQRoYLbctsBPgxBR1u07eUJDv38/\nC1JlqgHmMnMi4y68Iy7ymv50QgAMuaBqgEBRI1R6Lfbyrb2YvH5txjJyTVMwuCfd\nYPAtZVouRz0JxmnfsHyxjE+So56uOKTDuw++Ho4HhZ7Qveej7XB8b+PIPuroknd3\nFQB5RVbXRvt5ZcVD4F2fbEdBniF7FAF4dEiofVCQGQ2nynT7dZdEIPfPdH3n7ZmE\nlAOmwHQ6G83OsiHRBLnbp+QZRgOsjkHJxT20bQIDAQABo2YwZDAOBgNVHQ8BAf8E\nBAMCAQYwEgYDVR0TAQH/BAgwBgEB/wIBADAdBgNVHQ4EFgQUOEVDM7VomRH4HVdA\nQvIMNq2tXOcwHwYDVR0jBBgwFoAU54cfDjgwBx4ycBH8+/r8WXdaiqYwDQYJKoZI\nhvcNAQELBQADggEBAHhvMssj+Th8IpNePU6RH0BiL6o9c437R3Q4IEJeFdYL+nZz\nPW/rELDPvLRUNMfKM+KzduLZ+l29HahxefejYPXtvXBlq/E/9czFDD4fWXg+zVou\nuDXhyrV4kNmP4S0eqsAP/jQHPOZAMFA4yVwO9hlqmePhyDnszCh9c1PfJSBh49+b\n4w7i/L3VBOMt8j3EKYvqz0gVfpeqhJwL4Hey8UbVfJRFJMJzfNHpePqtDRAY7yjV\nPYquRaV2ab/E+/7VFkWMM4tazYz/qsYA2jSH+4xDHvYk8LnsbcrF9iuidQmEc5sb\nFgcWaSKG4DJjcI5k7AJLWcXyTDt21Ci43LE+I9Q=\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIIEEjCCAvqgAwIBAgIJANew34ehz5l8MA0GCSqGSIb3DQEBCwUAMIGVMQswCQYD\nVQQGEwJVUzEQMA4GA1UEBwwHU2VhdHRsZTETMBEGA1UECAwKV2FzaGluZ3RvbjEi\nMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1h\nem9uIFJEUzEmMCQGA1UEAwwdQW1hem9uIFJEUyBtZS1zb3V0aC0xIFJvb3QgQ0Ew\nHhcNMTkwNTEwMjE0ODI3WhcNMjQwNTA4MjE0ODI3WjCBlTELMAkGA1UEBhMCVVMx\nEDAOBgNVBAcMB1NlYXR0bGUxEzARBgNVBAgMCldhc2hpbmd0b24xIjAgBgNVBAoM\nGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMx\nJjAkBgNVBAMMHUFtYXpvbiBSRFMgbWUtc291dGgtMSBSb290IENBMIIBIjANBgkq\nhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAp7BYV88MukcY+rq0r79+C8UzkT30fEfT\naPXbx1d6M7uheGN4FMaoYmL+JE1NZPaMRIPTHhFtLSdPccInvenRDIatcXX+jgOk\nUA6lnHQ98pwN0pfDUyz/Vph4jBR9LcVkBbe0zdoKKp+HGbMPRU0N2yNrog9gM5O8\ngkU/3O2csJ/OFQNnj4c2NQloGMUpEmedwJMOyQQfcUyt9CvZDfIPNnheUS29jGSw\nERpJe/AENu8Pxyc72jaXQuD+FEi2Ck6lBkSlWYQFhTottAeGvVFNCzKszCntrtqd\nrdYUwurYsLTXDHv9nW2hfDUQa0mhXf9gNDOBIVAZugR9NqNRNyYLHQIDAQABo2Mw\nYTAOBgNVHQ8BAf8EBAMCAQYwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQU54cf\nDjgwBx4ycBH8+/r8WXdaiqYwHwYDVR0jBBgwFoAU54cfDjgwBx4ycBH8+/r8WXda\niqYwDQYJKoZIhvcNAQELBQADggEBAIIMTSPx/dR7jlcxggr+O6OyY49Rlap2laKA\neC/XI4ySP3vQkIFlP822U9Kh8a9s46eR0uiwV4AGLabcu0iKYfXjPkIprVCqeXV7\nny9oDtrbflyj7NcGdZLvuzSwgl9SYTJp7PVCZtZutsPYlbJrBPHwFABvAkMvRtDB\nhitIg4AESDGPoCl94sYHpfDfjpUDMSrAMDUyO6DyBdZH5ryRMAs3lGtsmkkNUrso\naTW6R05681Z0mvkRdb+cdXtKOSuDZPoe2wJJIaz3IlNQNSrB5TImMYgmt6iAsFhv\n3vfTSTKrZDNTJn4ybG6pq1zWExoXsktZPylJly6R3RBwV6nwqBM=\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIIEETCCAvmgAwIBAgICEAAwDQYJKoZIhvcNAQELBQAwgZQxCzAJBgNVBAYTAlVT\nMRAwDgYDVQQHDAdTZWF0dGxlMRMwEQYDVQQIDApXYXNoaW5ndG9uMSIwIAYDVQQK\nDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMuMRMwEQYDVQQLDApBbWF6b24gUkRT\nMSUwIwYDVQQDDBxBbWF6b24gUkRTIEJldGEgUm9vdCAyMDE5IENBMB4XDTE5MDgy\nMDE3MTAwN1oXDTI0MDgxOTE3MzgyNlowgZkxCzAJBgNVBAYTAlVTMRMwEQYDVQQI\nDApXYXNoaW5ndG9uMRAwDgYDVQQHDAdTZWF0dGxlMSIwIAYDVQQKDBlBbWF6b24g\nV2ViIFNlcnZpY2VzLCBJbmMuMRMwEQYDVQQLDApBbWF6b24gUkRTMSowKAYDVQQD\nDCFBbWF6b24gUkRTIEJldGEgdXMtZWFzdC0xIDIwMTkgQ0EwggEiMA0GCSqGSIb3\nDQEBAQUAA4IBDwAwggEKAoIBAQDTNCOlotQcLP8TP82U2+nk0bExVuuMVOgFeVMx\nvbUHZQeIj9ikjk+jm6eTDnnkhoZcmJiJgRy+5Jt69QcRbb3y3SAU7VoHgtraVbxF\nQDh7JEHI9tqEEVOA5OvRrDRcyeEYBoTDgh76ROco2lR+/9uCvGtHVrMCtG7BP7ZB\nsSVNAr1IIRZZqKLv2skKT/7mzZR2ivcw9UeBBTUf8xsfiYVBvMGoEsXEycjYdf6w\nWV+7XS7teNOc9UgsFNN+9AhIBc1jvee5E//72/4F8pAttAg/+mmPUyIKtekNJ4gj\nOAR2VAzGx1ybzWPwIgOudZFHXFduxvq4f1hIRPH0KbQ/gkRrAgMBAAGjZjBkMA4G\nA1UdDwEB/wQEAwIBBjASBgNVHRMBAf8ECDAGAQH/AgEAMB0GA1UdDgQWBBTkvpCD\n6C43rar9TtJoXr7q8dkrrjAfBgNVHSMEGDAWgBStoQwVpbGx87fxB3dEGDqKKnBT\n4TANBgkqhkiG9w0BAQsFAAOCAQEAJd9fOSkwB3uVdsS+puj6gCER8jqmhd3g/J5V\nZjk9cKS8H0e8pq/tMxeJ8kpurPAzUk5RkCspGt2l0BSwmf3ahr8aJRviMX6AuW3/\ng8aKplTvq/WMNGKLXONa3Sq8591J+ce8gtOX/1rDKmFI4wQ/gUzOSYiT991m7QKS\nFr6HMgFuz7RNJbb3Fy5cnurh8eYWA7mMv7laiLwTNsaro5qsqErD5uXuot6o9beT\na+GiKinEur35tNxAr47ax4IRubuIzyfCrezjfKc5raVV2NURJDyKP0m0CCaffAxE\nqn2dNfYc3v1D8ypg3XjHlOzRo32RB04o8ALHMD9LSwsYDLpMag==\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIIEEDCCAvigAwIBAgIJAKFMXyltvuRdMA0GCSqGSIb3DQEBCwUAMIGUMQswCQYD\nVQQGEwJVUzEQMA4GA1UEBwwHU2VhdHRsZTETMBEGA1UECAwKV2FzaGluZ3RvbjEi\nMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1h\nem9uIFJEUzElMCMGA1UEAwwcQW1hem9uIFJEUyBCZXRhIFJvb3QgMjAxOSBDQTAe\nFw0xOTA4MTkxNzM4MjZaFw0yNDA4MTkxNzM4MjZaMIGUMQswCQYDVQQGEwJVUzEQ\nMA4GA1UEBwwHU2VhdHRsZTETMBEGA1UECAwKV2FzaGluZ3RvbjEiMCAGA1UECgwZ\nQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzEl\nMCMGA1UEAwwcQW1hem9uIFJEUyBCZXRhIFJvb3QgMjAxOSBDQTCCASIwDQYJKoZI\nhvcNAQEBBQADggEPADCCAQoCggEBAMkZdnIH9ndatGAcFo+DppGJ1HUt4x+zeO+0\nZZ29m0sfGetVulmTlv2d5b66e+QXZFWpcPQMouSxxYTW08TbrQiZngKr40JNXftA\natvzBqIImD4II0ZX5UEVj2h98qe/ypW5xaDN7fEa5e8FkYB1TEemPaWIbNXqchcL\ntV7IJPr3Cd7Z5gZJlmujIVDPpMuSiNaal9/6nT9oqN+JSM1fx5SzrU5ssg1Vp1vv\n5Xab64uOg7wCJRB9R2GC9XD04odX6VcxUAGrZo6LR64ZSifupo3l+R5sVOc5i8NH\nskdboTzU9H7+oSdqoAyhIU717PcqeDum23DYlPE2nGBWckE+eT8CAwEAAaNjMGEw\nDgYDVR0PAQH/BAQDAgEGMA8GA1UdEwEB/wQFMAMBAf8wHQYDVR0OBBYEFK2hDBWl\nsbHzt/EHd0QYOooqcFPhMB8GA1UdIwQYMBaAFK2hDBWlsbHzt/EHd0QYOooqcFPh\nMA0GCSqGSIb3DQEBCwUAA4IBAQAO/718k8EnOqJDx6wweUscGTGL/QdKXUzTVRAx\nJUsjNUv49mH2HQVEW7oxszfH6cPCaupNAddMhQc4C/af6GHX8HnqfPDk27/yBQI+\nyBBvIanGgxv9c9wBbmcIaCEWJcsLp3HzXSYHmjiqkViXwCpYfkoV3Ns2m8bp+KCO\ny9XmcCKRaXkt237qmoxoh2sGmBHk2UlQtOsMC0aUQ4d7teAJG0q6pbyZEiPyKZY1\nXR/UVxMJL0Q4iVpcRS1kaNCMfqS2smbLJeNdsan8pkw1dvPhcaVTb7CvjhJtjztF\nYfDzAI5794qMlWxwilKMmUvDlPPOTen8NNHkLwWvyFCH7Doh\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIIEFzCCAv+gAwIBAgICFSUwDQYJKoZIhvcNAQELBQAwgZcxCzAJBgNVBAYTAlVT\nMRAwDgYDVQQHDAdTZWF0dGxlMRMwEQYDVQQIDApXYXNoaW5ndG9uMSIwIAYDVQQK\nDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMuMRMwEQYDVQQLDApBbWF6b24gUkRT\nMSgwJgYDVQQDDB9BbWF6b24gUkRTIFByZXZpZXcgUm9vdCAyMDE5IENBMB4XDTE5\nMDgyMTIyMzk0N1oXDTI0MDgyMTIyMjk0OVowgZwxCzAJBgNVBAYTAlVTMRMwEQYD\nVQQIDApXYXNoaW5ndG9uMRAwDgYDVQQHDAdTZWF0dGxlMSIwIAYDVQQKDBlBbWF6\nb24gV2ViIFNlcnZpY2VzLCBJbmMuMRMwEQYDVQQLDApBbWF6b24gUkRTMS0wKwYD\nVQQDDCRBbWF6b24gUkRTIFByZXZpZXcgdXMtZWFzdC0yIDIwMTkgQ0EwggEiMA0G\nCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQD0dB/U7qRnSf05wOi7m10Pa2uPMTJv\nr6U/3Y17a5prq5Zr4++CnSUYarG51YuIf355dKs+7Lpzs782PIwCmLpzAHKWzix6\npOaTQ+WZ0+vUMTxyqgqWbsBgSCyP7pVBiyqnmLC/L4az9XnscrbAX4pNaoJxsuQe\nmzBo6yofjQaAzCX69DuqxFkVTRQnVy7LCFkVaZtjNAftnAHJjVgQw7lIhdGZp9q9\nIafRt2gteihYfpn+EAQ/t/E4MnhrYs4CPLfS7BaYXBycEKC5Muj1l4GijNNQ0Efo\nxG8LSZz7SNgUvfVwiNTaqfLP3AtEAWiqxyMyh3VO+1HpCjT7uNBFtmF3AgMBAAGj\nZjBkMA4GA1UdDwEB/wQEAwIBBjASBgNVHRMBAf8ECDAGAQH/AgEAMB0GA1UdDgQW\nBBQtinkdrj+0B2+qdXngV2tgHnPIujAfBgNVHSMEGDAWgBRp0xqULkNh/w2ZVzEI\no2RIY7O03TANBgkqhkiG9w0BAQsFAAOCAQEAtJdqbCxDeMc8VN1/RzCabw9BIL/z\n73Auh8eFTww/sup26yn8NWUkfbckeDYr1BrXa+rPyLfHpg06kwR8rBKyrs5mHwJx\nbvOzXD/5WTdgreB+2Fb7mXNvWhenYuji1MF+q1R2DXV3I05zWHteKX6Dajmx+Uuq\nYq78oaCBSV48hMxWlp8fm40ANCL1+gzQ122xweMFN09FmNYFhwuW+Ao+Vv90ZfQG\nPYwTvN4n/gegw2TYcifGZC2PNX74q3DH03DXe5fvNgRW5plgz/7f+9mS+YHd5qa9\ntYTPUvoRbi169ou6jicsMKUKPORHWhiTpSCWR1FMMIbsAcsyrvtIsuaGCQ==\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIIEFjCCAv6gAwIBAgIJAMzYZJ+R9NBVMA0GCSqGSIb3DQEBCwUAMIGXMQswCQYD\nVQQGEwJVUzEQMA4GA1UEBwwHU2VhdHRsZTETMBEGA1UECAwKV2FzaGluZ3RvbjEi\nMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1h\nem9uIFJEUzEoMCYGA1UEAwwfQW1hem9uIFJEUyBQcmV2aWV3IFJvb3QgMjAxOSBD\nQTAeFw0xOTA4MjEyMjI5NDlaFw0yNDA4MjEyMjI5NDlaMIGXMQswCQYDVQQGEwJV\nUzEQMA4GA1UEBwwHU2VhdHRsZTETMBEGA1UECAwKV2FzaGluZ3RvbjEiMCAGA1UE\nCgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJE\nUzEoMCYGA1UEAwwfQW1hem9uIFJEUyBQcmV2aWV3IFJvb3QgMjAxOSBDQTCCASIw\nDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAM7kkS6vjgKKQTPynC2NjdN5aPPV\nO71G0JJS/2ARVBVJd93JLiGovVJilfWYfwZCs4gTRSSjrUD4D4HyqCd6A+eEEtJq\nM0DEC7i0dC+9WNTsPszuB206Jy2IUmxZMIKJAA1NHSbIMjB+b6/JhbSUi7nKdbR/\nbrj83bF+RoSA+ogrgX7mQbxhmFcoZN9OGaJgYKsKWUt5Wqv627KkGodUK8mDepgD\nS3ZfoRQRx3iceETpcmHJvaIge6+vyDX3d9Z22jmvQ4AKv3py2CmU2UwuhOltFDwB\n0ddtb39vgwrJxaGfiMRHpEP1DfNLWHAnA69/pgZPwIggidS+iBPUhgucMp8CAwEA\nAaNjMGEwDgYDVR0PAQH/BAQDAgEGMA8GA1UdEwEB/wQFMAMBAf8wHQYDVR0OBBYE\nFGnTGpQuQ2H/DZlXMQijZEhjs7TdMB8GA1UdIwQYMBaAFGnTGpQuQ2H/DZlXMQij\nZEhjs7TdMA0GCSqGSIb3DQEBCwUAA4IBAQC3xz1vQvcXAfpcZlngiRWeqU8zQAMQ\nLZPCFNv7PVk4pmqX+ZiIRo4f9Zy7TrOVcboCnqmP/b/mNq0gVF4O+88jwXJZD+f8\n/RnABMZcnGU+vK0YmxsAtYU6TIb1uhRFmbF8K80HHbj9vSjBGIQdPCbvmR2zY6VJ\nBYM+w9U9hp6H4DVMLKXPc1bFlKA5OBTgUtgkDibWJKFOEPW3UOYwp9uq6pFoN0AO\nxMTldqWFsOF3bJIlvOY0c/1EFZXu3Ns6/oCP//Ap9vumldYMUZWmbK+gK33FPOXV\n8BQ6jNC29icv7lLDpRPwjibJBXX+peDR5UK4FdYcswWEB1Tix5X8dYu6\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIIECDCCAvCgAwIBAgICVIYwDQYJKoZIhvcNAQELBQAwgY8xCzAJBgNVBAYTAlVT\nMRAwDgYDVQQHDAdTZWF0dGxlMRMwEQYDVQQIDApXYXNoaW5ndG9uMSIwIAYDVQQK\nDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMuMRMwEQYDVQQLDApBbWF6b24gUkRT\nMSAwHgYDVQQDDBdBbWF6b24gUkRTIFJvb3QgMjAxOSBDQTAeFw0xOTA5MDQxNzEz\nMDRaFw0yNDA4MjIxNzA4NTBaMIGVMQswCQYDVQQGEwJVUzETMBEGA1UECAwKV2Fz\naGluZ3RvbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9uIFdlYiBT\nZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzEmMCQGA1UEAwwdQW1h\nem9uIFJEUyBhcC1zb3V0aC0xIDIwMTkgQ0EwggEiMA0GCSqGSIb3DQEBAQUAA4IB\nDwAwggEKAoIBAQDUYOz1hGL42yUCrcsMSOoU8AeD/3KgZ4q7gP+vAz1WnY9K/kim\neWN/2Qqzlo3+mxSFQFyD4MyV3+CnCPnBl9Sh1G/F6kThNiJ7dEWSWBQGAB6HMDbC\nBaAsmUc1UIz8sLTL3fO+S9wYhA63Wun0Fbm/Rn2yk/4WnJAaMZcEtYf6e0KNa0LM\np/kN/70/8cD3iz3dDR8zOZFpHoCtf0ek80QqTich0A9n3JLxR6g6tpwoYviVg89e\nqCjQ4axxOkWWeusLeTJCcY6CkVyFvDAKvcUl1ytM5AiaUkXblE7zDFXRM4qMMRdt\nlPm8d3pFxh0fRYk8bIKnpmtOpz3RIctDrZZxAgMBAAGjZjBkMA4GA1UdDwEB/wQE\nAwIBBjASBgNVHRMBAf8ECDAGAQH/AgEAMB0GA1UdDgQWBBT99wKJftD3jb4sHoHG\ni3uGlH6W6TAfBgNVHSMEGDAWgBRzX2DYvMsDmPQrFzQuNlqmYP+8HzANBgkqhkiG\n9w0BAQsFAAOCAQEAZ17hhr3dII3hUfuHQ1hPWGrpJOX/G9dLzkprEIcCidkmRYl+\nhu1Pe3caRMh/17+qsoEErmnVq5jNY9X1GZL04IZH8YbHc7iRHw3HcWAdhN8633+K\njYEB2LbJ3vluCGnCejq9djDb6alOugdLMJzxOkHDhMZ6/gYbECOot+ph1tQuZXzD\ntZ7prRsrcuPBChHlPjmGy8M9z8u+kF196iNSUGC4lM8vLkHM7ycc1/ZOwRq9aaTe\niOghbQQyAEe03MWCyDGtSmDfr0qEk+CHN+6hPiaL8qKt4s+V9P7DeK4iW08ny8Ox\nAVS7u0OK/5+jKMAMrKwpYrBydOjTUTHScocyNw==\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIIEBjCCAu6gAwIBAgIJAMc0ZzaSUK51MA0GCSqGSIb3DQEBCwUAMIGPMQswCQYD\nVQQGEwJVUzEQMA4GA1UEBwwHU2VhdHRsZTETMBEGA1UECAwKV2FzaGluZ3RvbjEi\nMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1h\nem9uIFJEUzEgMB4GA1UEAwwXQW1hem9uIFJEUyBSb290IDIwMTkgQ0EwHhcNMTkw\nODIyMTcwODUwWhcNMjQwODIyMTcwODUwWjCBjzELMAkGA1UEBhMCVVMxEDAOBgNV\nBAcMB1NlYXR0bGUxEzARBgNVBAgMCldhc2hpbmd0b24xIjAgBgNVBAoMGUFtYXpv\nbiBXZWIgU2VydmljZXMsIEluYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMxIDAeBgNV\nBAMMF0FtYXpvbiBSRFMgUm9vdCAyMDE5IENBMIIBIjANBgkqhkiG9w0BAQEFAAOC\nAQ8AMIIBCgKCAQEArXnF/E6/Qh+ku3hQTSKPMhQQlCpoWvnIthzX6MK3p5a0eXKZ\noWIjYcNNG6UwJjp4fUXl6glp53Jobn+tWNX88dNH2n8DVbppSwScVE2LpuL+94vY\n0EYE/XxN7svKea8YvlrqkUBKyxLxTjh+U/KrGOaHxz9v0l6ZNlDbuaZw3qIWdD/I\n6aNbGeRUVtpM6P+bWIoxVl/caQylQS6CEYUk+CpVyJSkopwJlzXT07tMoDL5WgX9\nO08KVgDNz9qP/IGtAcRduRcNioH3E9v981QO1zt/Gpb2f8NqAjUUCUZzOnij6mx9\nMcZ+9cWX88CRzR0vQODWuZscgI08NvM69Fn2SQIDAQABo2MwYTAOBgNVHQ8BAf8E\nBAMCAQYwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQUc19g2LzLA5j0Kxc0LjZa\npmD/vB8wHwYDVR0jBBgwFoAUc19g2LzLA5j0Kxc0LjZapmD/vB8wDQYJKoZIhvcN\nAQELBQADggEBAHAG7WTmyjzPRIM85rVj+fWHsLIvqpw6DObIjMWokpliCeMINZFV\nynfgBKsf1ExwbvJNzYFXW6dihnguDG9VMPpi2up/ctQTN8tm9nDKOy08uNZoofMc\nNUZxKCEkVKZv+IL4oHoeayt8egtv3ujJM6V14AstMQ6SwvwvA93EP/Ug2e4WAXHu\ncbI1NAbUgVDqp+DRdfvZkgYKryjTWd/0+1fS8X1bBZVWzl7eirNVnHbSH2ZDpNuY\n0SBd8dj5F6ld3t58ydZbrTHze7JJOd8ijySAp4/kiu9UfZWuTPABzDa/DSdz9Dk/\nzPW4CXXvhLmE02TA9/HeCw3KEHIwicNuEfw=\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIIEBzCCAu+gAwIBAgICQ2QwDQYJKoZIhvcNAQELBQAwgY8xCzAJBgNVBAYTAlVT\nMRAwDgYDVQQHDAdTZWF0dGxlMRMwEQYDVQQIDApXYXNoaW5ndG9uMSIwIAYDVQQK\nDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMuMRMwEQYDVQQLDApBbWF6b24gUkRT\nMSAwHgYDVQQDDBdBbWF6b24gUkRTIFJvb3QgMjAxOSBDQTAeFw0xOTA5MDUxODQ2\nMjlaFw0yNDA4MjIxNzA4NTBaMIGUMQswCQYDVQQGEwJVUzETMBEGA1UECAwKV2Fz\naGluZ3RvbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9uIFdlYiBT\nZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzElMCMGA1UEAwwcQW1h\nem9uIFJEUyBzYS1lYXN0LTEgMjAxOSBDQTCCASIwDQYJKoZIhvcNAQEBBQADggEP\nADCCAQoCggEBAMMvR+ReRnOzqJzoaPipNTt1Z2VA968jlN1+SYKUrYM3No+Vpz0H\nM6Tn0oYB66ByVsXiGc28ulsqX1HbHsxqDPwvQTKvO7SrmDokoAkjJgLocOLUAeld\n5AwvUjxGRP6yY90NV7X786MpnYb2Il9DIIaV9HjCmPt+rjy2CZjS0UjPjCKNfB8J\nbFjgW6GGscjeyGb/zFwcom5p4j0rLydbNaOr9wOyQrtt3ZQWLYGY9Zees/b8pmcc\nJt+7jstZ2UMV32OO/kIsJ4rMUn2r/uxccPwAc1IDeRSSxOrnFKhW3Cu69iB3bHp7\nJbawY12g7zshE4I14sHjv3QoXASoXjx4xgMCAwEAAaNmMGQwDgYDVR0PAQH/BAQD\nAgEGMBIGA1UdEwEB/wQIMAYBAf8CAQAwHQYDVR0OBBYEFI1Fc/Ql2jx+oJPgBVYq\nccgP0pQ8MB8GA1UdIwQYMBaAFHNfYNi8ywOY9CsXNC42WqZg/7wfMA0GCSqGSIb3\nDQEBCwUAA4IBAQB4VVVabVp70myuYuZ3vltQIWqSUMhkaTzehMgGcHjMf9iLoZ/I\n93KiFUSGnek5cRePyS9wcpp0fcBT3FvkjpUdCjVtdttJgZFhBxgTd8y26ImdDDMR\n4+BUuhI5msvjL08f+Vkkpu1GQcGmyFVPFOy/UY8iefu+QyUuiBUnUuEDd49Hw0Fn\n/kIPII6Vj82a2mWV/Q8e+rgN8dIRksRjKI03DEoP8lhPlsOkhdwU6Uz9Vu6NOB2Q\nLs1kbcxAc7cFSyRVJEhh12Sz9d0q/CQSTFsVJKOjSNQBQfVnLz1GwO/IieUEAr4C\njkTntH0r1LX5b/GwN4R887LvjAEdTbg1his7\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIIECDCCAvCgAwIBAgIDAIkHMA0GCSqGSIb3DQEBCwUAMIGPMQswCQYDVQQGEwJV\nUzEQMA4GA1UEBwwHU2VhdHRsZTETMBEGA1UECAwKV2FzaGluZ3RvbjEiMCAGA1UE\nCgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJE\nUzEgMB4GA1UEAwwXQW1hem9uIFJEUyBSb290IDIwMTkgQ0EwHhcNMTkwOTA2MTc0\nMDIxWhcNMjQwODIyMTcwODUwWjCBlDELMAkGA1UEBhMCVVMxEzARBgNVBAgMCldh\nc2hpbmd0b24xEDAOBgNVBAcMB1NlYXR0bGUxIjAgBgNVBAoMGUFtYXpvbiBXZWIg\nU2VydmljZXMsIEluYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMxJTAjBgNVBAMMHEFt\nYXpvbiBSRFMgdXMtd2VzdC0xIDIwMTkgQ0EwggEiMA0GCSqGSIb3DQEBAQUAA4IB\nDwAwggEKAoIBAQDD2yzbbAl77OofTghDMEf624OvU0eS9O+lsdO0QlbfUfWa1Kd6\n0WkgjkLZGfSRxEHMCnrv4UPBSK/Qwn6FTjkDLgemhqBtAnplN4VsoDL+BkRX4Wwq\n/dSQJE2b+0hm9w9UMVGFDEq1TMotGGTD2B71eh9HEKzKhGzqiNeGsiX4VV+LJzdH\nuM23eGisNqmd4iJV0zcAZ+Gbh2zK6fqTOCvXtm7Idccv8vZZnyk1FiWl3NR4WAgK\nAkvWTIoFU3Mt7dIXKKClVmvssG8WHCkd3Xcb4FHy/G756UZcq67gMMTX/9fOFM/v\nl5C0+CHl33Yig1vIDZd+fXV1KZD84dEJfEvHAgMBAAGjZjBkMA4GA1UdDwEB/wQE\nAwIBBjASBgNVHRMBAf8ECDAGAQH/AgEAMB0GA1UdDgQWBBR+ap20kO/6A7pPxo3+\nT3CfqZpQWjAfBgNVHSMEGDAWgBRzX2DYvMsDmPQrFzQuNlqmYP+8HzANBgkqhkiG\n9w0BAQsFAAOCAQEAHCJky2tPjPttlDM/RIqExupBkNrnSYnOK4kr9xJ3sl8UF2DA\nPAnYsjXp3rfcjN/k/FVOhxwzi3cXJF/2Tjj39Bm/OEfYTOJDNYtBwB0VVH4ffa/6\ntZl87jaIkrxJcreeeHqYMnIxeN0b/kliyA+a5L2Yb0VPjt9INq34QDc1v74FNZ17\n4z8nr1nzg4xsOWu0Dbjo966lm4nOYIGBRGOKEkHZRZ4mEiMgr3YLkv8gSmeitx57\nZ6dVemNtUic/LVo5Iqw4n3TBS0iF2C1Q1xT/s3h+0SXZlfOWttzSluDvoMv5PvCd\npFjNn+aXLAALoihL1MJSsxydtsLjOBro5eK0Vw==\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIIEDDCCAvSgAwIBAgICOFAwDQYJKoZIhvcNAQELBQAwgY8xCzAJBgNVBAYTAlVT\nMRAwDgYDVQQHDAdTZWF0dGxlMRMwEQYDVQQIDApXYXNoaW5ndG9uMSIwIAYDVQQK\nDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMuMRMwEQYDVQQLDApBbWF6b24gUkRT\nMSAwHgYDVQQDDBdBbWF6b24gUkRTIFJvb3QgMjAxOSBDQTAeFw0xOTA5MTAxNzQ2\nMjFaFw0yNDA4MjIxNzA4NTBaMIGZMQswCQYDVQQGEwJVUzETMBEGA1UECAwKV2Fz\naGluZ3RvbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9uIFdlYiBT\nZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzEqMCgGA1UEAwwhQW1h\nem9uIFJEUyBhcC1ub3J0aGVhc3QtMiAyMDE5IENBMIIBIjANBgkqhkiG9w0BAQEF\nAAOCAQ8AMIIBCgKCAQEAzU72e6XbaJbi4HjJoRNjKxzUEuChKQIt7k3CWzNnmjc5\n8I1MjCpa2W1iw1BYVysXSNSsLOtUsfvBZxi/1uyMn5ZCaf9aeoA9UsSkFSZBjOCN\nDpKPCmfV1zcEOvJz26+1m8WDg+8Oa60QV0ou2AU1tYcw98fOQjcAES0JXXB80P2s\n3UfkNcnDz+l4k7j4SllhFPhH6BQ4lD2NiFAP4HwoG6FeJUn45EPjzrydxjq6v5Fc\ncQ8rGuHADVXotDbEhaYhNjIrsPL+puhjWfhJjheEw8c4whRZNp6gJ/b6WEes/ZhZ\nh32DwsDsZw0BfRDUMgUn8TdecNexHUw8vQWeC181hwIDAQABo2YwZDAOBgNVHQ8B\nAf8EBAMCAQYwEgYDVR0TAQH/BAgwBgEB/wIBADAdBgNVHQ4EFgQUwW9bWgkWkr0U\nlrOsq2kvIdrECDgwHwYDVR0jBBgwFoAUc19g2LzLA5j0Kxc0LjZapmD/vB8wDQYJ\nKoZIhvcNAQELBQADggEBAEugF0Gj7HVhX0ehPZoGRYRt3PBuI2YjfrrJRTZ9X5wc\n9T8oHmw07mHmNy1qqWvooNJg09bDGfB0k5goC2emDiIiGfc/kvMLI7u+eQOoMKj6\nmkfCncyRN3ty08Po45vTLBFZGUvtQmjM6yKewc4sXiASSBmQUpsMbiHRCL72M5qV\nobcJOjGcIdDTmV1BHdWT+XcjynsGjUqOvQWWhhLPrn4jWe6Xuxll75qlrpn3IrIx\nCRBv/5r7qbcQJPOgwQsyK4kv9Ly8g7YT1/vYBlR3cRsYQjccw5ceWUj2DrMVWhJ4\nprf+E3Aa4vYmLLOUUvKnDQ1k3RGNu56V0tonsQbfsaM=\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIIECjCCAvKgAwIBAgICEzUwDQYJKoZIhvcNAQELBQAwgY8xCzAJBgNVBAYTAlVT\nMRAwDgYDVQQHDAdTZWF0dGxlMRMwEQYDVQQIDApXYXNoaW5ndG9uMSIwIAYDVQQK\nDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMuMRMwEQYDVQQLDApBbWF6b24gUkRT\nMSAwHgYDVQQDDBdBbWF6b24gUkRTIFJvb3QgMjAxOSBDQTAeFw0xOTA5MTAyMDUy\nMjVaFw0yNDA4MjIxNzA4NTBaMIGXMQswCQYDVQQGEwJVUzETMBEGA1UECAwKV2Fz\naGluZ3RvbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9uIFdlYiBT\nZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzEoMCYGA1UEAwwfQW1h\nem9uIFJEUyBjYS1jZW50cmFsLTEgMjAxOSBDQTCCASIwDQYJKoZIhvcNAQEBBQAD\nggEPADCCAQoCggEBAOxHqdcPSA2uBjsCP4DLSlqSoPuQ/X1kkJLusVRKiQE2zayB\nviuCBt4VB9Qsh2rW3iYGM+usDjltGnI1iUWA5KHcvHszSMkWAOYWLiMNKTlg6LCp\nXnE89tvj5dIH6U8WlDvXLdjB/h30gW9JEX7S8supsBSci2GxEzb5mRdKaDuuF/0O\nqvz4YE04pua3iZ9QwmMFuTAOYzD1M72aOpj+7Ac+YLMM61qOtU+AU6MndnQkKoQi\nqmUN2A9IFaqHFzRlSdXwKCKUA4otzmz+/N3vFwjb5F4DSsbsrMfjeHMo6o/nb6Nh\nYDb0VJxxPee6TxSuN7CQJ2FxMlFUezcoXqwqXD0CAwEAAaNmMGQwDgYDVR0PAQH/\nBAQDAgEGMBIGA1UdEwEB/wQIMAYBAf8CAQAwHQYDVR0OBBYEFDGGpon9WfIpsggE\nCxHq8hZ7E2ESMB8GA1UdIwQYMBaAFHNfYNi8ywOY9CsXNC42WqZg/7wfMA0GCSqG\nSIb3DQEBCwUAA4IBAQAvpeQYEGZvoTVLgV9rd2+StPYykMsmFjWQcyn3dBTZRXC2\nlKq7QhQczMAOhEaaN29ZprjQzsA2X/UauKzLR2Uyqc2qOeO9/YOl0H3qauo8C/W9\nr8xqPbOCDLEXlOQ19fidXyyEPHEq5WFp8j+fTh+s8WOx2M7IuC0ANEetIZURYhSp\nxl9XOPRCJxOhj7JdelhpweX0BJDNHeUFi0ClnFOws8oKQ7sQEv66d5ddxqqZ3NVv\nRbCvCtEutQMOUMIuaygDlMn1anSM8N7Wndx8G6+Uy67AnhjGx7jw/0YPPxopEj6x\nJXP8j0sJbcT9K/9/fPVLNT25RvQ/93T2+IQL4Ca2\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIIEBzCCAu+gAwIBAgICYpgwDQYJKoZIhvcNAQELBQAwgY8xCzAJBgNVBAYTAlVT\nMRAwDgYDVQQHDAdTZWF0dGxlMRMwEQYDVQQIDApXYXNoaW5ndG9uMSIwIAYDVQQK\nDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMuMRMwEQYDVQQLDApBbWF6b24gUkRT\nMSAwHgYDVQQDDBdBbWF6b24gUkRTIFJvb3QgMjAxOSBDQTAeFw0xOTA5MTExNzMx\nNDhaFw0yNDA4MjIxNzA4NTBaMIGUMQswCQYDVQQGEwJVUzETMBEGA1UECAwKV2Fz\naGluZ3RvbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9uIFdlYiBT\nZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzElMCMGA1UEAwwcQW1h\nem9uIFJEUyBldS13ZXN0LTEgMjAxOSBDQTCCASIwDQYJKoZIhvcNAQEBBQADggEP\nADCCAQoCggEBAMk3YdSZ64iAYp6MyyKtYJtNzv7zFSnnNf6vv0FB4VnfITTMmOyZ\nLXqKAT2ahZ00hXi34ewqJElgU6eUZT/QlzdIu359TEZyLVPwURflL6SWgdG01Q5X\nO++7fSGcBRyIeuQWs9FJNIIqK8daF6qw0Rl5TXfu7P9dBc3zkgDXZm2DHmxGDD69\n7liQUiXzoE1q2Z9cA8+jirDioJxN9av8hQt12pskLQumhlArsMIhjhHRgF03HOh5\ntvi+RCfihVOxELyIRTRpTNiIwAqfZxxTWFTgfn+gijTmd0/1DseAe82aYic8JbuS\nEMbrDduAWsqrnJ4GPzxHKLXX0JasCUcWyMECAwEAAaNmMGQwDgYDVR0PAQH/BAQD\nAgEGMBIGA1UdEwEB/wQIMAYBAf8CAQAwHQYDVR0OBBYEFPLtsq1NrwJXO13C9eHt\nsLY11AGwMB8GA1UdIwQYMBaAFHNfYNi8ywOY9CsXNC42WqZg/7wfMA0GCSqGSIb3\nDQEBCwUAA4IBAQAnWBKj5xV1A1mYd0kIgDdkjCwQkiKF5bjIbGkT3YEFFbXoJlSP\n0lZZ/hDaOHI8wbLT44SzOvPEEmWF9EE7SJzkvSdQrUAWR9FwDLaU427ALI3ngNHy\nlGJ2hse1fvSRNbmg8Sc9GBv8oqNIBPVuw+AJzHTacZ1OkyLZrz1c1QvwvwN2a+Jd\nvH0V0YIhv66llKcYDMUQJAQi4+8nbRxXWv6Gq3pvrFoorzsnkr42V3JpbhnYiK+9\nnRKd4uWl62KRZjGkfMbmsqZpj2fdSWMY1UGyN1k+kDmCSWYdrTRDP0xjtIocwg+A\nJ116n4hV/5mbA0BaPiS2krtv17YAeHABZcvz\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIIECjCCAvKgAwIBAgICV2YwDQYJKoZIhvcNAQELBQAwgY8xCzAJBgNVBAYTAlVT\nMRAwDgYDVQQHDAdTZWF0dGxlMRMwEQYDVQQIDApXYXNoaW5ndG9uMSIwIAYDVQQK\nDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMuMRMwEQYDVQQLDApBbWF6b24gUkRT\nMSAwHgYDVQQDDBdBbWF6b24gUkRTIFJvb3QgMjAxOSBDQTAeFw0xOTA5MTExOTM2\nMjBaFw0yNDA4MjIxNzA4NTBaMIGXMQswCQYDVQQGEwJVUzETMBEGA1UECAwKV2Fz\naGluZ3RvbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9uIFdlYiBT\nZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzEoMCYGA1UEAwwfQW1h\nem9uIFJEUyBldS1jZW50cmFsLTEgMjAxOSBDQTCCASIwDQYJKoZIhvcNAQEBBQAD\nggEPADCCAQoCggEBAMEx54X2pHVv86APA0RWqxxRNmdkhAyp2R1cFWumKQRofoFv\nn+SPXdkpIINpMuEIGJANozdiEz7SPsrAf8WHyD93j/ZxrdQftRcIGH41xasetKGl\nI67uans8d+pgJgBKGb/Z+B5m+UsIuEVekpvgpwKtmmaLFC/NCGuSsJoFsRqoa6Gh\nm34W6yJoY87UatddCqLY4IIXaBFsgK9Q/wYzYLbnWM6ZZvhJ52VMtdhcdzeTHNW0\n5LGuXJOF7Ahb4JkEhoo6TS2c0NxB4l4MBfBPgti+O7WjR3FfZHpt18A6Zkq6A2u6\nD/oTSL6c9/3sAaFTFgMyL3wHb2YlW0BPiljZIqECAwEAAaNmMGQwDgYDVR0PAQH/\nBAQDAgEGMBIGA1UdEwEB/wQIMAYBAf8CAQAwHQYDVR0OBBYEFOcAToAc6skWffJa\nTnreaswAfrbcMB8GA1UdIwQYMBaAFHNfYNi8ywOY9CsXNC42WqZg/7wfMA0GCSqG\nSIb3DQEBCwUAA4IBAQA1d0Whc1QtspK496mFWfFEQNegLh0a9GWYlJm+Htcj5Nxt\nDAIGXb+8xrtOZFHmYP7VLCT5Zd2C+XytqseK/+s07iAr0/EPF+O2qcyQWMN5KhgE\ncXw2SwuP9FPV3i+YAm11PBVeenrmzuk9NrdHQ7TxU4v7VGhcsd2C++0EisrmquWH\nmgIfmVDGxphwoES52cY6t3fbnXmTkvENvR+h3rj+fUiSz0aSo+XZUGHPgvuEKM/W\nCBD9Smc9CBoBgvy7BgHRgRUmwtABZHFUIEjHI5rIr7ZvYn+6A0O6sogRfvVYtWFc\nqpyrW1YX8mD0VlJ8fGKM3G+aCOsiiPKDV/Uafrm+\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIIECDCCAvCgAwIBAgICGAcwDQYJKoZIhvcNAQELBQAwgY8xCzAJBgNVBAYTAlVT\nMRAwDgYDVQQHDAdTZWF0dGxlMRMwEQYDVQQIDApXYXNoaW5ndG9uMSIwIAYDVQQK\nDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMuMRMwEQYDVQQLDApBbWF6b24gUkRT\nMSAwHgYDVQQDDBdBbWF6b24gUkRTIFJvb3QgMjAxOSBDQTAeFw0xOTA5MTIxODE5\nNDRaFw0yNDA4MjIxNzA4NTBaMIGVMQswCQYDVQQGEwJVUzETMBEGA1UECAwKV2Fz\naGluZ3RvbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9uIFdlYiBT\nZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzEmMCQGA1UEAwwdQW1h\nem9uIFJEUyBldS1ub3J0aC0xIDIwMTkgQ0EwggEiMA0GCSqGSIb3DQEBAQUAA4IB\nDwAwggEKAoIBAQCiIYnhe4UNBbdBb/nQxl5giM0XoVHWNrYV5nB0YukA98+TPn9v\nAoj1RGYmtryjhrf01Kuv8SWO+Eom95L3zquoTFcE2gmxCfk7bp6qJJ3eHOJB+QUO\nXsNRh76fwDzEF1yTeZWH49oeL2xO13EAx4PbZuZpZBttBM5zAxgZkqu4uWQczFEs\nJXfla7z2fvWmGcTagX10O5C18XaFroV0ubvSyIi75ue9ykg/nlFAeB7O0Wxae88e\nuhiBEFAuLYdqWnsg3459NfV8Yi1GnaitTym6VI3tHKIFiUvkSiy0DAlAGV2iiyJE\nq+DsVEO4/hSINJEtII4TMtysOsYPpINqeEzRAgMBAAGjZjBkMA4GA1UdDwEB/wQE\nAwIBBjASBgNVHRMBAf8ECDAGAQH/AgEAMB0GA1UdDgQWBBRR0UpnbQyjnHChgmOc\nhnlc0PogzTAfBgNVHSMEGDAWgBRzX2DYvMsDmPQrFzQuNlqmYP+8HzANBgkqhkiG\n9w0BAQsFAAOCAQEAKJD4xVzSf4zSGTBJrmamo86jl1NHQxXUApAZuBZEc8tqC6TI\nT5CeoSr9CMuVC8grYyBjXblC4OsM5NMvmsrXl/u5C9dEwtBFjo8mm53rOOIm1fxl\nI1oYB/9mtO9ANWjkykuLzWeBlqDT/i7ckaKwalhLODsRDO73vRhYNjsIUGloNsKe\npxw3dzHwAZx4upSdEVG4RGCZ1D0LJ4Gw40OfD69hfkDfRVVxKGrbEzqxXRvovmDc\ntKLdYZO/6REoca36v4BlgIs1CbUXJGLSXUwtg7YXGLSVBJ/U0+22iGJmBSNcoyUN\ncjPFD9JQEhDDIYYKSGzIYpvslvGc4T5ISXFiuQ==\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIIEBzCCAu+gAwIBAgICZIEwDQYJKoZIhvcNAQELBQAwgY8xCzAJBgNVBAYTAlVT\nMRAwDgYDVQQHDAdTZWF0dGxlMRMwEQYDVQQIDApXYXNoaW5ndG9uMSIwIAYDVQQK\nDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMuMRMwEQYDVQQLDApBbWF6b24gUkRT\nMSAwHgYDVQQDDBdBbWF6b24gUkRTIFJvb3QgMjAxOSBDQTAeFw0xOTA5MTIyMTMy\nMzJaFw0yNDA4MjIxNzA4NTBaMIGUMQswCQYDVQQGEwJVUzETMBEGA1UECAwKV2Fz\naGluZ3RvbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9uIFdlYiBT\nZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzElMCMGA1UEAwwcQW1h\nem9uIFJEUyBldS13ZXN0LTIgMjAxOSBDQTCCASIwDQYJKoZIhvcNAQEBBQADggEP\nADCCAQoCggEBALGiwqjiF7xIjT0Sx7zB3764K2T2a1DHnAxEOr+/EIftWKxWzT3u\nPFwS2eEZcnKqSdRQ+vRzonLBeNLO4z8aLjQnNbkizZMBuXGm4BqRm1Kgq3nlLDQn\n7YqdijOq54SpShvR/8zsO4sgMDMmHIYAJJOJqBdaus2smRt0NobIKc0liy7759KB\n6kmQ47Gg+kfIwxrQA5zlvPLeQImxSoPi9LdbRoKvu7Iot7SOa+jGhVBh3VdqndJX\n7tm/saj4NE375csmMETFLAOXjat7zViMRwVorX4V6AzEg1vkzxXpA9N7qywWIT5Y\nfYaq5M8i6vvLg0CzrH9fHORtnkdjdu1y+0MCAwEAAaNmMGQwDgYDVR0PAQH/BAQD\nAgEGMBIGA1UdEwEB/wQIMAYBAf8CAQAwHQYDVR0OBBYEFFOhOx1yt3Z7mvGB9jBv\n2ymdZwiOMB8GA1UdIwQYMBaAFHNfYNi8ywOY9CsXNC42WqZg/7wfMA0GCSqGSIb3\nDQEBCwUAA4IBAQBehqY36UGDvPVU9+vtaYGr38dBbp+LzkjZzHwKT1XJSSUc2wqM\nhnCIQKilonrTIvP1vmkQi8qHPvDRtBZKqvz/AErW/ZwQdZzqYNFd+BmOXaeZWV0Q\noHtDzXmcwtP8aUQpxN0e1xkWb1E80qoy+0uuRqb/50b/R4Q5qqSfJhkn6z8nwB10\n7RjLtJPrK8igxdpr3tGUzfAOyiPrIDncY7UJaL84GFp7WWAkH0WG3H8Y8DRcRXOU\nmqDxDLUP3rNuow3jnGxiUY+gGX5OqaZg4f4P6QzOSmeQYs6nLpH0PiN00+oS1BbD\nbpWdZEttILPI+vAYkU4QuBKKDjJL6HbSd+cn\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIIECDCCAvCgAwIBAgIDAIVCMA0GCSqGSIb3DQEBCwUAMIGPMQswCQYDVQQGEwJV\nUzEQMA4GA1UEBwwHU2VhdHRsZTETMBEGA1UECAwKV2FzaGluZ3RvbjEiMCAGA1UE\nCgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJE\nUzEgMB4GA1UEAwwXQW1hem9uIFJEUyBSb290IDIwMTkgQ0EwHhcNMTkwOTEzMTcw\nNjQxWhcNMjQwODIyMTcwODUwWjCBlDELMAkGA1UEBhMCVVMxEzARBgNVBAgMCldh\nc2hpbmd0b24xEDAOBgNVBAcMB1NlYXR0bGUxIjAgBgNVBAoMGUFtYXpvbiBXZWIg\nU2VydmljZXMsIEluYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMxJTAjBgNVBAMMHEFt\nYXpvbiBSRFMgdXMtZWFzdC0yIDIwMTkgQ0EwggEiMA0GCSqGSIb3DQEBAQUAA4IB\nDwAwggEKAoIBAQDE+T2xYjUbxOp+pv+gRA3FO24+1zCWgXTDF1DHrh1lsPg5k7ht\n2KPYzNc+Vg4E+jgPiW0BQnA6jStX5EqVh8BU60zELlxMNvpg4KumniMCZ3krtMUC\nau1NF9rM7HBh+O+DYMBLK5eSIVt6lZosOb7bCi3V6wMLA8YqWSWqabkxwN4w0vXI\n8lu5uXXFRemHnlNf+yA/4YtN4uaAyd0ami9+klwdkZfkrDOaiy59haOeBGL8EB/c\ndbJJlguHH5CpCscs3RKtOOjEonXnKXldxarFdkMzi+aIIjQ8GyUOSAXHtQHb3gZ4\nnS6Ey0CMlwkB8vUObZU9fnjKJcL5QCQqOfwvAgMBAAGjZjBkMA4GA1UdDwEB/wQE\nAwIBBjASBgNVHRMBAf8ECDAGAQH/AgEAMB0GA1UdDgQWBBQUPuRHohPxx4VjykmH\n6usGrLL1ETAfBgNVHSMEGDAWgBRzX2DYvMsDmPQrFzQuNlqmYP+8HzANBgkqhkiG\n9w0BAQsFAAOCAQEAUdR9Vb3y33Yj6X6KGtuthZ08SwjImVQPtknzpajNE5jOJAh8\nquvQnU9nlnMO85fVDU1Dz3lLHGJ/YG1pt1Cqq2QQ200JcWCvBRgdvH6MjHoDQpqZ\nHvQ3vLgOGqCLNQKFuet9BdpsHzsctKvCVaeBqbGpeCtt3Hh/26tgx0rorPLw90A2\nV8QSkZJjlcKkLa58N5CMM8Xz8KLWg3MZeT4DmlUXVCukqK2RGuP2L+aME8dOxqNv\nOnOz1zrL5mR2iJoDpk8+VE/eBDmJX40IJk6jBjWoxAO/RXq+vBozuF5YHN1ujE92\ntO8HItgTp37XT8bJBAiAnt5mxw+NLSqtxk2QdQ==\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIIEDDCCAvSgAwIBAgICY4kwDQYJKoZIhvcNAQELBQAwgY8xCzAJBgNVBAYTAlVT\nMRAwDgYDVQQHDAdTZWF0dGxlMRMwEQYDVQQIDApXYXNoaW5ndG9uMSIwIAYDVQQK\nDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMuMRMwEQYDVQQLDApBbWF6b24gUkRT\nMSAwHgYDVQQDDBdBbWF6b24gUkRTIFJvb3QgMjAxOSBDQTAeFw0xOTA5MTMyMDEx\nNDJaFw0yNDA4MjIxNzA4NTBaMIGZMQswCQYDVQQGEwJVUzETMBEGA1UECAwKV2Fz\naGluZ3RvbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9uIFdlYiBT\nZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzEqMCgGA1UEAwwhQW1h\nem9uIFJEUyBhcC1zb3V0aGVhc3QtMSAyMDE5IENBMIIBIjANBgkqhkiG9w0BAQEF\nAAOCAQ8AMIIBCgKCAQEAr5u9OuLL/OF/fBNUX2kINJLzFl4DnmrhnLuSeSnBPgbb\nqddjf5EFFJBfv7IYiIWEFPDbDG5hoBwgMup5bZDbas+ZTJTotnnxVJTQ6wlhTmns\neHECcg2pqGIKGrxZfbQhlj08/4nNAPvyYCTS0bEcmQ1emuDPyvJBYDDLDU6AbCB5\n6Z7YKFQPTiCBblvvNzchjLWF9IpkqiTsPHiEt21sAdABxj9ityStV3ja/W9BfgxH\nwzABSTAQT6FbDwmQMo7dcFOPRX+hewQSic2Rn1XYjmNYzgEHisdUsH7eeXREAcTw\n61TRvaLH8AiOWBnTEJXPAe6wYfrcSd1pD0MXpoB62wIDAQABo2YwZDAOBgNVHQ8B\nAf8EBAMCAQYwEgYDVR0TAQH/BAgwBgEB/wIBADAdBgNVHQ4EFgQUytwMiomQOgX5\nIchd+2lDWRUhkikwHwYDVR0jBBgwFoAUc19g2LzLA5j0Kxc0LjZapmD/vB8wDQYJ\nKoZIhvcNAQELBQADggEBACf6lRDpfCD7BFRqiWM45hqIzffIaysmVfr+Jr+fBTjP\nuYe/ba1omSrNGG23bOcT9LJ8hkQJ9d+FxUwYyICQNWOy6ejicm4z0C3VhphbTPqj\nyjpt9nG56IAcV8BcRJh4o/2IfLNzC/dVuYJV8wj7XzwlvjysenwdrJCoLadkTr1h\neIdG6Le07sB9IxrGJL9e04afk37h7c8ESGSE4E+oS4JQEi3ATq8ne1B9DQ9SasXi\nIRmhNAaISDzOPdyLXi9N9V9Lwe/DHcja7hgLGYx3UqfjhLhOKwp8HtoZORixAmOI\nHfILgNmwyugAbuZoCazSKKBhQ0wgO0WZ66ZKTMG8Oho=\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIIEBzCCAu+gAwIBAgICUYkwDQYJKoZIhvcNAQELBQAwgY8xCzAJBgNVBAYTAlVT\nMRAwDgYDVQQHDAdTZWF0dGxlMRMwEQYDVQQIDApXYXNoaW5ndG9uMSIwIAYDVQQK\nDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMuMRMwEQYDVQQLDApBbWF6b24gUkRT\nMSAwHgYDVQQDDBdBbWF6b24gUkRTIFJvb3QgMjAxOSBDQTAeFw0xOTA5MTYxODIx\nMTVaFw0yNDA4MjIxNzA4NTBaMIGUMQswCQYDVQQGEwJVUzETMBEGA1UECAwKV2Fz\naGluZ3RvbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9uIFdlYiBT\nZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzElMCMGA1UEAwwcQW1h\nem9uIFJEUyB1cy13ZXN0LTIgMjAxOSBDQTCCASIwDQYJKoZIhvcNAQEBBQADggEP\nADCCAQoCggEBANCEZBZyu6yJQFZBJmSUZfSZd3Ui2gitczMKC4FLr0QzkbxY+cLa\nuVONIOrPt4Rwi+3h/UdnUg917xao3S53XDf1TDMFEYp4U8EFPXqCn/GXBIWlU86P\nPvBN+gzw3nS+aco7WXb+woTouvFVkk8FGU7J532llW8o/9ydQyDIMtdIkKTuMfho\nOiNHSaNc+QXQ32TgvM9A/6q7ksUoNXGCP8hDOkSZ/YOLiI5TcdLh/aWj00ziL5bj\npvytiMZkilnc9dLY9QhRNr0vGqL0xjmWdoEXz9/OwjmCihHqJq+20MJPsvFm7D6a\n2NKybR9U+ddrjb8/iyLOjURUZnj5O+2+OPcCAwEAAaNmMGQwDgYDVR0PAQH/BAQD\nAgEGMBIGA1UdEwEB/wQIMAYBAf8CAQAwHQYDVR0OBBYEFEBxMBdv81xuzqcK5TVu\npHj+Aor8MB8GA1UdIwQYMBaAFHNfYNi8ywOY9CsXNC42WqZg/7wfMA0GCSqGSIb3\nDQEBCwUAA4IBAQBZkfiVqGoJjBI37aTlLOSjLcjI75L5wBrwO39q+B4cwcmpj58P\n3sivv+jhYfAGEbQnGRzjuFoyPzWnZ1DesRExX+wrmHsLLQbF2kVjLZhEJMHF9eB7\nGZlTPdTzHErcnuXkwA/OqyXMpj9aghcQFuhCNguEfnROY9sAoK2PTfnTz9NJHL+Q\nUpDLEJEUfc0GZMVWYhahc0x38ZnSY2SKacIPECQrTI0KpqZv/P+ijCEcMD9xmYEb\njL4en+XKS1uJpw5fIU5Sj0MxhdGstH6S84iAE5J3GM3XHklGSFwwqPYvuTXvANH6\nuboynxRgSae59jIlAK6Jrr6GWMwQRbgcaAlW\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIIEDDCCAvSgAwIBAgICEkYwDQYJKoZIhvcNAQELBQAwgY8xCzAJBgNVBAYTAlVT\nMRAwDgYDVQQHDAdTZWF0dGxlMRMwEQYDVQQIDApXYXNoaW5ndG9uMSIwIAYDVQQK\nDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMuMRMwEQYDVQQLDApBbWF6b24gUkRT\nMSAwHgYDVQQDDBdBbWF6b24gUkRTIFJvb3QgMjAxOSBDQTAeFw0xOTA5MTYxOTUz\nNDdaFw0yNDA4MjIxNzA4NTBaMIGZMQswCQYDVQQGEwJVUzETMBEGA1UECAwKV2Fz\naGluZ3RvbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9uIFdlYiBT\nZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzEqMCgGA1UEAwwhQW1h\nem9uIFJEUyBhcC1zb3V0aGVhc3QtMiAyMDE5IENBMIIBIjANBgkqhkiG9w0BAQEF\nAAOCAQ8AMIIBCgKCAQEAufodI2Flker8q7PXZG0P0vmFSlhQDw907A6eJuF/WeMo\nGHnll3b4S6nC3oRS3nGeRMHbyU2KKXDwXNb3Mheu+ox+n5eb/BJ17eoj9HbQR1cd\ngEkIciiAltf8gpMMQH4anP7TD+HNFlZnP7ii3geEJB2GGXSxgSWvUzH4etL67Zmn\nTpGDWQMB0T8lK2ziLCMF4XAC/8xDELN/buHCNuhDpxpPebhct0T+f6Arzsiswt2j\n7OeNeLLZwIZvVwAKF7zUFjC6m7/VmTQC8nidVY559D6l0UhhU0Co/txgq3HVsMOH\nPbxmQUwJEKAzQXoIi+4uZzHFZrvov/nDTNJUhC6DqwIDAQABo2YwZDAOBgNVHQ8B\nAf8EBAMCAQYwEgYDVR0TAQH/BAgwBgEB/wIBADAdBgNVHQ4EFgQUwaZpaCme+EiV\nM5gcjeHZSTgOn4owHwYDVR0jBBgwFoAUc19g2LzLA5j0Kxc0LjZapmD/vB8wDQYJ\nKoZIhvcNAQELBQADggEBAAR6a2meCZuXO2TF9bGqKGtZmaah4pH2ETcEVUjkvXVz\nsl+ZKbYjrun+VkcMGGKLUjS812e7eDF726ptoku9/PZZIxlJB0isC/0OyixI8N4M\nNsEyvp52XN9QundTjkl362bomPnHAApeU0mRbMDRR2JdT70u6yAzGLGsUwMkoNnw\n1VR4XKhXHYGWo7KMvFrZ1KcjWhubxLHxZWXRulPVtGmyWg/MvE6KF+2XMLhojhUL\n+9jB3Fpn53s6KMx5tVq1x8PukHmowcZuAF8k+W4gk8Y68wIwynrdZrKRyRv6CVtR\nFZ8DeJgoNZT3y/GT254VqMxxfuy2Ccb/RInd16tEvVk=\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIIEDDCCAvSgAwIBAgICOYIwDQYJKoZIhvcNAQELBQAwgY8xCzAJBgNVBAYTAlVT\nMRAwDgYDVQQHDAdTZWF0dGxlMRMwEQYDVQQIDApXYXNoaW5ndG9uMSIwIAYDVQQK\nDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMuMRMwEQYDVQQLDApBbWF6b24gUkRT\nMSAwHgYDVQQDDBdBbWF6b24gUkRTIFJvb3QgMjAxOSBDQTAeFw0xOTA5MTcyMDA1\nMjlaFw0yNDA4MjIxNzA4NTBaMIGZMQswCQYDVQQGEwJVUzETMBEGA1UECAwKV2Fz\naGluZ3RvbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9uIFdlYiBT\nZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzEqMCgGA1UEAwwhQW1h\nem9uIFJEUyBhcC1ub3J0aGVhc3QtMyAyMDE5IENBMIIBIjANBgkqhkiG9w0BAQEF\nAAOCAQ8AMIIBCgKCAQEA4dMak8W+XW8y/2F6nRiytFiA4XLwePadqWebGtlIgyCS\nkbug8Jv5w7nlMkuxOxoUeD4WhI6A9EkAn3r0REM/2f0aYnd2KPxeqS2MrtdxxHw1\nxoOxk2x0piNSlOz6yog1idsKR5Wurf94fvM9FdTrMYPPrDabbGqiBMsZZmoHLvA3\nZ+57HEV2tU0Ei3vWeGIqnNjIekS+E06KhASxrkNU5vi611UsnYZlSi0VtJsH4UGV\nLhnHl53aZL0YFO5mn/fzuNG/51qgk/6EFMMhaWInXX49Dia9FnnuWXwVwi6uX1Wn\n7kjoHi5VtmC8ZlGEHroxX2DxEr6bhJTEpcLMnoQMqwIDAQABo2YwZDAOBgNVHQ8B\nAf8EBAMCAQYwEgYDVR0TAQH/BAgwBgEB/wIBADAdBgNVHQ4EFgQUsUI5Cb3SWB8+\ngv1YLN/ABPMdxSAwHwYDVR0jBBgwFoAUc19g2LzLA5j0Kxc0LjZapmD/vB8wDQYJ\nKoZIhvcNAQELBQADggEBAJAF3E9PM1uzVL8YNdzb6fwJrxxqI2shvaMVmC1mXS+w\nG0zh4v2hBZOf91l1EO0rwFD7+fxoI6hzQfMxIczh875T6vUXePKVOCOKI5wCrDad\nzQbVqbFbdhsBjF4aUilOdtw2qjjs9JwPuB0VXN4/jY7m21oKEOcnpe36+7OiSPjN\nxngYewCXKrSRqoj3mw+0w/+exYj3Wsush7uFssX18av78G+ehKPIVDXptOCP/N7W\n8iKVNeQ2QGTnu2fzWsGUSvMGyM7yqT+h1ILaT//yQS8er511aHMLc142bD4D9VSy\nDgactwPDTShK/PXqhvNey9v/sKXm4XatZvwcc8KYlW4=\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIIEDDCCAvSgAwIBAgICcEUwDQYJKoZIhvcNAQELBQAwgY8xCzAJBgNVBAYTAlVT\nMRAwDgYDVQQHDAdTZWF0dGxlMRMwEQYDVQQIDApXYXNoaW5ndG9uMSIwIAYDVQQK\nDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMuMRMwEQYDVQQLDApBbWF6b24gUkRT\nMSAwHgYDVQQDDBdBbWF6b24gUkRTIFJvb3QgMjAxOSBDQTAeFw0xOTA5MTgxNjU2\nMjBaFw0yNDA4MjIxNzA4NTBaMIGZMQswCQYDVQQGEwJVUzETMBEGA1UECAwKV2Fz\naGluZ3RvbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9uIFdlYiBT\nZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzEqMCgGA1UEAwwhQW1h\nem9uIFJEUyBhcC1ub3J0aGVhc3QtMSAyMDE5IENBMIIBIjANBgkqhkiG9w0BAQEF\nAAOCAQ8AMIIBCgKCAQEAndtkldmHtk4TVQAyqhAvtEHSMb6pLhyKrIFved1WO3S7\n+I+bWwv9b2W/ljJxLq9kdT43bhvzonNtI4a1LAohS6bqyirmk8sFfsWT3akb+4Sx\n1sjc8Ovc9eqIWJCrUiSvv7+cS7ZTA9AgM1PxvHcsqrcUXiK3Jd/Dax9jdZE1e15s\nBEhb2OEPE+tClFZ+soj8h8Pl2Clo5OAppEzYI4LmFKtp1X/BOf62k4jviXuCSst3\nUnRJzE/CXtjmN6oZySVWSe0rQYuyqRl6//9nK40cfGKyxVnimB8XrrcxUN743Vud\nQQVU0Esm8OVTX013mXWQXJHP2c0aKkog8LOga0vobQIDAQABo2YwZDAOBgNVHQ8B\nAf8EBAMCAQYwEgYDVR0TAQH/BAgwBgEB/wIBADAdBgNVHQ4EFgQULmoOS1mFSjj+\nsnUPx4DgS3SkLFYwHwYDVR0jBBgwFoAUc19g2LzLA5j0Kxc0LjZapmD/vB8wDQYJ\nKoZIhvcNAQELBQADggEBAAkVL2P1M2/G9GM3DANVAqYOwmX0Xk58YBHQu6iiQg4j\nb4Ky/qsZIsgT7YBsZA4AOcPKQFgGTWhe9pvhmXqoN3RYltN8Vn7TbUm/ZVDoMsrM\ngwv0+TKxW1/u7s8cXYfHPiTzVSJuOogHx99kBW6b2f99GbP7O1Sv3sLq4j6lVvBX\nFiacf5LAWC925nvlTzLlBgIc3O9xDtFeAGtZcEtxZJ4fnGXiqEnN4539+nqzIyYq\nnvlgCzyvcfRAxwltrJHuuRu6Maw5AGcd2Y0saMhqOVq9KYKFKuD/927BTrbd2JVf\n2sGWyuPZPCk3gq+5pCjbD0c6DkhcMGI6WwxvM5V/zSM=\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIIEBzCCAu+gAwIBAgICJDQwDQYJKoZIhvcNAQELBQAwgY8xCzAJBgNVBAYTAlVT\nMRAwDgYDVQQHDAdTZWF0dGxlMRMwEQYDVQQIDApXYXNoaW5ndG9uMSIwIAYDVQQK\nDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMuMRMwEQYDVQQLDApBbWF6b24gUkRT\nMSAwHgYDVQQDDBdBbWF6b24gUkRTIFJvb3QgMjAxOSBDQTAeFw0xOTA5MTgxNzAz\nMTVaFw0yNDA4MjIxNzA4NTBaMIGUMQswCQYDVQQGEwJVUzETMBEGA1UECAwKV2Fz\naGluZ3RvbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9uIFdlYiBT\nZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzElMCMGA1UEAwwcQW1h\nem9uIFJEUyBldS13ZXN0LTMgMjAxOSBDQTCCASIwDQYJKoZIhvcNAQEBBQADggEP\nADCCAQoCggEBAL9bL7KE0n02DLVtlZ2PL+g/BuHpMYFq2JnE2RgompGurDIZdjmh\n1pxfL3nT+QIVMubuAOy8InRfkRxfpxyjKYdfLJTPJG+jDVL+wDcPpACFVqoV7Prg\npVYEV0lc5aoYw4bSeYFhdzgim6F8iyjoPnObjll9mo4XsHzSoqJLCd0QC+VG9Fw2\nq+GDRZrLRmVM2oNGDRbGpGIFg77aRxRapFZa8SnUgs2AqzuzKiprVH5i0S0M6dWr\ni+kk5epmTtkiDHceX+dP/0R1NcnkCPoQ9TglyXyPdUdTPPRfKCq12dftqll+u4mV\nARdN6WFjovxax8EAP2OAUTi1afY+1JFMj+sCAwEAAaNmMGQwDgYDVR0PAQH/BAQD\nAgEGMBIGA1UdEwEB/wQIMAYBAf8CAQAwHQYDVR0OBBYEFLfhrbrO5exkCVgxW0x3\nY2mAi8lNMB8GA1UdIwQYMBaAFHNfYNi8ywOY9CsXNC42WqZg/7wfMA0GCSqGSIb3\nDQEBCwUAA4IBAQAigQ5VBNGyw+OZFXwxeJEAUYaXVoP/qrhTOJ6mCE2DXUVEoJeV\nSxScy/TlFA9tJXqmit8JH8VQ/xDL4ubBfeMFAIAo4WzNWDVoeVMqphVEcDWBHsI1\nAETWzfsapRS9yQekOMmxg63d/nV8xewIl8aNVTHdHYXMqhhik47VrmaVEok1UQb3\nO971RadLXIEbVd9tjY5bMEHm89JsZDnDEw1hQXBb67Elu64OOxoKaHBgUH8AZn/2\nzFsL1ynNUjOhCSAA15pgd1vjwc0YsBbAEBPcHBWYBEyME6NLNarjOzBl4FMtATSF\nwWCKRGkvqN8oxYhwR2jf2rR5Mu4DWkK5Q8Ep\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIIEBzCCAu+gAwIBAgICJVUwDQYJKoZIhvcNAQELBQAwgY8xCzAJBgNVBAYTAlVT\nMRAwDgYDVQQHDAdTZWF0dGxlMRMwEQYDVQQIDApXYXNoaW5ndG9uMSIwIAYDVQQK\nDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMuMRMwEQYDVQQLDApBbWF6b24gUkRT\nMSAwHgYDVQQDDBdBbWF6b24gUkRTIFJvb3QgMjAxOSBDQTAeFw0xOTA5MTkxODE2\nNTNaFw0yNDA4MjIxNzA4NTBaMIGUMQswCQYDVQQGEwJVUzETMBEGA1UECAwKV2Fz\naGluZ3RvbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9uIFdlYiBT\nZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzElMCMGA1UEAwwcQW1h\nem9uIFJEUyB1cy1lYXN0LTEgMjAxOSBDQTCCASIwDQYJKoZIhvcNAQEBBQADggEP\nADCCAQoCggEBAM3i/k2u6cqbMdcISGRvh+m+L0yaSIoOXjtpNEoIftAipTUYoMhL\nInXGlQBVA4shkekxp1N7HXe1Y/iMaPEyb3n+16pf3vdjKl7kaSkIhjdUz3oVUEYt\ni8Z/XeJJ9H2aEGuiZh3kHixQcZczn8cg3dA9aeeyLSEnTkl/npzLf//669Ammyhs\nXcAo58yvT0D4E0D/EEHf2N7HRX7j/TlyWvw/39SW0usiCrHPKDLxByLojxLdHzso\nQIp/S04m+eWn6rmD+uUiRteN1hI5ncQiA3wo4G37mHnUEKo6TtTUh+sd/ku6a8HK\nglMBcgqudDI90s1OpuIAWmuWpY//8xEG2YECAwEAAaNmMGQwDgYDVR0PAQH/BAQD\nAgEGMBIGA1UdEwEB/wQIMAYBAf8CAQAwHQYDVR0OBBYEFPqhoWZcrVY9mU7tuemR\nRBnQIj1jMB8GA1UdIwQYMBaAFHNfYNi8ywOY9CsXNC42WqZg/7wfMA0GCSqGSIb3\nDQEBCwUAA4IBAQB6zOLZ+YINEs72heHIWlPZ8c6WY8MDU+Be5w1M+BK2kpcVhCUK\nPJO4nMXpgamEX8DIiaO7emsunwJzMSvavSPRnxXXTKIc0i/g1EbiDjnYX9d85DkC\nE1LaAUCmCZBVi9fIe0H2r9whIh4uLWZA41oMnJx/MOmo3XyMfQoWcqaSFlMqfZM4\n0rNoB/tdHLNuV4eIdaw2mlHxdWDtF4oH+HFm+2cVBUVC1jXKrFv/euRVtsTT+A6i\nh2XBHKxQ1Y4HgAn0jACP2QSPEmuoQEIa57bEKEcZsBR8SDY6ZdTd2HLRIApcCOSF\nMRM8CKLeF658I0XgF8D5EsYoKPsA+74Z+jDH\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIIDQTCCAimgAwIBAgITBmyfz5m/jAo54vB4ikPmljZbyjANBgkqhkiG9w0BAQsF\nADA5MQswCQYDVQQGEwJVUzEPMA0GA1UEChMGQW1hem9uMRkwFwYDVQQDExBBbWF6\nb24gUm9vdCBDQSAxMB4XDTE1MDUyNjAwMDAwMFoXDTM4MDExNzAwMDAwMFowOTEL\nMAkGA1UEBhMCVVMxDzANBgNVBAoTBkFtYXpvbjEZMBcGA1UEAxMQQW1hem9uIFJv\nb3QgQ0EgMTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBALJ4gHHKeNXj\nca9HgFB0fW7Y14h29Jlo91ghYPl0hAEvrAIthtOgQ3pOsqTQNroBvo3bSMgHFzZM\n9O6II8c+6zf1tRn4SWiw3te5djgdYZ6k/oI2peVKVuRF4fn9tBb6dNqcmzU5L/qw\nIFAGbHrQgLKm+a/sRxmPUDgH3KKHOVj4utWp+UhnMJbulHheb4mjUcAwhmahRWa6\nVOujw5H5SNz/0egwLX0tdHA114gk957EWW67c4cX8jJGKLhD+rcdqsq08p8kDi1L\n93FcXmn/6pUCyziKrlA4b9v7LWIbxcceVOF34GfID5yHI9Y/QCB/IIDEgEw+OyQm\njgSubJrIqg0CAwEAAaNCMEAwDwYDVR0TAQH/BAUwAwEB/zAOBgNVHQ8BAf8EBAMC\nAYYwHQYDVR0OBBYEFIQYzIU07LwMlJQuCFmcx7IQTgoIMA0GCSqGSIb3DQEBCwUA\nA4IBAQCY8jdaQZChGsV2USggNiMOruYou6r4lK5IpDB/G/wkjUu0yKGX9rbxenDI\nU5PMCCjjmCXPI6T53iHTfIUJrU6adTrCC2qJeHZERxhlbI1Bjjt/msv0tadQ1wUs\nN+gDS63pYaACbvXy8MWy7Vu33PqUXHeeE6V/Uq2V8viTO96LXFvKWlJbYK8U90vv\no/ufQJVtMVT8QtPHRh8jrdkPSHCa2XV4cdFyQzR1bldZwgJcJmApzyMZFo6IQ6XU\n5MsI+yMRQ+hDKXJioaldXgjUkK642M4UwtBV8ob2xJNDd2ZhwLnoQdeXeGADbkpy\nrqXRfboQnoZsG4q5WTP468SQvvG5\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIIEDDCCAvSgAwIBAgIJAMy5uCBvP5roMA0GCSqGSIb3DQEBCwUAMIGSMQswCQYD\nVQQGEwJVUzEQMA4GA1UEBwwHU2VhdHRsZTETMBEGA1UECAwKV2FzaGluZ3RvbjEi\nMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1h\nem9uIFJEUzEjMCEGA1UEAwwaQW1hem9uIFJEUyBDTiBSb290IDIwMTkgQ0EwHhcN\nMTkwOTA5MTY1NzIyWhcNMjQwOTA5MTY1NzIyWjCBkjELMAkGA1UEBhMCVVMxEDAO\nBgNVBAcMB1NlYXR0bGUxEzARBgNVBAgMCldhc2hpbmd0b24xIjAgBgNVBAoMGUFt\nYXpvbiBXZWIgU2VydmljZXMsIEluYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMxIzAh\nBgNVBAMMGkFtYXpvbiBSRFMgQ04gUm9vdCAyMDE5IENBMIIBIjANBgkqhkiG9w0B\nAQEFAAOCAQ8AMIIBCgKCAQEAzxl9K4p06ZTZ9eZmEXyTHe9Ut8OIZR86t6A8b8g0\nnhqMe+y4ee+UfqxumVAVyXwNXOiGQVbuJhScLaJ39/Ol4YzIGjdoD8MUvsf4BuET\nudQh2sJL8OnlXuqSICKpecN5ud4UQvoMVZ9FGJ+e8TvXczW14rGO62sPfYM/WrMD\nR7P4fhQfmWFzkc24/hZGRL1nkvwMdtiwuI2TYobhlwZQOdsNcZ9Ek+PcSI4oqgXN\nSqpYy85JzrRZiR5iFGw1CnJtGlC0oatXFzw/B8XOd9wvLTlJhyLo7zw9j3zedKbv\n33fTdjfvpGvcfw9CYggwrbsVmUeUhVDfMntTc9z9MRccmwIDAQABo2MwYTAOBgNV\nHQ8BAf8EBAMCAQYwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQU/Z0g+hUMGQou\nhsbyFgSxc5jsbaowHwYDVR0jBBgwFoAU/Z0g+hUMGQouhsbyFgSxc5jsbaowDQYJ\nKoZIhvcNAQELBQADggEBAAlGPCq1D/PGkWoZZpAK3V94EOByklp2HkUPEZ0PPv3Z\n/euD2wUPkXnf27FC1XJE0pJX96B97ZXIEHl4S4obBRSlybzuvmfH4gyu+b+7Tebv\nVmfsAodyfYCm90heAYADWkc/XKDj+oe3NkbR+LokrM+5aOB71f5mMLnFgYHQW/dI\nIRDziUSpP0LMr+YNKvM7qytrobPS2TOWtweWpXesNBBeiLTHZpTEu8DYcE+4e2tj\nO0spF3HuoF0Oc7ioVy2exE+HV1oJOquHGSanZSdMHCAEDMfKUmlT7/zcwC877UT/\nsysqYU/fl6vX48QDfalZuBYj+d1dUxIb1sx6q4Iw4+s=\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIIEDDCCAvSgAwIBAgIDAIMzMA0GCSqGSIb3DQEBCwUAMIGSMQswCQYDVQQGEwJV\nUzEQMA4GA1UEBwwHU2VhdHRsZTETMBEGA1UECAwKV2FzaGluZ3RvbjEiMCAGA1UE\nCgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJE\nUzEjMCEGA1UEAwwaQW1hem9uIFJEUyBDTiBSb290IDIwMTkgQ0EwHhcNMTkwOTA5\nMjAzMjM3WhcNMjQwOTA5MTY1NzIyWjCBlTELMAkGA1UEBhMCVVMxEzARBgNVBAgM\nCldhc2hpbmd0b24xEDAOBgNVBAcMB1NlYXR0bGUxIjAgBgNVBAoMGUFtYXpvbiBX\nZWIgU2VydmljZXMsIEluYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMxJjAkBgNVBAMM\nHUFtYXpvbiBSRFMgY24tbm9ydGgtMSAyMDE5IENBMIIBIjANBgkqhkiG9w0BAQEF\nAAOCAQ8AMIIBCgKCAQEA1QX8vbiba8pa4b2CLVBNhqFFYwsuekptFPv/RTixRZ6K\na1fZ/vp/d7xhfhwU9DKXyQ3ONhwOVKnFuvQuWXQiPc2cRkxM+TF7yF6hoPrIOOzr\ns6ANmR2k/n9X0aOO7sqx4q7A73ueIDJst3IjfaFgt1jaqfC7tcSSROB/+vZZTNGP\nKgFvd02ut2mCtLgohzavVDicUc0V8H1sV5Ah4n0VafW7Fqru9ehiPO79JXJKIS7W\ngcgOOiK6YDqxaQRN+LTNYdZ+DZ1+Gx8NBN80fVOO2hpRFpb662k/hQH8onYkvXaY\nkr9ouDTjfr5t8E8CEvkO/Y/B3/lt7mVjEGqImCwJawIDAQABo2YwZDAOBgNVHQ8B\nAf8EBAMCAQYwEgYDVR0TAQH/BAgwBgEB/wIBADAdBgNVHQ4EFgQUXJaoUok7ROtv\n5/2xeuaRqelnejIwHwYDVR0jBBgwFoAU/Z0g+hUMGQouhsbyFgSxc5jsbaowDQYJ\nKoZIhvcNAQELBQADggEBAIiPRsCpaiMsWUq7liRV6NDgljzjVOMzUsDnfusGUQtO\nfa3tCI+sx5j92jFzlS0GwseB/3FjVQDRll/kFTqbVwpHw2kaLeAbVvquxZAoD/91\n6gBGSF3qmLestFpf02kNHlv9skqnMrBLYkQ4kckgt4Y8E8pNLSeNtJykbp7XCf7H\nA+izbITBxNHxLUqMStEtk8RhIWUmiAbp5ENHwYCL5h9g4VV7X4TsW/1Q4KgEstWa\n1t65VWr3p7NnKpMX5CL/v5FGCYq0TDdr3qmHKbXbofmUKltZ7VxSAh5LFrfLuGzt\nMtXQkd0NDvVqMNHAjEkj7/MtlYyridWrKsiUc3ALBR4=\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIIGADCCA+igAwIBAgIQfFbtOHNGJtTnXjvwddAHjTANBgkqhkiG9w0BAQwFADCB\nmDELMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIElu\nYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTEwLwYDVQQDDChB\nbWF6b24gUkRTIGNuLW5vcnRoLTEgUm9vdCBDQSBSU0E0MDk2IEcxMRAwDgYDVQQH\nDAdTZWF0dGxlMCAXDTIxMDUyNTIzMTg1MloYDzIxMjEwNTI2MDAxODUyWjCBmDEL\nMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4x\nEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTEwLwYDVQQDDChBbWF6\nb24gUkRTIGNuLW5vcnRoLTEgUm9vdCBDQSBSU0E0MDk2IEcxMRAwDgYDVQQHDAdT\nZWF0dGxlMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEA0OO5+lCMwInN\ntMJ19bv+uyEE74uE5vHQHtla5sI1Hp+A8DhTURgJvIHRxv3Tgtk6ja4v/VcbLcVr\nR4OkZBY9b5RKHMGDK1ljwo/MxMFuK/TGkHcrjhiZcgYyNm2oxK33/YafLqq18a8p\nHREEZwz7wSi6DY8Mf9heH8a2T3ZDlUovj5JUVIDu7kSGYHw16eUi9twX7MtO0b43\nociygADBSoZeyMKZHisYdyf4D/LLDYgh7ja+Ncu4k3ErMmxGN5cZN+USyquxmnr8\nuXkl2t9VH0BhB0kej/vO9DhLdpKJRVaML1A9Wg3pd0U37xOJhTU6wCm23zdga3kR\nbf9azdS68zDK9tYiDrGc7kRkj7SOUWLY7fagyKv3rESWXrGkV8lzsK7xseomAKvL\nfHEfL0QUD63kEk4W8VH8XY7NwXZD6Je5hiQtLu8/uxed96FWwZ1DJrzojW4mKFQF\neECHU5b5jza4gjZ/pOeeqRmx3iojjYf2ZVm0+0SRFd+BWWPpqyeVUvC9gVZ+VMPr\nSUqgIrHZ2GMNJXIHt9TR3oq4XnXVcvsPuKQCWg8HIgczfDc//zaYhLdcVQbsTVEo\nI8nLqs6FygTnhyPSbJG9n9fF+RpTowXVb1UNovCTR/UBvR9l8JobnaqKUFMI1W2d\nDy98l55+LFT1VYm+rbvxJlVJm9kw6usCAwEAAaNCMEAwDwYDVR0TAQH/BAUwAwEB\n/zAdBgNVHQ4EFgQUfVNPfvq3BkZRL2qrVKEvMbPBSHAwDgYDVR0PAQH/BAQDAgGG\nMA0GCSqGSIb3DQEBDAUAA4ICAQBZ9hDaGcZFSxEyV4Yk7ynJrpKznaLWaq8T72lb\nsXcgnGGnTYQtUhdR2atA6KVtc2D8UCxDiP4kE8xC+voGKgRRt3WvIX/KRiYH4Rr/\n8DS/wux6MYYEaXjoCil1xNTOyhMCmtEPIFo8LDStbaur/PmE5VGVr45XcqNdNt5A\nS8esMGK5aI7D2zQEfGN940+U2sUCVYnvuaR1nbcMkgMzzdL2yCCZ1mlyk2KvSsF7\nb0P772MnZ3x4mP3IcUh0/6XSSIxWMAB6r6s1nCZd2JGGIyVSc2YLsB2jib2gYyfT\nzq2SL040aatsOAecrfYDG6UbeL0OUXivhOzycvS92FhEDU0BNB44wEO0Qg/zAc2C\nJlkPCMKIZc9g70RhHQ9VV9kc/SCjVRu1PauryzTmXEfr+ItrbZVW33JQg7ZOmgfj\njgpKF9q7sG2VJBDCRdp2nfeA1Bblc36yC0LodZ7voSzcJI7nnv1aO3U1CvQl0Mha\nfMjZqd0kPIX6d0G4C5SImvMCF59annWwt4V1sbWrgEvqdICe0kVsofUtEW35kX3C\nW344OxVkmhhFuniTFWYCyuQNlhIIdA0I5trZPtRaWsV2cTkNIzfe2vHGXuMnwd6V\nCwxPaPdyvKB7n6x6tF5RUOXq0EZQf9XOmdOiCTua1WT+vobRX18RtJLaOa/n5AKo\nLlYzqw==\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIIEATCCAumgAwIBAgIRAN9d6r2p5Wg5Gwl1bK3+WfkwDQYJKoZIhvcNAQELBQAw\ngZgxCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJ\nbmMuMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTExMC8GA1UEAwwo\nQW1hem9uIFJEUyBjbi1ub3J0aC0xIFJvb3QgQ0EgUlNBMjA0OCBHMTEQMA4GA1UE\nBwwHU2VhdHRsZTAgFw0yMTA1MjUyMzE1MDdaGA8yMDYxMDUyNjAwMTUwN1owgZgx\nCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMu\nMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTExMC8GA1UEAwwoQW1h\nem9uIFJEUyBjbi1ub3J0aC0xIFJvb3QgQ0EgUlNBMjA0OCBHMTEQMA4GA1UEBwwH\nU2VhdHRsZTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAKvw4zHfM3cU\nyFI9KFITDF4feeon2P49qXx8YX8KUEYzNbkNQhPSt1J91kvy0ddHLrxxNd+LoQFi\nA5vu7a51VmX1MtKYs7SzEIUdrON3FKK/2cci2yCnwzoc3kam3jXvPUu56op+aH35\n0JHEco0i+NUjh7n5UV/yWc1+8kPLBQr+VMV3ndp85ik209esvCRWgQ+iWuADqHbf\nvjrFm/zjFIiwuX5qapkDtSRVwM6FwIfjSEF6udhZjsermfD2AoTesptZEiNIPRzV\net6s/U5gMjvAhc+MQgjjdCLBlhbXWR1CPtXOMp6o8Pjn2Et3eiM6G1T0jUO28BGP\n3/iq3JOXFj8CAwEAAaNCMEAwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQUEoBo\nnXIxui+T8RXYqgzikVat82EwDgYDVR0PAQH/BAQDAgGGMA0GCSqGSIb3DQEBCwUA\nA4IBAQAk4XdDesWKYgE35KMqg2+tCY/gbBrKVMdvZzy2kAv9QH8bwCcojeMw4wGh\nu0mjfX0vawoot2bNY6Yu0+mVxBtkelhay7enN+mA5g5DfkyKkLb6Jg/9N7m95w4N\nICQwM3Yb9OsuquxBPPE7JkrZv10AzVz2Xqu/OHDyDpfnkcCfNusHyIAycjxq/ZEF\n7LOSBv3S20sJU72EKfrNGSfMDv9qvnusum/vTYKuSNCTR0vARxbB7LLVZZ/Pg2w8\n22RQK9zr+u5WkfTGMqF4NnbuJGphU21QHUIZYY8QAnte0hbK+AbTUyeKGHxqRDun\nBQn6/GvgP2tPDKj/Huauo/CVSd+M\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIICrzCCAjWgAwIBAgIQTEq2iHmd2QzeVBzmBUbAUTAKBggqhkjOPQQDAzCBlzEL\nMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4x\nEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTAwLgYDVQQDDCdBbWF6\nb24gUkRTIGNuLW5vcnRoLTEgUm9vdCBDQSBFQ0MzODQgRzExEDAOBgNVBAcMB1Nl\nYXR0bGUwIBcNMjEwNTI1MjMyMjQ4WhgPMjEyMTA1MjYwMDIyNDhaMIGXMQswCQYD\nVQQGEwJVUzEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5jLjETMBEG\nA1UECwwKQW1hem9uIFJEUzELMAkGA1UECAwCV0ExMDAuBgNVBAMMJ0FtYXpvbiBS\nRFMgY24tbm9ydGgtMSBSb290IENBIEVDQzM4NCBHMTEQMA4GA1UEBwwHU2VhdHRs\nZTB2MBAGByqGSM49AgEGBSuBBAAiA2IABBV1FSsxoXGFDBIMj6b+EfJvLINkTtVv\nUucbGUqZMidNfuHoUWTlhwZuX5kMv9hlbQbDxrnHCePo1heHkdqovIi2D77lhvhn\n7UgMupcFx9Tjki+5QhKLW3n7W8dmreJLw6NCMEAwDwYDVR0TAQH/BAUwAwEB/zAd\nBgNVHQ4EFgQUFwPUFTDrjPqdIMjuYGif1wkAtr8wDgYDVR0PAQH/BAQDAgGGMAoG\nCCqGSM49BAMDA2gAMGUCMQCrAtoyWILR++OEhFmuJhSR8cgEW/rGyf+lMDwq9dcA\neJPK7l9S8iT30JOo++hWwYcCMFl9MWvoQU3iUDH+j33I26+whkvZ6LLw2dajww1X\n0MPXbT3P9P0Jk/Vv+gand92fAw==\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIIEDDCCAvSgAwIBAgIJAMy5uCBvP5roMA0GCSqGSIb3DQEBCwUAMIGSMQswCQYD\nVQQGEwJVUzEQMA4GA1UEBwwHU2VhdHRsZTETMBEGA1UECAwKV2FzaGluZ3RvbjEi\nMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1h\nem9uIFJEUzEjMCEGA1UEAwwaQW1hem9uIFJEUyBDTiBSb290IDIwMTkgQ0EwHhcN\nMTkwOTA5MTY1NzIyWhcNMjQwOTA5MTY1NzIyWjCBkjELMAkGA1UEBhMCVVMxEDAO\nBgNVBAcMB1NlYXR0bGUxEzARBgNVBAgMCldhc2hpbmd0b24xIjAgBgNVBAoMGUFt\nYXpvbiBXZWIgU2VydmljZXMsIEluYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMxIzAh\nBgNVBAMMGkFtYXpvbiBSRFMgQ04gUm9vdCAyMDE5IENBMIIBIjANBgkqhkiG9w0B\nAQEFAAOCAQ8AMIIBCgKCAQEAzxl9K4p06ZTZ9eZmEXyTHe9Ut8OIZR86t6A8b8g0\nnhqMe+y4ee+UfqxumVAVyXwNXOiGQVbuJhScLaJ39/Ol4YzIGjdoD8MUvsf4BuET\nudQh2sJL8OnlXuqSICKpecN5ud4UQvoMVZ9FGJ+e8TvXczW14rGO62sPfYM/WrMD\nR7P4fhQfmWFzkc24/hZGRL1nkvwMdtiwuI2TYobhlwZQOdsNcZ9Ek+PcSI4oqgXN\nSqpYy85JzrRZiR5iFGw1CnJtGlC0oatXFzw/B8XOd9wvLTlJhyLo7zw9j3zedKbv\n33fTdjfvpGvcfw9CYggwrbsVmUeUhVDfMntTc9z9MRccmwIDAQABo2MwYTAOBgNV\nHQ8BAf8EBAMCAQYwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQU/Z0g+hUMGQou\nhsbyFgSxc5jsbaowHwYDVR0jBBgwFoAU/Z0g+hUMGQouhsbyFgSxc5jsbaowDQYJ\nKoZIhvcNAQELBQADggEBAAlGPCq1D/PGkWoZZpAK3V94EOByklp2HkUPEZ0PPv3Z\n/euD2wUPkXnf27FC1XJE0pJX96B97ZXIEHl4S4obBRSlybzuvmfH4gyu+b+7Tebv\nVmfsAodyfYCm90heAYADWkc/XKDj+oe3NkbR+LokrM+5aOB71f5mMLnFgYHQW/dI\nIRDziUSpP0LMr+YNKvM7qytrobPS2TOWtweWpXesNBBeiLTHZpTEu8DYcE+4e2tj\nO0spF3HuoF0Oc7ioVy2exE+HV1oJOquHGSanZSdMHCAEDMfKUmlT7/zcwC877UT/\nsysqYU/fl6vX48QDfalZuBYj+d1dUxIb1sx6q4Iw4+s=\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIIEEDCCAvigAwIBAgIDAJJhMA0GCSqGSIb3DQEBCwUAMIGSMQswCQYDVQQGEwJV\nUzEQMA4GA1UEBwwHU2VhdHRsZTETMBEGA1UECAwKV2FzaGluZ3RvbjEiMCAGA1UE\nCgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJE\nUzEjMCEGA1UEAwwaQW1hem9uIFJEUyBDTiBSb290IDIwMTkgQ0EwHhcNMTkwOTE3\nMTY0OTE3WhcNMjQwOTA5MTY1NzIyWjCBmTELMAkGA1UEBhMCVVMxEzARBgNVBAgM\nCldhc2hpbmd0b24xEDAOBgNVBAcMB1NlYXR0bGUxIjAgBgNVBAoMGUFtYXpvbiBX\nZWIgU2VydmljZXMsIEluYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMxKjAoBgNVBAMM\nIUFtYXpvbiBSRFMgY24tbm9ydGh3ZXN0LTEgMjAxOSBDQTCCASIwDQYJKoZIhvcN\nAQEBBQADggEPADCCAQoCggEBAMr4bvXQVykL0RHtBALyP7FycubzLJM178wMw5vK\nQS/1IVlQlbdZ8bNYmSMqa2IlGoWdjvLonES0jD0T8LCOYJy0uPN0DfiH6I9v9th8\nTvG/hAD9pe01xLOUAOTzuikbzcxEf9XX6mG/xAh5rREHsLbQE9R7D4RkqdeJbQBc\nKVcWWrejW9XaleCr+iEuwSqzXYDXNyfJoYic8aNYA8bADG5YPWTPblxA8MCik+zD\nq9r5wMNafUKmdOAFP6qeYo0zA5o9ESM2xJdYqa2gF7lAYsMagtWZWfEW27ZUrYmf\ntlMXu5xF2zZ1z2n7GKBXa8kA+e/dzalUA5ONHZUDIpU51k8CAwEAAaNmMGQwDgYD\nVR0PAQH/BAQDAgEGMBIGA1UdEwEB/wQIMAYBAf8CAQAwHQYDVR0OBBYEFCV3kNIC\n8e01zUu6tXl0/ig8Va5OMB8GA1UdIwQYMBaAFP2dIPoVDBkKLobG8hYEsXOY7G2q\nMA0GCSqGSIb3DQEBCwUAA4IBAQDHKrXWXsv6KKb06XhuC6RrMsLW+fmQXbrU9x4V\nb46VEaHN8lvKx6QWmRKSdnCa7nYZkPUbGdcQtgThfEjkc+UEfJxx/Q2Hb1OslPcj\nEgx5M7NFCGoBbaSKOGnVexEKRfxA2zkPCMi7bDe2m8cgThyBHfsTJSVGJkXsf6VJ\nJKWJULYiHMjF31Npg++eB4iN42bqhPfP5nKloGjOs/TNYdT2rAcI8xZRsd+G+0Aw\nqlQ0VdPmxIK7M0Sv2StGD0244OXbq6A3Ojx4t7/Kl41+FuyaGlnALDvdiYF96Zu1\nVpA/pPn4AC3+/wrXOefZDFJ3dC1uKlIoh63Vv378oI2VQvw3\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIIECTCCAvGgAwIBAgIRAOf+QbXXDGRJ7MW8j6FZ5ncwDQYJKoZIhvcNAQELBQAw\ngZwxCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJ\nbmMuMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTE1MDMGA1UEAwws\nQW1hem9uIFJEUyBjbi1ub3J0aHdlc3QtMSBSb290IENBIFJTQTIwNDggRzExEDAO\nBgNVBAcMB1NlYXR0bGUwIBcNMjEwNTI1MjI1NjEyWhgPMjA2MTA1MjUyMzU2MTJa\nMIGcMQswCQYDVQQGEwJVUzEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywg\nSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzELMAkGA1UECAwCV0ExNTAzBgNVBAMM\nLEFtYXpvbiBSRFMgY24tbm9ydGh3ZXN0LTEgUm9vdCBDQSBSU0EyMDQ4IEcxMRAw\nDgYDVQQHDAdTZWF0dGxlMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA\n0XBh/AY4j5RP9XUbYGMaCaBuG4FAbHU/Qfz/hHBNfy/QMi2hF4LQECGqp+j/8fML\n45c6b0NyCLvZuIfB4F1s+dctJpqauDqzYacw3/fMmxNyzgkrYa8VhoRdPWH6ZX2e\n0VNfTOJo64ShJaePdizBAoBnfX+xvDyZ6BLGtdUsvsfdDSCTt2fgTAk8DBTmHode\nhCC3EfVcAjk99+Fe0RWPnDBXQkA8VrbgSxXPN8Gfag1wIzS44BcxhxHDiwQoL4Ao\nFfOwvgRJANeUGcqnL5IpF8xxU3lk7nMcXuQu17597+UGwTiFLAT0bnVK/TgakefX\nM3ZH9gUi0Di3dJNIKtq/3wIDAQABo0IwQDAPBgNVHRMBAf8EBTADAQH/MB0GA1Ud\nDgQWBBTX4eJfUNknv33QnNNfkDsrYrO1uzAOBgNVHQ8BAf8EBAMCAYYwDQYJKoZI\nhvcNAQELBQADggEBAKIlgCuSJYIgvHK2zoT9PugiyBE5vvo5HyrTOJIhPknB2aY7\nx2Gwbv7YlXzncpQM+aPA88PlIvwPmGj0Nb8ph6vZ55DOxWrBE8LuXMR/+71vMYaF\nM9iTud2OyRLa2EIpS7nq3jWKjiDFkfrkUg8JmLCWHv0qEANX8XJ5NVhrRSAJzvDA\nMArXq2k5oJZoRJxyGlz6dSoU/rxsQF/oTihpcH/cEbL6ZD8sZ5xLJpCHTJcnBAEZ\nL18sYc8F/91akqXn1re/7/K3NwT9usyh89e5pegx/U2ySI3KJuc464HmCV7YZ0iJ\nEQYsQRGFZr/Miu5V4hrpuggsrnmi/RagWYJGPfQ=\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIIGCTCCA/GgAwIBAgIRAJ3YjujPNbJWN/domX9EvW8wDQYJKoZIhvcNAQEMBQAw\ngZwxCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJ\nbmMuMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTE1MDMGA1UEAwws\nQW1hem9uIFJEUyBjbi1ub3J0aHdlc3QtMSBSb290IENBIFJTQTQwOTYgRzExEDAO\nBgNVBAcMB1NlYXR0bGUwIBcNMjEwNTI1MjMwMDE1WhgPMjEyMTA1MjYwMDAwMTVa\nMIGcMQswCQYDVQQGEwJVUzEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywg\nSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzELMAkGA1UECAwCV0ExNTAzBgNVBAMM\nLEFtYXpvbiBSRFMgY24tbm9ydGh3ZXN0LTEgUm9vdCBDQSBSU0E0MDk2IEcxMRAw\nDgYDVQQHDAdTZWF0dGxlMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEA\ny8Wy3CndOV9n8V3yZ3aOTm6sKlxmtS7GYlAiguNjyqS2ERP6x3l6JlkuKyAtYut/\nUOJL6TBWQNLUsNpFJnLkomaqWRYNjSSogSLt2F6BIr/fM8pOmXvBHg9OB/I24DUE\n6bKuVbe+qrGN6ypTAsrfZJ94ED0wmMb8RMOlXOBgB3GxbuQjUFN0XLXurJygj9k7\nSM3RQggoaO94T1qoi4LD/NS/4/Z3eUksLZgkC19fSSVnuUfu845x+MXlVhLeHcLo\n9IIONonUJvkKPS90TQtB2spSqFd+MkiX3izPDii1kHfFHsl2CzwcdbxvcAZ742np\nMjDFpE4Zl6Nf28jGm6ODg6F/yZIiqWpvDemfnHfgkv1SFJnMpIAnLEIRnD5iZPRY\nvP9tJVxGo/kB7ogYLKboOtQyzQC5G6KIbkblJ+MjVcf5iQIUn5Ir7s91/7s6uVRT\nOY76S3SppFQltNwh1yW5s7Ppc9XR5cp0F37NfEm90g+r2JMH6da+Zd0zd+oG4JUJ\nGQWAIhvoOo2jjfX33GqxJI5QrhyVFQpIGs6WU3Z7uZou6/orDaEzAkedMC4w53aZ\nKmJevk2btsWRcGTYyJxf5GZ9HnUcDApcZ9QZ/9f7iIrGPTO4W6BJ9wzzc5PoenlD\noubhx9fofSIepk822gD/93fakRUJlYXKNvxJC8qXRn8CAwEAAaNCMEAwDwYDVR0T\nAQH/BAUwAwEB/zAdBgNVHQ4EFgQUbApE7vMSJDpJph7Lrq6rAMCwQF4wDgYDVR0P\nAQH/BAQDAgGGMA0GCSqGSIb3DQEBDAUAA4ICAQBSTbw8jIpZyAwQiJv5D6B9g4fX\n9PsTFTmb2eszZZZO/i0T8hbqAA3DmjjM5QqUdbjXiq4aLec04aH/ltc/12b6lypX\nsfhtUJd5rgVyEyi9VpZwL+3LrV8CC9rel1v1euOvQ+6ojsoU9PKVLSw5G1Owzy8x\npQwJU9ZTIMgz0TdlFUugaccLH54uy/c7FclO8HpOwHbwMtuMrsEt3p9vea7UoSn3\n54usb0p8ex2brMrOxKmLXXQOGoDFF8U5JCivdQaYuG7LO9NocaeyLNkc22MrxvhV\n1x3I1CE5Y1vMEqf0B8mMl2tAZ6l68r8qv1SoIrvm3ioZpdDBNkyyYVfRLpvmQBw4\nF0NQIW5wAumqbyHLRKMf/wmeuBwYjWrAeJdwDTsNVDPnhXpTOobKH432+i7v5U8n\n1dcrLdYwzRMXxY2+Wrmgte2JdsvfNkcDou9ZnjqTt8u5L7eFd5kWOLnZAWtsIef5\n2QzfKFjpbg9q/zt9RcNULAUaMB0twG1G6eO9stPElE2B0k3wM0FCTXfrh8v0FWEx\nZbnef3OwiiHHQ6EBHYvbZm0qwuYdBz8KtwurYwEUpgldls5hcj9eI3pDCjTzJncP\nGpVjJTtIE0CGOcAgIt5G6idQ1oQudW8DMb/M0QXibI5fjqEXYoYQEnjko9AqLdzI\npn++DGngGu3NLeSVfA==\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIICtjCCAj2gAwIBAgIQHBx4LmhvEVmG1P6tMGhI8DAKBggqhkjOPQQDAzCBmzEL\nMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4x\nEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTQwMgYDVQQDDCtBbWF6\nb24gUkRTIGNuLW5vcnRod2VzdC0xIFJvb3QgQ0EgRUNDMzg0IEcxMRAwDgYDVQQH\nDAdTZWF0dGxlMCAXDTIxMDUyNTIzMDM1NVoYDzIxMjEwNTI2MDAwMzU1WjCBmzEL\nMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIEluYy4x\nEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTQwMgYDVQQDDCtBbWF6\nb24gUkRTIGNuLW5vcnRod2VzdC0xIFJvb3QgQ0EgRUNDMzg0IEcxMRAwDgYDVQQH\nDAdTZWF0dGxlMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEJxUculiPchcuEWMgFK+T\njmYSVKrpF0NbDteKKJ45BbTzhwwCSKyEY3vVCqwMQ+wYiJZ87OyxLU1cqq/WCg3s\n7aD8Ro9DezvR+Fu+/AV61BLCgeSLr9S1ZCC6cpn5l0a4o0IwQDAPBgNVHRMBAf8E\nBTADAQH/MB0GA1UdDgQWBBSK4CT2IBuyX0nXmkC15OHfxtqh8zAOBgNVHQ8BAf8E\nBAMCAYYwCgYIKoZIzj0EAwMDZwAwZAIwQB38Wg42v48d5O1i53hg2qF/H0QW/8eO\n/xVtA8PK2ztDgQm+O0vKb34nj6X4Kcn8AjBSJmft8t7LMN/UwnhptyYINerpDMzZ\ng0OtBwn1QMWWlkFNf8ajLURXKGg9e2mfkpw=\n-----END CERTIFICATE-----\n",
-        "-----BEGIN CERTIFICATE-----\nMIIEIjCCAwqgAwIBAgIQI2AINKjtLFqXO+5mqmHJOzANBgkqhkiG9w0BAQsFADCB\nnDELMAkGA1UEBhMCVVMxIjAgBgNVBAoMGUFtYXpvbiBXZWIgU2VydmljZXMsIElu\nYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMxCzAJBgNVBAgMAldBMTUwMwYDVQQDDCxB\nbWF6b24gUkRTIGNuLW5vcnRod2VzdC0xIFJvb3QgQ0EgUlNBMjA0OCBHMTEQMA4G\nA1UEBwwHU2VhdHRsZTAeFw0yMTEwMjAyMjE5NTBaFw0yNjEwMjAyMzE5NTBaMIGU\nMQswCQYDVQQGEwJVUzEQMA4GA1UEBwwHU2VhdHRsZTETMBEGA1UECAwKV2FzaGlu\nZ3RvbjEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5jLjETMBEGA1UE\nCwwKQW1hem9uIFJEUzElMCMGA1UEAwwcQW1hem9uIFJEUyBjbi1ub3J0aHdlc3Qt\nMSBDQTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAMk+1qHD+w3Wns8f\nWNs6ZKtd6r8eJSilT8SKdhuvZ77C2a5CRaWhihwTznGW1vCaR9+O4OIJZCJj3iV+\n75arKXK5XJTPNJo8aW5pW9ljh/KsudkT7gzURQ3n3xFiv9vQwPRSE9gPn20Cad8U\n64KPl20DvA1XD3CoaACafRz5BlZwGJAi6xI9DqdiQRGEcNlwBzMSv9E0MqkW9pDN\n+goGEkVyfLA83hUM58zXr7AwUEw7RH64rNZcoWYT89AVKvUQnyyEs6hZvIIVwTQm\nv/YpYEH3BsN/SshaQpmh1scN/aHurVfBn0ZaY2EaTBv/u1YsalhbnZglFX6581X7\n9UkEocECAwEAAaNmMGQwEgYDVR0TAQH/BAgwBgEB/wIBADAfBgNVHSMEGDAWgBTX\n4eJfUNknv33QnNNfkDsrYrO1uzAdBgNVHQ4EFgQUfGOsnDYUtkLIlP6gKPd/lkbh\nsn4wDgYDVR0PAQH/BAQDAgGGMA0GCSqGSIb3DQEBCwUAA4IBAQCxYKgzCB6gcrYi\n1op0n615lk/hLD5LEmpNYYgqtOOAPf7mGF1VLu+GtDmyAqRnQjr80hFO2Tvdv614\nu0D5joapjD+aAQIb+OeVVmXYPm3UfUotnUkHGalkofEWkS/7h/dUzKARBdpsKBP9\nezSf8GBVRd0EDP8PLK5iplX4B+aQxmIBgYNIXSlgjaNX8SfjzKsRiLPmumWrb7gi\nlbqkdRuafQ3hj6K+I2JbgEEz2ggNBgUiwJRr+2B511RWHu3wEW86aEbl0+f5crJA\nXNn0nVq3tl8XMkorbAD+/8dbxMxV5wtMHY7nWsG8TlJ+8Vb9FwC5vIWSYun8u3Rh\ntOoQ3GAy\n-----END CERTIFICATE-----\n"
-      ]
+      ca: awsCaBundle.ca
     };
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/connection_config.js
+// node_modules/mysql2/lib/connection_config.js
 var require_connection_config = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/connection_config.js"(exports2, module2) {
+  "node_modules/mysql2/lib/connection_config.js"(exports2, module2) {
     "use strict";
     var { URL: URL2 } = require("url");
     var ClientConstants = require_client();
@@ -17489,6 +16909,7 @@ var require_connection_config = __commonJS({
       flags: 1,
       host: 1,
       insecureAuth: 1,
+      infileStreamFactory: 1,
       isServer: 1,
       keepAliveInitialDelay: 1,
       localAddress: 1,
@@ -17517,31 +16938,35 @@ var require_connection_config = __commonJS({
       typeCast: 1,
       uri: 1,
       user: 1,
+      disableEval: 1,
+      enableCleartextPlugin: 1,
       // These options are used for Pool
       connectionLimit: 1,
       maxIdle: 1,
       idleTimeout: 1,
       Promise: 1,
       queueLimit: 1,
-      waitForConnections: 1
+      waitForConnections: 1,
+      jsonStrings: 1,
+      gracefulEnd: 1
     };
-    var _ConnectionConfig = class _ConnectionConfig {
+    var ConnectionConfig = class _ConnectionConfig {
+      static {
+        __name(this, "ConnectionConfig");
+      }
       constructor(options) {
         if (typeof options === "string") {
           options = _ConnectionConfig.parseUrl(options);
         } else if (options && options.uri) {
           const uriOptions = _ConnectionConfig.parseUrl(options.uri);
           for (const key in uriOptions) {
-            if (!Object.prototype.hasOwnProperty.call(uriOptions, key))
-              continue;
-            if (options[key])
-              continue;
+            if (!Object.prototype.hasOwnProperty.call(uriOptions, key)) continue;
+            if (options[key]) continue;
             options[key] = uriOptions[key];
           }
         }
         for (const key in options) {
-          if (!Object.prototype.hasOwnProperty.call(options, key))
-            continue;
+          if (!Object.prototype.hasOwnProperty.call(options, key)) continue;
           if (validOptions[key] !== 1) {
             console.error(
               `Ignoring invalid configuration option passed to Connection: ${key}. This is currently a warning, but in future versions of MySQL2, an error will be thrown if you pass an invalid configuration option to a Connection`
@@ -17562,6 +16987,7 @@ var require_connection_config = __commonJS({
         this.database = options.database;
         this.connectTimeout = isNaN(options.connectTimeout) ? 10 * 1e3 : options.connectTimeout;
         this.insecureAuth = options.insecureAuth || false;
+        this.infileStreamFactory = options.infileStreamFactory || void 0;
         this.supportBigNumbers = options.supportBigNumbers || false;
         this.bigNumberStrings = options.bigNumberStrings || false;
         this.decimalNumbers = options.decimalNumbers || false;
@@ -17570,7 +16996,7 @@ var require_connection_config = __commonJS({
         this.trace = options.trace !== false;
         this.stringifyObjects = options.stringifyObjects || false;
         this.enableKeepAlive = options.enableKeepAlive !== false;
-        this.keepAliveInitialDelay = options.keepAliveInitialDelay || 0;
+        this.keepAliveInitialDelay = options.keepAliveInitialDelay;
         if (options.timezone && !/^(?:local|Z|[ +-]\d\d:\d\d)$/.test(options.timezone)) {
           console.error(
             `Ignoring invalid timezone passed to Connection: ${options.timezone}. This is currently a warning, but in future versions of MySQL2, an error will be thrown if you pass an invalid configuration option to a Connection`
@@ -17587,6 +17013,8 @@ var require_connection_config = __commonJS({
         this.namedPlaceholders = options.namedPlaceholders || false;
         this.nestTables = options.nestTables === void 0 ? void 0 : options.nestTables;
         this.typeCast = options.typeCast === void 0 ? true : options.typeCast;
+        this.disableEval = Boolean(options.disableEval);
+        this.enableCleartextPlugin = Boolean(options.enableCleartextPlugin);
         if (this.timezone[0] === " ") {
           this.timezone = `+${this.timezone.slice(1)}`;
         }
@@ -17611,8 +17039,13 @@ var require_connection_config = __commonJS({
           _client_name: "Node-MySQL-2",
           _client_version: version
         };
-        this.connectAttributes = { ...defaultConnectAttributes, ...options.connectAttributes || {} };
+        this.connectAttributes = {
+          ...defaultConnectAttributes,
+          ...options.connectAttributes || {}
+        };
         this.maxPreparedStatements = options.maxPreparedStatements || 16e3;
+        this.jsonStrings = options.jsonStrings || false;
+        this.gracefulEnd = options.gracefulEnd || false;
       }
       static mergeFlags(default_flags, user_flags) {
         let flags = 0, i2;
@@ -17653,7 +17086,8 @@ var require_connection_config = __commonJS({
           "MULTI_RESULTS",
           "TRANSACTIONS",
           "SESSION_TRACK",
-          "CONNECT_ATTRS"
+          "CONNECT_ATTRS",
+          "CLIENT_QUERY_ATTRIBUTES"
         ];
         if (options && options.multipleStatements) {
           defaultFlags.push("MULTI_STATEMENTS");
@@ -17682,31 +17116,95 @@ var require_connection_config = __commonJS({
       static parseUrl(url) {
         const parsedUrl = new URL2(url);
         const options = {
-          host: parsedUrl.hostname,
+          host: decodeURIComponent(parsedUrl.hostname),
           port: parseInt(parsedUrl.port, 10),
-          database: parsedUrl.pathname.slice(1),
-          user: parsedUrl.username,
-          password: parsedUrl.password
+          database: decodeURIComponent(parsedUrl.pathname.slice(1)),
+          user: decodeURIComponent(parsedUrl.username),
+          password: decodeURIComponent(parsedUrl.password)
         };
-        parsedUrl.searchParams.forEach((value, key) => {
+        for (const [key, value] of parsedUrl.searchParams) {
+          if (key in options) {
+            continue;
+          }
           try {
             options[key] = JSON.parse(value);
-          } catch (err) {
+          } catch {
             options[key] = value;
           }
-        });
+        }
         return options;
       }
     };
-    __name(_ConnectionConfig, "ConnectionConfig");
-    var ConnectionConfig = _ConnectionConfig;
     module2.exports = ConnectionConfig;
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/connection.js
+// node_modules/mysql2/lib/tracing.js
+var require_tracing = __commonJS({
+  "node_modules/mysql2/lib/tracing.js"(exports2, module2) {
+    "use strict";
+    var process2 = require("process");
+    var dc = (() => {
+      try {
+        return "getBuiltinModule" in process2 ? process2.getBuiltinModule("node:diagnostics_channel") : require("node:diagnostics_channel");
+      } catch {
+        return void 0;
+      }
+    })();
+    var hasTracingChannel = typeof dc?.tracingChannel === "function";
+    var queryChannel = hasTracingChannel ? dc.tracingChannel("mysql2:query") : void 0;
+    var executeChannel = hasTracingChannel ? dc.tracingChannel("mysql2:execute") : void 0;
+    var connectChannel = hasTracingChannel ? dc.tracingChannel("mysql2:connect") : void 0;
+    var poolConnectChannel = hasTracingChannel ? dc.tracingChannel("mysql2:pool:connect") : void 0;
+    function getServerContext(config) {
+      if (config.socketPath) {
+        return { serverAddress: config.socketPath, serverPort: void 0 };
+      }
+      return {
+        serverAddress: config.host || "localhost",
+        serverPort: config.port || 3306
+      };
+    }
+    __name(getServerContext, "getServerContext");
+    function shouldTrace(channel) {
+      if (channel === void 0 || channel === null) {
+        return false;
+      }
+      return channel.hasSubscribers ?? channel.start?.hasSubscribers ?? false;
+    }
+    __name(shouldTrace, "shouldTrace");
+    function traceCallback(channel, fn, position, context, thisArg, ...args) {
+      if (shouldTrace(channel)) {
+        return channel.traceCallback(fn, position, context(), thisArg, ...args);
+      }
+      return fn.apply(thisArg, args);
+    }
+    __name(traceCallback, "traceCallback");
+    function tracePromise(channel, fn, contextFactory) {
+      if (shouldTrace(channel)) {
+        return channel.tracePromise(fn, contextFactory());
+      }
+      return fn();
+    }
+    __name(tracePromise, "tracePromise");
+    module2.exports = {
+      dc,
+      hasTracingChannel,
+      shouldTrace,
+      queryChannel,
+      executeChannel,
+      connectChannel,
+      poolConnectChannel,
+      getServerContext,
+      traceCallback,
+      tracePromise
+    };
+  }
+});
+
+// node_modules/mysql2/lib/base/connection.js
 var require_connection = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/connection.js"(exports2, module2) {
+  "node_modules/mysql2/lib/base/connection.js"(exports2, module2) {
     "use strict";
     var Net = require("net");
     var Tls = require("tls");
@@ -17714,15 +17212,28 @@ var require_connection = __commonJS({
     var EventEmitter = require("events").EventEmitter;
     var Readable = require("stream").Readable;
     var Queue = require_denque();
-    var SqlString = require_sqlstring();
-    var LRU = require_index_cjs().default;
+    var SqlString = require_lib2();
+    var { createLRU } = require_lib();
     var PacketParser = require_packet_parser();
     var Packets = require_packets();
     var Commands = require_commands2();
     var ConnectionConfig = require_connection_config();
     var CharsetToEncoding = require_charset_encodings();
+    var {
+      traceCallback,
+      tracePromise,
+      getServerContext,
+      shouldTrace,
+      queryChannel,
+      executeChannel,
+      connectChannel
+    } = require_tracing();
     var _connectionId = 0;
-    var _Connection = class _Connection extends EventEmitter {
+    var convertNamedPlaceholders2 = null;
+    var BaseConnection = class _BaseConnection extends EventEmitter {
+      static {
+        __name(this, "BaseConnection");
+      }
       constructor(opts) {
         super();
         this.config = opts.config;
@@ -17730,10 +17241,7 @@ var require_connection = __commonJS({
           if (opts.config.socketPath) {
             this.stream = Net.connect(opts.config.socketPath);
           } else {
-            this.stream = Net.connect(
-              opts.config.port,
-              opts.config.host
-            );
+            this.stream = Net.connect(opts.config.port, opts.config.host);
             if (this.config.enableKeepAlive) {
               this.stream.on("connect", () => {
                 this.stream.setKeepAlive(true, this.config.keepAliveInitialDelay);
@@ -17751,11 +17259,11 @@ var require_connection = __commonJS({
         this._command = null;
         this._paused = false;
         this._paused_packets = new Queue();
-        this._statements = new LRU({
+        this._statements = createLRU({
           max: this.config.maxPreparedStatements,
-          dispose: function(statement) {
+          onEviction: /* @__PURE__ */ __name(function(_, statement) {
             statement.close();
-          }
+          }, "onEviction")
         });
         this.serverCapabilityFlags = 0;
         this.authorized = false;
@@ -17810,6 +17318,35 @@ var require_connection = __commonJS({
             this._notifyError(err);
           });
           this.addCommand(handshakeCommand);
+          if (shouldTrace(connectChannel)) {
+            const config = this.config;
+            tracePromise(
+              connectChannel,
+              () => new Promise((resolve, reject) => {
+                let onConnect, onError;
+                onConnect = /* @__PURE__ */ __name((param) => {
+                  this.removeListener("error", onError);
+                  resolve(param);
+                }, "onConnect");
+                onError = /* @__PURE__ */ __name((err) => {
+                  this.removeListener("connect", onConnect);
+                  reject(err);
+                }, "onError");
+                this.once("connect", onConnect);
+                this.once("error", onError);
+              }),
+              () => {
+                const server = getServerContext(config);
+                return {
+                  database: config.database || "",
+                  serverAddress: server.serverAddress,
+                  serverPort: server.serverPort,
+                  user: config.user || ""
+                };
+              }
+            ).catch(() => {
+            });
+          }
         }
         this.serverEncoding = "utf8";
         if (this.config.connectTimeout) {
@@ -17819,10 +17356,6 @@ var require_connection = __commonJS({
             this.config.connectTimeout
           );
         }
-      }
-      promise(promiseImpl) {
-        const PromiseConnection = require_promise().PromiseConnection;
-        return new PromiseConnection(this, promiseImpl);
       }
       _addCommandClosedState(cmd) {
         const err = new Error(
@@ -17986,30 +17519,39 @@ var require_connection = __commonJS({
         });
         const rejectUnauthorized = this.config.ssl.rejectUnauthorized;
         const verifyIdentity = this.config.ssl.verifyIdentity;
-        const servername = this.config.host;
+        const servername = Net.isIP(this.config.host) ? void 0 : this.config.host;
         let secureEstablished = false;
         this.stream.removeAllListeners("data");
-        const secureSocket = Tls.connect({
-          rejectUnauthorized,
-          requestCert: rejectUnauthorized,
-          secureContext,
-          isServer: false,
-          socket: this.stream,
-          servername
-        }, () => {
-          secureEstablished = true;
-          if (rejectUnauthorized) {
-            if (typeof servername === "string" && verifyIdentity) {
-              const cert = secureSocket.getPeerCertificate(true);
-              const serverIdentityCheckError = Tls.checkServerIdentity(servername, cert);
-              if (serverIdentityCheckError) {
-                onSecure(serverIdentityCheckError);
-                return;
+        const secureSocket = Tls.connect(
+          {
+            rejectUnauthorized,
+            requestCert: rejectUnauthorized,
+            checkServerIdentity: verifyIdentity ? Tls.checkServerIdentity : function() {
+              return void 0;
+            },
+            secureContext,
+            isServer: false,
+            socket: this.stream,
+            servername
+          },
+          () => {
+            secureEstablished = true;
+            if (rejectUnauthorized) {
+              if (typeof servername === "string" && verifyIdentity) {
+                const cert = secureSocket.getPeerCertificate(true);
+                const serverIdentityCheckError = Tls.checkServerIdentity(
+                  servername,
+                  cert
+                );
+                if (serverIdentityCheckError) {
+                  onSecure(serverIdentityCheckError);
+                  return;
+                }
               }
             }
+            onSecure();
           }
-          onSecure();
-        });
+        );
         secureSocket.on("error", (err) => {
           if (secureEstablished) {
             this._handleNetworkError(err);
@@ -18020,7 +17562,7 @@ var require_connection = __commonJS({
         secureSocket.on("data", (data) => {
           this.packetParser.execute(data);
         });
-        this.write = (buffer) => secureSocket.write(buffer);
+        this.stream = secureSocket;
       }
       protocolError(message, code) {
         if (this._closing) {
@@ -18030,6 +17572,24 @@ var require_connection = __commonJS({
         err.fatal = true;
         err.code = code || "PROTOCOL_ERROR";
         this.emit("error", err);
+      }
+      get state() {
+        if (this._fatalError || this._protocolError) {
+          return "error";
+        }
+        if (this._closing || this.stream && this.stream.destroyed) {
+          return "disconnected";
+        }
+        if (this.authorized) {
+          return "authenticated";
+        }
+        if (this._handshakePacket) {
+          return "connected";
+        }
+        if (this.stream && !this.stream.destroyed) {
+          return "protocol_handshake";
+        }
+        return "disconnected";
       }
       get fatalError() {
         return this._fatalError;
@@ -18123,6 +17683,7 @@ var require_connection = __commonJS({
           sql,
           values
         };
+        this._resolveNamedPlaceholders(opts);
         return SqlString.format(
           opts.sql,
           opts.values,
@@ -18140,17 +17701,77 @@ var require_connection = __commonJS({
         return SqlString.raw(sql);
       }
       _resolveNamedPlaceholders(options) {
+        let unnamed;
+        if (this.config.namedPlaceholders || options.namedPlaceholders) {
+          if (Array.isArray(options.values)) {
+            return;
+          }
+          if (convertNamedPlaceholders2 === null) {
+            convertNamedPlaceholders2 = require_named_placeholders()();
+          }
+          unnamed = convertNamedPlaceholders2(options.sql, options.values);
+          options.sql = unnamed[0];
+          options.values = unnamed[1];
+        }
       }
       query(sql, values, cb) {
         let cmdQuery;
         if (sql.constructor === Commands.Query) {
           cmdQuery = sql;
         } else {
-          cmdQuery = _Connection.createQuery(sql, values, cb, this.config);
+          cmdQuery = _BaseConnection.createQuery(sql, values, cb, this.config);
         }
-        const rawSql = this.format(cmdQuery.sql, cmdQuery.values !== void 0 ? cmdQuery.values : []);
+        this._resolveNamedPlaceholders(cmdQuery);
+        const rawSql = this.format(
+          cmdQuery.sql,
+          cmdQuery.values !== void 0 ? cmdQuery.values : []
+        );
         cmdQuery.sql = rawSql;
-        return this.addCommand(cmdQuery);
+        if (cmdQuery.onResult) {
+          traceCallback(
+            queryChannel,
+            (wrappedCb) => {
+              cmdQuery.onResult = wrappedCb;
+              this.addCommand(cmdQuery);
+            },
+            0,
+            () => {
+              const server = getServerContext(this.config);
+              return {
+                query: cmdQuery.sql,
+                values: cmdQuery.values,
+                database: this.config.database || "",
+                serverAddress: server.serverAddress,
+                serverPort: server.serverPort
+              };
+            },
+            null,
+            cmdQuery.onResult
+          );
+        } else if (shouldTrace(queryChannel)) {
+          tracePromise(
+            queryChannel,
+            () => new Promise((resolve, reject) => {
+              cmdQuery.once("error", reject);
+              cmdQuery.once("end", () => resolve());
+              this.addCommand(cmdQuery);
+            }),
+            () => {
+              const server = getServerContext(this.config);
+              return {
+                query: cmdQuery.sql,
+                values: cmdQuery.values,
+                database: this.config.database || "",
+                serverAddress: server.serverAddress,
+                serverPort: server.serverPort
+              };
+            }
+          ).catch(() => {
+          });
+        } else {
+          this.addCommand(cmdQuery);
+        }
+        return cmdQuery;
       }
       pause() {
         this._paused = true;
@@ -18181,7 +17802,7 @@ var require_connection = __commonJS({
         } else {
           options.sql = sql;
         }
-        const key = _Connection.statementKey(options);
+        const key = _BaseConnection.statementKey(options);
         const stmt = this._statements.get(key);
         if (stmt) {
           this._statements.delete(key);
@@ -18190,9 +17811,16 @@ var require_connection = __commonJS({
         return stmt;
       }
       execute(sql, values, cb) {
-        let options = {};
+        let options = {
+          infileStreamFactory: this.config.infileStreamFactory
+        };
         if (typeof sql === "object") {
-          options = sql;
+          options = {
+            ...options,
+            ...sql,
+            sql: sql.sql,
+            values: sql.values
+          };
           if (typeof values === "function") {
             cb = values;
           } else {
@@ -18206,8 +17834,19 @@ var require_connection = __commonJS({
           options.sql = sql;
           options.values = values;
         }
+        this._resolveNamedPlaceholders(options);
         if (options.values) {
+          if (!Array.isArray(options.values)) {
+            throw new TypeError(
+              "Bind parameters must be array if namedPlaceholders parameter is not enabled"
+            );
+          }
           options.values.forEach((val) => {
+            if (!Array.isArray(options.values)) {
+              throw new TypeError(
+                "Bind parameters must be array if namedPlaceholders parameter is not enabled"
+              );
+            }
             if (val === void 0) {
               val = null;
             }
@@ -18219,23 +17858,70 @@ var require_connection = __commonJS({
           });
         }
         const executeCommand = new Commands.Execute(options, cb);
-        const prepareCommand = new Commands.Prepare(options, (err, stmt) => {
-          if (err) {
-            executeCommand.start = function() {
-              return null;
-            };
-            if (cb) {
-              cb(err);
-            } else {
-              executeCommand.emit("error", err);
+        const prepareAndExecute = /* @__PURE__ */ __name((errorCb) => {
+          const prepareCommand = new Commands.Prepare(options, (err, stmt) => {
+            if (err) {
+              executeCommand.start = function() {
+                return null;
+              };
+              errorCb(err);
+              executeCommand.emit("end");
+              return;
             }
-            executeCommand.emit("end");
-            return;
-          }
-          executeCommand.statement = stmt;
-        });
-        this.addCommand(prepareCommand);
-        this.addCommand(executeCommand);
+            executeCommand.statement = stmt;
+          });
+          this.addCommand(prepareCommand);
+          this.addCommand(executeCommand);
+        }, "prepareAndExecute");
+        if (executeCommand.onResult) {
+          const origExecCb = executeCommand.onResult;
+          traceCallback(
+            executeChannel,
+            (wrappedCb) => {
+              executeCommand.onResult = wrappedCb;
+              prepareAndExecute(wrappedCb);
+            },
+            0,
+            () => {
+              const server = getServerContext(this.config);
+              return {
+                query: options.sql,
+                values: options.values,
+                database: this.config.database || "",
+                serverAddress: server.serverAddress,
+                serverPort: server.serverPort
+              };
+            },
+            null,
+            origExecCb
+          );
+        } else if (shouldTrace(executeChannel)) {
+          tracePromise(
+            executeChannel,
+            () => new Promise((resolve, reject) => {
+              prepareAndExecute((err) => {
+                executeCommand.emit("error", err);
+              });
+              executeCommand.once("error", reject);
+              executeCommand.once("end", () => resolve());
+            }),
+            () => {
+              const server = getServerContext(this.config);
+              return {
+                query: options.sql,
+                values: options.values,
+                database: this.config.database || "",
+                serverAddress: server.serverAddress,
+                serverPort: server.serverPort
+              };
+            }
+          ).catch(() => {
+          });
+        } else {
+          prepareAndExecute((err) => {
+            executeCommand.emit("error", err);
+          });
+        }
         return executeCommand;
       }
       changeUser(options, callback) {
@@ -18283,6 +17969,9 @@ var require_connection = __commonJS({
       }
       ping(cb) {
         return this.addCommand(new Commands.Ping(cb));
+      }
+      reset(cb) {
+        return this.addCommand(new Commands.ResetConnection(cb));
       }
       _registerSlave(opts, cb) {
         return this.addCommand(new Commands.RegisterSlave(opts, cb));
@@ -18335,22 +18024,17 @@ var require_connection = __commonJS({
         if (this._handshakePacket) {
           return cb(null, this);
         }
-        let connectCalled = 0;
-        function callbackOnce(isErrorHandler) {
-          return function(param) {
-            if (!connectCalled) {
-              if (isErrorHandler) {
-                cb(param);
-              } else {
-                cb(null, param);
-              }
-            }
-            connectCalled = 1;
-          };
-        }
-        __name(callbackOnce, "callbackOnce");
-        this.once("error", callbackOnce(true));
-        this.once("connect", callbackOnce(false));
+        let onError, onConnect;
+        onError = /* @__PURE__ */ __name((param) => {
+          this.removeListener("connect", onConnect);
+          cb(param);
+        }, "onError");
+        onConnect = /* @__PURE__ */ __name((param) => {
+          this.removeListener("error", onError);
+          cb(null, param);
+        }, "onConnect");
+        this.once("error", onError);
+        this.once("connect", onConnect);
       }
       // ===================================
       // outgoing server connection methods
@@ -18384,8 +18068,7 @@ var require_connection = __commonJS({
           });
           if (binary) {
             this.writeBinaryRow(arrayRow);
-          } else
-            this.writeTextRow(arrayRow);
+          } else this.writeTextRow(arrayRow);
         });
         this.writeEof();
       }
@@ -18407,6 +18090,11 @@ var require_connection = __commonJS({
         this.serverConfig.encoding = CharsetToEncoding[this.serverConfig.characterSet];
         return this.addCommand(new Commands.ServerHandshake(args));
       }
+      [Symbol.dispose]() {
+        if (!this._closing) {
+          this.end();
+        }
+      }
       // ===============================================================
       end(callback) {
         if (this.config.isServer) {
@@ -18424,10 +18112,16 @@ var require_connection = __commonJS({
       }
       static createQuery(sql, values, cb, config) {
         let options = {
-          rowsAsArray: config.rowsAsArray
+          rowsAsArray: config.rowsAsArray,
+          infileStreamFactory: config.infileStreamFactory
         };
         if (typeof sql === "object") {
-          options = sql;
+          options = {
+            ...options,
+            ...sql,
+            sql: sql.sql,
+            values: sql.values
+          };
           if (typeof values === "function") {
             cb = values;
           } else if (values !== void 0) {
@@ -18447,21 +18141,393 @@ var require_connection = __commonJS({
         return `${typeof options.nestTables}/${options.nestTables}/${options.rowsAsArray}${options.sql}`;
       }
     };
-    __name(_Connection, "Connection");
-    var Connection = _Connection;
+    module2.exports = BaseConnection;
+  }
+});
+
+// node_modules/mysql2/lib/promise/capture_local_err.js
+var require_capture_local_err = __commonJS({
+  "node_modules/mysql2/lib/promise/capture_local_err.js"(exports2, module2) {
+    "use strict";
+    function captureStackHolder(constructorOpt) {
+      const holder = {};
+      Error.captureStackTrace(holder, constructorOpt);
+      return holder;
+    }
+    __name(captureStackHolder, "captureStackHolder");
+    function applyCapturedStack(err, holder) {
+      const stack = holder && holder.stack;
+      if (typeof stack !== "string" || !stack) return;
+      const lines = stack.split("\n");
+      lines[0] = `${err.name}: ${err.message}`;
+      err.stack = lines.join("\n");
+    }
+    __name(applyCapturedStack, "applyCapturedStack");
+    module2.exports = { captureStackHolder, applyCapturedStack };
+  }
+});
+
+// node_modules/mysql2/lib/promise/make_done_cb.js
+var require_make_done_cb = __commonJS({
+  "node_modules/mysql2/lib/promise/make_done_cb.js"(exports2, module2) {
+    "use strict";
+    var { applyCapturedStack } = require_capture_local_err();
+    function makeDoneCb(resolve, reject, stackHolder) {
+      return function(err, rows, fields) {
+        if (err) {
+          applyCapturedStack(err, stackHolder);
+          reject(err);
+        } else {
+          resolve([rows, fields]);
+        }
+      };
+    }
+    __name(makeDoneCb, "makeDoneCb");
+    module2.exports = makeDoneCb;
+  }
+});
+
+// node_modules/mysql2/lib/promise/prepared_statement_info.js
+var require_prepared_statement_info = __commonJS({
+  "node_modules/mysql2/lib/promise/prepared_statement_info.js"(exports2, module2) {
+    "use strict";
+    var { captureStackHolder } = require_capture_local_err();
+    var makeDoneCb = require_make_done_cb();
+    var PromisePreparedStatementInfo = class _PromisePreparedStatementInfo {
+      static {
+        __name(this, "PromisePreparedStatementInfo");
+      }
+      constructor(statement, promiseImpl) {
+        this.statement = statement;
+        this.Promise = promiseImpl;
+      }
+      execute(parameters) {
+        const s2 = this.statement;
+        const stackHolder = captureStackHolder(
+          _PromisePreparedStatementInfo.prototype.execute
+        );
+        return new this.Promise((resolve, reject) => {
+          const done = makeDoneCb(resolve, reject, stackHolder);
+          if (parameters) {
+            s2.execute(parameters, done);
+          } else {
+            s2.execute(done);
+          }
+        });
+      }
+      close() {
+        return new this.Promise((resolve) => {
+          this.statement.close();
+          resolve();
+        });
+      }
+    };
+    module2.exports = PromisePreparedStatementInfo;
+  }
+});
+
+// node_modules/mysql2/lib/promise/inherit_events.js
+var require_inherit_events = __commonJS({
+  "node_modules/mysql2/lib/promise/inherit_events.js"(exports2, module2) {
+    "use strict";
+    function inheritEvents(source2, target, events) {
+      const listeners = {};
+      target.on("newListener", (eventName) => {
+        if (events.indexOf(eventName) >= 0 && !target.listenerCount(eventName)) {
+          source2.on(
+            eventName,
+            listeners[eventName] = function() {
+              const args = [].slice.call(arguments);
+              args.unshift(eventName);
+              target.emit.apply(target, args);
+            }
+          );
+        }
+      }).on("removeListener", (eventName) => {
+        if (events.indexOf(eventName) >= 0 && !target.listenerCount(eventName)) {
+          source2.removeListener(eventName, listeners[eventName]);
+          delete listeners[eventName];
+        }
+      });
+    }
+    __name(inheritEvents, "inheritEvents");
+    module2.exports = inheritEvents;
+  }
+});
+
+// node_modules/mysql2/lib/promise/connection.js
+var require_connection2 = __commonJS({
+  "node_modules/mysql2/lib/promise/connection.js"(exports2, module2) {
+    "use strict";
+    var EventEmitter = require("events").EventEmitter;
+    var PromisePreparedStatementInfo = require_prepared_statement_info();
+    var {
+      captureStackHolder,
+      applyCapturedStack
+    } = require_capture_local_err();
+    var makeDoneCb = require_make_done_cb();
+    var inheritEvents = require_inherit_events();
+    var BaseConnection = require_connection();
+    var PromiseConnection = class _PromiseConnection extends EventEmitter {
+      static {
+        __name(this, "PromiseConnection");
+      }
+      constructor(connection, promiseImpl) {
+        super();
+        this.connection = connection;
+        this.Promise = promiseImpl || Promise;
+        inheritEvents(connection, this, [
+          "error",
+          "drain",
+          "connect",
+          "end",
+          "enqueue"
+        ]);
+      }
+      release() {
+        this.connection.release();
+      }
+      query(query, params) {
+        const c = this.connection;
+        const stackHolder = captureStackHolder(_PromiseConnection.prototype.query);
+        if (typeof params === "function") {
+          throw new Error(
+            "Callback function is not available with promise clients."
+          );
+        }
+        return new this.Promise((resolve, reject) => {
+          const done = makeDoneCb(resolve, reject, stackHolder);
+          if (params !== void 0) {
+            c.query(query, params, done);
+          } else {
+            c.query(query, done);
+          }
+        });
+      }
+      execute(query, params) {
+        const c = this.connection;
+        const stackHolder = captureStackHolder(_PromiseConnection.prototype.execute);
+        if (typeof params === "function") {
+          throw new Error(
+            "Callback function is not available with promise clients."
+          );
+        }
+        return new this.Promise((resolve, reject) => {
+          const done = makeDoneCb(resolve, reject, stackHolder);
+          if (params !== void 0) {
+            c.execute(query, params, done);
+          } else {
+            c.execute(query, done);
+          }
+        });
+      }
+      end() {
+        return new this.Promise((resolve) => {
+          this.connection.end(resolve);
+        });
+      }
+      async [Symbol.asyncDispose]() {
+        if (!this.connection._closing) {
+          await this.end();
+        }
+      }
+      beginTransaction() {
+        const c = this.connection;
+        const stackHolder = captureStackHolder(
+          _PromiseConnection.prototype.beginTransaction
+        );
+        return new this.Promise((resolve, reject) => {
+          const done = makeDoneCb(resolve, reject, stackHolder);
+          c.beginTransaction(done);
+        });
+      }
+      commit() {
+        const c = this.connection;
+        const stackHolder = captureStackHolder(_PromiseConnection.prototype.commit);
+        return new this.Promise((resolve, reject) => {
+          const done = makeDoneCb(resolve, reject, stackHolder);
+          c.commit(done);
+        });
+      }
+      rollback() {
+        const c = this.connection;
+        const stackHolder = captureStackHolder(
+          _PromiseConnection.prototype.rollback
+        );
+        return new this.Promise((resolve, reject) => {
+          const done = makeDoneCb(resolve, reject, stackHolder);
+          c.rollback(done);
+        });
+      }
+      ping() {
+        const c = this.connection;
+        const stackHolder = captureStackHolder(_PromiseConnection.prototype.ping);
+        return new this.Promise((resolve, reject) => {
+          c.ping((err) => {
+            if (err) {
+              applyCapturedStack(err, stackHolder);
+              reject(err);
+            } else {
+              resolve(true);
+            }
+          });
+        });
+      }
+      reset() {
+        const c = this.connection;
+        const stackHolder = captureStackHolder(_PromiseConnection.prototype.reset);
+        return new this.Promise((resolve, reject) => {
+          c.reset((err) => {
+            if (err) {
+              applyCapturedStack(err, stackHolder);
+              reject(err);
+            } else {
+              resolve();
+            }
+          });
+        });
+      }
+      connect() {
+        const c = this.connection;
+        const stackHolder = captureStackHolder(_PromiseConnection.prototype.connect);
+        return new this.Promise((resolve, reject) => {
+          c.connect((err, param) => {
+            if (err) {
+              applyCapturedStack(err, stackHolder);
+              reject(err);
+            } else {
+              resolve(param);
+            }
+          });
+        });
+      }
+      prepare(options) {
+        const c = this.connection;
+        const promiseImpl = this.Promise;
+        const stackHolder = captureStackHolder(_PromiseConnection.prototype.prepare);
+        return new this.Promise((resolve, reject) => {
+          c.prepare(options, (err, statement) => {
+            if (err) {
+              applyCapturedStack(err, stackHolder);
+              reject(err);
+            } else {
+              const wrappedStatement = new PromisePreparedStatementInfo(
+                statement,
+                promiseImpl
+              );
+              resolve(wrappedStatement);
+            }
+          });
+        });
+      }
+      changeUser(options) {
+        const c = this.connection;
+        const stackHolder = captureStackHolder(
+          _PromiseConnection.prototype.changeUser
+        );
+        return new this.Promise((resolve, reject) => {
+          c.changeUser(options, (err) => {
+            if (err) {
+              applyCapturedStack(err, stackHolder);
+              reject(err);
+            } else {
+              resolve();
+            }
+          });
+        });
+      }
+      get config() {
+        return this.connection.config;
+      }
+      get threadId() {
+        return this.connection.threadId;
+      }
+    };
+    (function(functionsToWrap) {
+      for (let i2 = 0; functionsToWrap && i2 < functionsToWrap.length; i2++) {
+        const func = functionsToWrap[i2];
+        if (typeof BaseConnection.prototype[func] === "function" && PromiseConnection.prototype[func] === void 0) {
+          PromiseConnection.prototype[func] = (/* @__PURE__ */ __name(function factory(funcName) {
+            return function() {
+              return BaseConnection.prototype[funcName].apply(
+                this.connection,
+                arguments
+              );
+            };
+          }, "factory"))(func);
+        }
+      }
+    })([
+      // synchronous functions
+      "close",
+      "createBinlogStream",
+      "destroy",
+      "escape",
+      "escapeId",
+      "format",
+      "pause",
+      "pipe",
+      "resume",
+      "unprepare"
+    ]);
+    module2.exports = PromiseConnection;
+  }
+});
+
+// node_modules/mysql2/lib/connection.js
+var require_connection3 = __commonJS({
+  "node_modules/mysql2/lib/connection.js"(exports2, module2) {
+    "use strict";
+    var BaseConnection = require_connection();
+    var Connection = class extends BaseConnection {
+      static {
+        __name(this, "Connection");
+      }
+      promise(promiseImpl) {
+        const PromiseConnection = require_connection2();
+        return new PromiseConnection(this, promiseImpl);
+      }
+    };
     module2.exports = Connection;
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/pool_connection.js
+// node_modules/mysql2/lib/promise/pool_connection.js
 var require_pool_connection = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/pool_connection.js"(exports2, module2) {
+  "node_modules/mysql2/lib/promise/pool_connection.js"(exports2, module2) {
     "use strict";
-    var Connection = require_mysql2().Connection;
-    var _PoolConnection = class _PoolConnection extends Connection {
+    var PromiseConnection = require_connection2();
+    var PromisePoolConnection = class extends PromiseConnection {
+      static {
+        __name(this, "PromisePoolConnection");
+      }
+      constructor(connection, promiseImpl) {
+        super(connection, promiseImpl);
+      }
+      destroy() {
+        return this.connection.destroy();
+      }
+      async [Symbol.asyncDispose]() {
+        this.release();
+      }
+    };
+    module2.exports = PromisePoolConnection;
+  }
+});
+
+// node_modules/mysql2/lib/pool_connection.js
+var require_pool_connection2 = __commonJS({
+  "node_modules/mysql2/lib/pool_connection.js"(exports2, module2) {
+    "use strict";
+    var Connection = require_connection3();
+    var PoolConnection = class extends Connection {
+      static {
+        __name(this, "PoolConnection");
+      }
       constructor(pool2, options) {
         super(options);
         this._pool = pool2;
+        this._released = false;
         this.lastActiveTime = Date.now();
         this.once("end", () => {
           this._removeFromPool();
@@ -18471,23 +18537,34 @@ var require_pool_connection = __commonJS({
         });
       }
       release() {
+        if (this._released) {
+          return;
+        }
         if (!this._pool || this._pool._closed) {
           return;
         }
+        this._released = true;
         this.lastActiveTime = Date.now();
         this._pool.releaseConnection(this);
       }
-      promise(promiseImpl) {
-        const PromisePoolConnection = require_promise().PromisePoolConnection;
-        return new PromisePoolConnection(this, promiseImpl);
+      [Symbol.dispose]() {
+        this.release();
       }
-      end() {
+      end(callback) {
+        if (this.config.gracefulEnd) {
+          this._removeFromPool();
+          super.end(callback);
+          return;
+        }
         const err = new Error(
           "Calling conn.end() to release a pooled connection is deprecated. In next version calling conn.end() will be restored to default conn.end() behavior. Use conn.release() instead."
         );
         this.emit("warn", err);
         console.warn(err.message);
         this.release();
+        if (typeof callback === "function") {
+          callback();
+        }
       }
       destroy() {
         this._removeFromPool();
@@ -18501,25 +18578,40 @@ var require_pool_connection = __commonJS({
         this._pool = null;
         pool2._removeConnection(this);
       }
+      promise(promiseImpl) {
+        const PromisePoolConnection = require_pool_connection();
+        return new PromisePoolConnection(this, promiseImpl);
+      }
     };
-    __name(_PoolConnection, "PoolConnection");
-    var PoolConnection2 = _PoolConnection;
-    PoolConnection2.statementKey = Connection.statementKey;
-    module2.exports = PoolConnection2;
-    PoolConnection2.prototype._realEnd = Connection.prototype.end;
+    PoolConnection.statementKey = Connection.statementKey;
+    module2.exports = PoolConnection;
+    PoolConnection.prototype._realEnd = Connection.prototype.end;
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/pool.js
+// node_modules/mysql2/lib/base/pool.js
 var require_pool = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/pool.js"(exports2, module2) {
+  "node_modules/mysql2/lib/base/pool.js"(exports2, module2) {
     "use strict";
     var process2 = require("process");
-    var mysql = require_mysql2();
+    var SqlString = require_lib2();
     var EventEmitter = require("events").EventEmitter;
-    var PoolConnection2 = require_pool_connection();
+    var PoolConnection = require_pool_connection2();
     var Queue = require_denque();
-    var Connection = require_connection();
+    var BaseConnection = require_connection();
+    var Errors = require_errors();
+    var {
+      traceCallback,
+      getServerContext,
+      poolConnectChannel
+    } = require_tracing();
+    function isReadOnlyError(err) {
+      if (!err || !err.errno) {
+        return false;
+      }
+      return err.errno === Errors.ER_OPTION_PREVENTS_STATEMENT || err.errno === Errors.ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION || err.errno === Errors.ER_READ_ONLY_MODE;
+    }
+    __name(isReadOnlyError, "isReadOnlyError");
     function spliceConnection(queue, connection) {
       const len = queue.length;
       for (let i2 = 0; i2 < len; i2++) {
@@ -18530,7 +18622,10 @@ var require_pool = __commonJS({
       }
     }
     __name(spliceConnection, "spliceConnection");
-    var _Pool = class _Pool extends EventEmitter {
+    var BasePool = class extends EventEmitter {
+      static {
+        __name(this, "BasePool");
+      }
       constructor(options) {
         super();
         this.config = options.config;
@@ -18543,45 +18638,64 @@ var require_pool = __commonJS({
           this._removeIdleTimeoutConnections();
         }
       }
-      promise(promiseImpl) {
-        const PromisePool = require_promise().PromisePool;
-        return new PromisePool(this, promiseImpl);
-      }
       getConnection(cb) {
-        if (this._closed) {
-          return process2.nextTick(() => cb(new Error("Pool is closed.")));
-        }
-        let connection;
-        if (this._freeConnections.length > 0) {
-          connection = this._freeConnections.pop();
-          this.emit("acquire", connection);
-          return process2.nextTick(() => cb(null, connection));
-        }
-        if (this.config.connectionLimit === 0 || this._allConnections.length < this.config.connectionLimit) {
-          connection = new PoolConnection2(this, {
-            config: this.config.connectionConfig
-          });
-          this._allConnections.push(connection);
-          return connection.connect((err) => {
-            if (this._closed) {
-              return cb(new Error("Pool is closed."));
-            }
-            if (err) {
-              return cb(err);
-            }
-            this.emit("connection", connection);
+        const _getConnection = /* @__PURE__ */ __name((cb2) => {
+          if (this._closed) {
+            return process2.nextTick(() => cb2(new Error("Pool is closed.")));
+          }
+          let connection;
+          if (this._freeConnections.length > 0) {
+            connection = this._freeConnections.pop();
             this.emit("acquire", connection);
-            return cb(null, connection);
-          });
-        }
-        if (!this.config.waitForConnections) {
-          return process2.nextTick(() => cb(new Error("No connections available.")));
-        }
-        if (this.config.queueLimit && this._connectionQueue.length >= this.config.queueLimit) {
-          return cb(new Error("Queue limit reached."));
-        }
-        this.emit("enqueue");
-        return this._connectionQueue.push(cb);
+            return process2.nextTick(() => {
+              connection._released = false;
+              cb2(null, connection);
+            });
+          }
+          if (this.config.connectionLimit === 0 || this._allConnections.length < this.config.connectionLimit) {
+            connection = new PoolConnection(this, {
+              config: this.config.connectionConfig
+            });
+            this._allConnections.push(connection);
+            return connection.connect((err) => {
+              if (this._closed) {
+                return cb2(new Error("Pool is closed."));
+              }
+              if (err) {
+                return cb2(err);
+              }
+              this.emit("connection", connection);
+              this.emit("acquire", connection);
+              return cb2(null, connection);
+            });
+          }
+          if (!this.config.waitForConnections) {
+            return process2.nextTick(
+              () => cb2(new Error("No connections available."))
+            );
+          }
+          if (this.config.queueLimit && this._connectionQueue.length >= this.config.queueLimit) {
+            return cb2(new Error("Queue limit reached."));
+          }
+          this.emit("enqueue");
+          return this._connectionQueue.push(cb2);
+        }, "_getConnection");
+        const config = this.config.connectionConfig;
+        traceCallback(
+          poolConnectChannel,
+          _getConnection,
+          0,
+          () => {
+            const server = getServerContext(config);
+            return {
+              database: config.database || "",
+              serverAddress: server.serverAddress,
+              serverPort: server.serverPort
+            };
+          },
+          null,
+          cb
+        );
       }
       releaseConnection(connection) {
         let cb;
@@ -18590,16 +18704,47 @@ var require_pool = __commonJS({
             cb = this._connectionQueue.shift();
             process2.nextTick(this.getConnection.bind(this, cb));
           }
-        } else if (this._connectionQueue.length) {
+          return;
+        }
+        if (this.config.resetOnRelease && connection.reset) {
+          connection.reset((err) => {
+            if (err) {
+              connection._pool = null;
+              spliceConnection(this._allConnections, connection);
+              connection.destroy();
+              if (this._connectionQueue.length) {
+                cb = this._connectionQueue.shift();
+                process2.nextTick(this.getConnection.bind(this, cb));
+              }
+              return;
+            }
+            this._handleSuccessfulRelease(connection);
+          });
+        } else {
+          this._handleSuccessfulRelease(connection);
+        }
+      }
+      _handleSuccessfulRelease(connection) {
+        let cb;
+        if (this._connectionQueue.length) {
           cb = this._connectionQueue.shift();
-          process2.nextTick(cb.bind(null, null, connection));
+          process2.nextTick(() => {
+            connection._released = false;
+            cb(null, connection);
+          });
         } else {
           this._freeConnections.push(connection);
           this.emit("release", connection);
         }
       }
+      [Symbol.dispose]() {
+        if (!this._closed) {
+          this.end();
+        }
+      }
       end(cb) {
         this._closed = true;
+        clearTimeout(this._removeIdleTimeoutConnectionsTimer);
         if (typeof cb !== "function") {
           cb = /* @__PURE__ */ __name(function(err) {
             if (err) {
@@ -18630,7 +18775,7 @@ var require_pool = __commonJS({
         }
       }
       query(sql, values, cb) {
-        const cmdQuery = Connection.createQuery(
+        const cmdQuery = BaseConnection.createQuery(
           sql,
           values,
           cb,
@@ -18649,12 +18794,28 @@ var require_pool = __commonJS({
             return;
           }
           try {
+            let queryError = null;
+            const origOnResult = cmdQuery.onResult;
+            if (origOnResult) {
+              cmdQuery.onResult = function(err2, rows, fields) {
+                queryError = err2 || null;
+                origOnResult(err2, rows, fields);
+              };
+            } else {
+              cmdQuery.once("error", (err2) => {
+                queryError = err2;
+              });
+            }
             conn.query(cmdQuery).once("end", () => {
-              conn.release();
+              if (isReadOnlyError(queryError)) {
+                conn.destroy();
+              } else {
+                conn.release();
+              }
             });
           } catch (e2) {
             conn.release();
-            return cb(e2);
+            throw e2;
           }
         });
         return cmdQuery;
@@ -18669,7 +18830,12 @@ var require_pool = __commonJS({
             return cb(err);
           }
           try {
-            conn.execute(sql, values, cb).once("end", () => {
+            conn.execute(sql, values, (err2, rows, fields) => {
+              if (isReadOnlyError(err2)) {
+                conn.destroy();
+              }
+              cb(err2, rows, fields);
+            }).once("end", () => {
               conn.release();
             });
           } catch (e2) {
@@ -18689,8 +18855,12 @@ var require_pool = __commonJS({
         }
         this._removeIdleTimeoutConnectionsTimer = setTimeout(() => {
           try {
-            while (this._freeConnections.length > this.config.maxIdle && Date.now() - this._freeConnections.get(0).lastActiveTime > this.config.idleTimeout) {
-              this._freeConnections.get(0).destroy();
+            while (this._freeConnections.length > this.config.maxIdle || this._freeConnections.length > 0 && Date.now() - this._freeConnections.get(0).lastActiveTime > this.config.idleTimeout) {
+              if (this.config.connectionConfig.gracefulEnd) {
+                this._freeConnections.get(0).end();
+              } else {
+                this._freeConnections.get(0).destroy();
+              }
             }
           } finally {
             this._removeIdleTimeoutConnections();
@@ -18698,7 +18868,7 @@ var require_pool = __commonJS({
         }, 1e3);
       }
       format(sql, values) {
-        return mysql.format(
+        return SqlString.format(
           sql,
           values,
           this.config.connectionConfig.stringifyObjects,
@@ -18706,28 +18876,160 @@ var require_pool = __commonJS({
         );
       }
       escape(value) {
-        return mysql.escape(
+        return SqlString.escape(
           value,
           this.config.connectionConfig.stringifyObjects,
           this.config.connectionConfig.timezone
         );
       }
       escapeId(value) {
-        return mysql.escapeId(value, false);
+        return SqlString.escapeId(value, false);
       }
     };
-    __name(_Pool, "Pool");
-    var Pool2 = _Pool;
-    module2.exports = Pool2;
+    module2.exports = BasePool;
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/pool_config.js
+// node_modules/mysql2/lib/promise/pool.js
+var require_pool2 = __commonJS({
+  "node_modules/mysql2/lib/promise/pool.js"(exports2, module2) {
+    "use strict";
+    var EventEmitter = require("events").EventEmitter;
+    var {
+      captureStackHolder,
+      applyCapturedStack
+    } = require_capture_local_err();
+    var makeDoneCb = require_make_done_cb();
+    var PromisePoolConnection = require_pool_connection();
+    var inheritEvents = require_inherit_events();
+    var BasePool = require_pool();
+    var PromisePool = class _PromisePool extends EventEmitter {
+      static {
+        __name(this, "PromisePool");
+      }
+      constructor(pool2, thePromise) {
+        super();
+        this.pool = pool2;
+        this.Promise = thePromise || Promise;
+        inheritEvents(pool2, this, ["acquire", "connection", "enqueue", "release"]);
+      }
+      getConnection() {
+        const corePool = this.pool;
+        return new this.Promise((resolve, reject) => {
+          corePool.getConnection((err, coreConnection) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(new PromisePoolConnection(coreConnection, this.Promise));
+            }
+          });
+        });
+      }
+      releaseConnection(connection) {
+        if (connection instanceof PromisePoolConnection) connection.release();
+      }
+      query(sql, args) {
+        const corePool = this.pool;
+        const stackHolder = captureStackHolder(_PromisePool.prototype.query);
+        if (typeof args === "function") {
+          throw new Error(
+            "Callback function is not available with promise clients."
+          );
+        }
+        return new this.Promise((resolve, reject) => {
+          const done = makeDoneCb(resolve, reject, stackHolder);
+          if (args !== void 0) {
+            corePool.query(sql, args, done);
+          } else {
+            corePool.query(sql, done);
+          }
+        });
+      }
+      execute(sql, args) {
+        const corePool = this.pool;
+        const stackHolder = captureStackHolder(_PromisePool.prototype.execute);
+        if (typeof args === "function") {
+          throw new Error(
+            "Callback function is not available with promise clients."
+          );
+        }
+        return new this.Promise((resolve, reject) => {
+          const done = makeDoneCb(resolve, reject, stackHolder);
+          if (args) {
+            corePool.execute(sql, args, done);
+          } else {
+            corePool.execute(sql, done);
+          }
+        });
+      }
+      end() {
+        const corePool = this.pool;
+        const stackHolder = captureStackHolder(_PromisePool.prototype.end);
+        return new this.Promise((resolve, reject) => {
+          corePool.end((err) => {
+            if (err) {
+              applyCapturedStack(err, stackHolder);
+              reject(err);
+            } else {
+              resolve();
+            }
+          });
+        });
+      }
+      async [Symbol.asyncDispose]() {
+        if (!this.pool._closed) {
+          await this.end();
+        }
+      }
+    };
+    (function(functionsToWrap) {
+      for (let i2 = 0; functionsToWrap && i2 < functionsToWrap.length; i2++) {
+        const func = functionsToWrap[i2];
+        if (typeof BasePool.prototype[func] === "function" && PromisePool.prototype[func] === void 0) {
+          PromisePool.prototype[func] = (/* @__PURE__ */ __name(function factory(funcName) {
+            return function() {
+              return BasePool.prototype[funcName].apply(this.pool, arguments);
+            };
+          }, "factory"))(func);
+        }
+      }
+    })([
+      // synchronous functions
+      "escape",
+      "escapeId",
+      "format"
+    ]);
+    module2.exports = PromisePool;
+  }
+});
+
+// node_modules/mysql2/lib/pool.js
+var require_pool3 = __commonJS({
+  "node_modules/mysql2/lib/pool.js"(exports2, module2) {
+    "use strict";
+    var BasePool = require_pool();
+    var Pool = class extends BasePool {
+      static {
+        __name(this, "Pool");
+      }
+      promise(promiseImpl) {
+        const PromisePool = require_pool2();
+        return new PromisePool(this, promiseImpl);
+      }
+    };
+    module2.exports = Pool;
+  }
+});
+
+// node_modules/mysql2/lib/pool_config.js
 var require_pool_config = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/pool_config.js"(exports2, module2) {
+  "node_modules/mysql2/lib/pool_config.js"(exports2, module2) {
     "use strict";
     var ConnectionConfig = require_connection_config();
-    var _PoolConfig = class _PoolConfig {
+    var PoolConfig = class {
+      static {
+        __name(this, "PoolConfig");
+      }
       constructor(options) {
         if (typeof options === "string") {
           options = ConnectionConfig.parseUrl(options);
@@ -18738,22 +19040,21 @@ var require_pool_config = __commonJS({
         this.maxIdle = isNaN(options.maxIdle) ? this.connectionLimit : Number(options.maxIdle);
         this.idleTimeout = isNaN(options.idleTimeout) ? 6e4 : Number(options.idleTimeout);
         this.queueLimit = isNaN(options.queueLimit) ? 0 : Number(options.queueLimit);
+        this.resetOnRelease = options.resetOnRelease === void 0 ? false : Boolean(options.resetOnRelease);
       }
     };
-    __name(_PoolConfig, "PoolConfig");
-    var PoolConfig = _PoolConfig;
     module2.exports = PoolConfig;
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/pool_cluster.js
+// node_modules/mysql2/lib/pool_cluster.js
 var require_pool_cluster = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/pool_cluster.js"(exports2, module2) {
+  "node_modules/mysql2/lib/pool_cluster.js"(exports2, module2) {
     "use strict";
     var process2 = require("process");
-    var Pool2 = require_pool();
+    var Pool = require_pool3();
     var PoolConfig = require_pool_config();
-    var Connection = require_connection();
+    var Connection = require_connection3();
     var EventEmitter = require("events").EventEmitter;
     var makeSelector = {
       RR() {
@@ -18767,7 +19068,27 @@ var require_pool_cluster = __commonJS({
         return (clusterIds) => clusterIds[0];
       }
     };
-    var _PoolNamespace = class _PoolNamespace {
+    var getMonotonicMilliseconds = /* @__PURE__ */ __name(function() {
+      let ms;
+      if (typeof process2.hrtime === "function") {
+        ms = process2.hrtime();
+        ms = ms[0] * 1e3 + ms[1] * 1e-6;
+      } else {
+        ms = process2.uptime() * 1e3;
+      }
+      return Math.floor(ms);
+    }, "getMonotonicMilliseconds");
+    var patternRegExp = /* @__PURE__ */ __name(function(pattern) {
+      if (pattern instanceof RegExp) {
+        return pattern;
+      }
+      const source2 = pattern.replace(/([.+?^=!:${}()|[\]/\\])/g, "\\$1").replace(/\*/g, ".*");
+      return new RegExp(`^${source2}$`);
+    }, "patternRegExp");
+    var PoolNamespace = class {
+      static {
+        __name(this, "PoolNamespace");
+      }
       constructor(cluster, pattern, selector) {
         this._cluster = cluster;
         this._pattern = pattern;
@@ -18776,14 +19097,21 @@ var require_pool_cluster = __commonJS({
       getConnection(cb) {
         const clusterNode = this._getClusterNode();
         if (clusterNode === null) {
-          return cb(new Error("Pool does Not exists."));
+          let err = new Error("Pool does Not exist.");
+          err.code = "POOL_NOEXIST";
+          if (this._cluster._findNodeIds(this._pattern, true).length !== 0) {
+            err = new Error("Pool does Not have online node.");
+            err.code = "POOL_NONEONLINE";
+          }
+          return cb(err);
         }
         return this._cluster._getConnection(clusterNode, (err, connection) => {
           if (err) {
+            if (this._cluster._canRetry && this._cluster._findNodeIds(this._pattern).length !== 0) {
+              this._cluster.emit("warn", err);
+              return this.getConnection(cb);
+            }
             return cb(err);
-          }
-          if (connection === "retry") {
-            return this.getConnection(cb);
           }
           return cb(null, connection);
         });
@@ -18819,9 +19147,9 @@ var require_pool_cluster = __commonJS({
       }
       /**
        * pool cluster execute
-       * @param {*} sql 
-       * @param {*} values 
-       * @param {*} cb 
+       * @param {*} sql
+       * @param {*} values
+       * @param {*} cb
        */
       execute(sql, values, cb) {
         if (typeof values === "function") {
@@ -18851,14 +19179,16 @@ var require_pool_cluster = __commonJS({
         return this._cluster._getNode(nodeId);
       }
     };
-    __name(_PoolNamespace, "PoolNamespace");
-    var PoolNamespace = _PoolNamespace;
-    var _PoolCluster = class _PoolCluster extends EventEmitter {
+    var PoolCluster = class extends EventEmitter {
+      static {
+        __name(this, "PoolCluster");
+      }
       constructor(config) {
         super();
         config = config || {};
         this._canRetry = typeof config.canRetry === "undefined" ? true : config.canRetry;
         this._removeNodeErrorCount = config.removeNodeErrorCount || 5;
+        this._restoreNodeTimeout = config.restoreNodeTimeout || 0;
         this._defaultSelector = config.defaultSelector || "RR";
         this._closed = false;
         this._lastId = 0;
@@ -18889,10 +19219,20 @@ var require_pool_cluster = __commonJS({
           this._nodes[id] = {
             id,
             errorCount: 0,
-            pool: new Pool2({ config: new PoolConfig(config) })
+            pool: new Pool({ config: new PoolConfig(config) }),
+            _offlineUntil: 0
           };
           this._serviceableNodeIds.push(id);
           this._clearFindCaches();
+        }
+      }
+      remove(pattern) {
+        const foundNodeIds = this._findNodeIds(pattern, true);
+        for (let i2 = 0; i2 < foundNodeIds.length; i2++) {
+          const node = this._getNode(foundNodeIds[i2]);
+          if (node) {
+            this._removeNode(node);
+          }
         }
       }
       getConnection(pattern, selector, cb) {
@@ -18908,6 +19248,11 @@ var require_pool_cluster = __commonJS({
           namespace = this.of(pattern, selector);
         }
         namespace.getConnection(cb);
+      }
+      [Symbol.dispose]() {
+        if (!this._closed) {
+          this.end();
+        }
       }
       end(callback) {
         const cb = callback !== void 0 ? callback : (err) => {
@@ -18936,53 +19281,64 @@ var require_pool_cluster = __commonJS({
           process2.nextTick(onEnd);
         }
       }
-      _findNodeIds(pattern) {
-        if (typeof this._findCaches[pattern] !== "undefined") {
-          return this._findCaches[pattern];
-        }
-        let foundNodeIds;
-        if (pattern === "*") {
-          foundNodeIds = this._serviceableNodeIds;
-        } else if (this._serviceableNodeIds.indexOf(pattern) !== -1) {
-          foundNodeIds = [pattern];
-        } else {
-          const keyword = pattern.substring(pattern.length - 1, 0);
+      _findNodeIds(pattern, includeOffline) {
+        let currentTime = 0;
+        let foundNodeIds = this._findCaches[pattern];
+        if (foundNodeIds === void 0) {
+          const expression = patternRegExp(pattern);
           foundNodeIds = this._serviceableNodeIds.filter(
-            (id) => id.startsWith(keyword)
+            (id) => id.match(expression)
           );
         }
         this._findCaches[pattern] = foundNodeIds;
-        return foundNodeIds;
+        if (includeOffline) {
+          return foundNodeIds;
+        }
+        return foundNodeIds.filter((nodeId) => {
+          const node = this._getNode(nodeId);
+          if (!node._offlineUntil) {
+            return true;
+          }
+          if (!currentTime) {
+            currentTime = getMonotonicMilliseconds();
+          }
+          return node._offlineUntil <= currentTime;
+        });
       }
       _getNode(id) {
         return this._nodes[id] || null;
       }
       _increaseErrorCount(node) {
-        if (++node.errorCount >= this._removeNodeErrorCount) {
-          const index = this._serviceableNodeIds.indexOf(node.id);
-          if (index !== -1) {
-            this._serviceableNodeIds.splice(index, 1);
-            delete this._nodes[node.id];
-            this._clearFindCaches();
-            node.pool.end();
-            this.emit("remove", node.id);
-          }
+        const errorCount = ++node.errorCount;
+        if (this._removeNodeErrorCount > errorCount) {
+          return;
         }
+        if (this._restoreNodeTimeout > 0) {
+          node._offlineUntil = getMonotonicMilliseconds() + this._restoreNodeTimeout;
+          this.emit("offline", node.id);
+          return;
+        }
+        this._removeNode(node);
+        this.emit("remove", node.id);
       }
       _decreaseErrorCount(node) {
-        if (node.errorCount > 0) {
-          --node.errorCount;
+        let errorCount = node.errorCount;
+        if (errorCount > this._removeNodeErrorCount) {
+          errorCount = this._removeNodeErrorCount;
+        }
+        if (errorCount < 1) {
+          errorCount = 1;
+        }
+        node.errorCount = errorCount - 1;
+        if (node._offlineUntil) {
+          node._offlineUntil = 0;
+          this.emit("online", node.id);
         }
       }
       _getConnection(node, cb) {
         node.pool.getConnection((err, connection) => {
           if (err) {
             this._increaseErrorCount(node);
-            if (this._canRetry) {
-              this.emit("warn", err);
-              console.warn(`[Error] PoolCluster : ${err}`);
-              return cb(null, "retry");
-            }
             return cb(err);
           }
           this._decreaseErrorCount(node);
@@ -18990,375 +19346,150 @@ var require_pool_cluster = __commonJS({
           return cb(null, connection);
         });
       }
+      _removeNode(node) {
+        const index = this._serviceableNodeIds.indexOf(node.id);
+        if (index !== -1) {
+          this._serviceableNodeIds.splice(index, 1);
+          delete this._nodes[node.id];
+          this._clearFindCaches();
+          node.pool.end();
+        }
+      }
       _clearFindCaches() {
         this._findCaches = {};
       }
     };
-    __name(_PoolCluster, "PoolCluster");
-    var PoolCluster = _PoolCluster;
     module2.exports = PoolCluster;
   }
 });
 
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/server.js
-var require_server = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/server.js"(exports2, module2) {
+// node_modules/mysql2/lib/create_connection.js
+var require_create_connection = __commonJS({
+  "node_modules/mysql2/lib/create_connection.js"(exports2, module2) {
     "use strict";
-    var net = require("net");
-    var EventEmitter = require("events").EventEmitter;
-    var Connection = require_connection();
+    var Connection = require_connection3();
     var ConnectionConfig = require_connection_config();
-    var _Server = class _Server extends EventEmitter {
-      constructor() {
-        super();
-        this.connections = [];
-        this._server = net.createServer(this._handleConnection.bind(this));
-      }
-      _handleConnection(socket) {
-        const connectionConfig = new ConnectionConfig({
-          stream: socket,
-          isServer: true
-        });
-        const connection = new Connection({ config: connectionConfig });
-        this.emit("connection", connection);
-      }
-      listen(port) {
-        this._port = port;
-        this._server.listen.apply(this._server, arguments);
-        return this;
-      }
-      close(cb) {
-        this._server.close(cb);
-      }
-    };
-    __name(_Server, "Server");
-    var Server = _Server;
-    module2.exports = Server;
-  }
-});
-
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/auth_plugins/index.js
-var require_auth_plugins = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/lib/auth_plugins/index.js"(exports2, module2) {
-    "use strict";
-    module2.exports = {
-      caching_sha2_password: require_caching_sha2_password(),
-      mysql_clear_password: require_mysql_clear_password(),
-      mysql_native_password: require_mysql_native_password(),
-      sha256_password: require_sha256_password()
-    };
-  }
-});
-
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/index.js
-var require_mysql2 = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/index.js"(exports2) {
-    "use strict";
-    var SqlString = require_sqlstring();
-    var Connection = require_connection();
-    var ConnectionConfig = require_connection_config();
-    var parserCache = require_parser_cache();
-    exports2.createConnection = function(opts) {
-      return new Connection({ config: new ConnectionConfig(opts) });
-    };
-    exports2.connect = exports2.createConnection;
-    exports2.Connection = Connection;
-    exports2.ConnectionConfig = ConnectionConfig;
-    var Pool2 = require_pool();
-    var PoolCluster = require_pool_cluster();
-    exports2.createPool = function(config) {
-      const PoolConfig = require_pool_config();
-      return new Pool2({ config: new PoolConfig(config) });
-    };
-    exports2.createPoolCluster = function(config) {
-      const PoolCluster2 = require_pool_cluster();
-      return new PoolCluster2(config);
-    };
-    exports2.createQuery = Connection.createQuery;
-    exports2.Pool = Pool2;
-    exports2.PoolCluster = PoolCluster;
-    exports2.createServer = function(handler) {
-      const Server = require_server();
-      const s2 = new Server();
-      if (handler) {
-        s2.on("connection", handler);
-      }
-      return s2;
-    };
-    exports2.PoolConnection = require_pool_connection();
-    exports2.authPlugins = require_auth_plugins();
-    exports2.escape = SqlString.escape;
-    exports2.escapeId = SqlString.escapeId;
-    exports2.format = SqlString.format;
-    exports2.raw = SqlString.raw;
-    exports2.__defineGetter__(
-      "createConnectionPromise",
-      () => require_promise().createConnection
-    );
-    exports2.__defineGetter__(
-      "createPoolPromise",
-      () => require_promise().createPool
-    );
-    exports2.__defineGetter__(
-      "createPoolClusterPromise",
-      () => require_promise().createPoolCluster
-    );
-    exports2.__defineGetter__("Types", () => require_types());
-    exports2.__defineGetter__(
-      "Charsets",
-      () => require_charsets()
-    );
-    exports2.__defineGetter__(
-      "CharsetToEncoding",
-      () => require_charset_encodings()
-    );
-    exports2.setMaxParserCache = function(max) {
-      parserCache.setMaxCache(max);
-    };
-    exports2.clearParserCache = function() {
-      parserCache.clearCache();
-    };
-  }
-});
-
-// node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/promise.js
-var require_promise = __commonJS({
-  "node_modules/.pnpm/mysql2@3.5.1/node_modules/mysql2/promise.js"(exports2) {
-    "use strict";
-    var core = require_mysql2();
-    var EventEmitter = require("events").EventEmitter;
-    var parserCache = require_parser_cache();
-    function makeDoneCb(resolve, reject, localErr) {
-      return function(err, rows, fields) {
-        if (err) {
-          localErr.message = err.message;
-          localErr.code = err.code;
-          localErr.errno = err.errno;
-          localErr.sql = err.sql;
-          localErr.sqlState = err.sqlState;
-          localErr.sqlMessage = err.sqlMessage;
-          reject(localErr);
-        } else {
-          resolve([rows, fields]);
-        }
-      };
-    }
-    __name(makeDoneCb, "makeDoneCb");
-    function inheritEvents(source2, target, events) {
-      const listeners = {};
-      target.on("newListener", (eventName) => {
-        if (events.indexOf(eventName) >= 0 && !target.listenerCount(eventName)) {
-          source2.on(
-            eventName,
-            listeners[eventName] = function() {
-              const args = [].slice.call(arguments);
-              args.unshift(eventName);
-              target.emit.apply(target, args);
-            }
-          );
-        }
-      }).on("removeListener", (eventName) => {
-        if (events.indexOf(eventName) >= 0 && !target.listenerCount(eventName)) {
-          source2.removeListener(eventName, listeners[eventName]);
-          delete listeners[eventName];
-        }
-      });
-    }
-    __name(inheritEvents, "inheritEvents");
-    var _PromisePreparedStatementInfo = class _PromisePreparedStatementInfo {
-      constructor(statement, promiseImpl) {
-        this.statement = statement;
-        this.Promise = promiseImpl;
-      }
-      execute(parameters) {
-        const s2 = this.statement;
-        const localErr = new Error();
-        return new this.Promise((resolve, reject) => {
-          const done = makeDoneCb(resolve, reject, localErr);
-          if (parameters) {
-            s2.execute(parameters, done);
-          } else {
-            s2.execute(done);
-          }
-        });
-      }
-      close() {
-        return new this.Promise((resolve) => {
-          this.statement.close();
-          resolve();
-        });
-      }
-    };
-    __name(_PromisePreparedStatementInfo, "PromisePreparedStatementInfo");
-    var PromisePreparedStatementInfo = _PromisePreparedStatementInfo;
-    var _PromiseConnection = class _PromiseConnection extends EventEmitter {
-      constructor(connection, promiseImpl) {
-        super();
-        this.connection = connection;
-        this.Promise = promiseImpl || Promise;
-        inheritEvents(connection, this, [
-          "error",
-          "drain",
-          "connect",
-          "end",
-          "enqueue"
-        ]);
-      }
-      release() {
-        this.connection.release();
-      }
-      query(query, params) {
-        const c = this.connection;
-        const localErr = new Error();
-        if (typeof params === "function") {
-          throw new Error(
-            "Callback function is not available with promise clients."
-          );
-        }
-        return new this.Promise((resolve, reject) => {
-          const done = makeDoneCb(resolve, reject, localErr);
-          if (params !== void 0) {
-            c.query(query, params, done);
-          } else {
-            c.query(query, done);
-          }
-        });
-      }
-      execute(query, params) {
-        const c = this.connection;
-        const localErr = new Error();
-        if (typeof params === "function") {
-          throw new Error(
-            "Callback function is not available with promise clients."
-          );
-        }
-        return new this.Promise((resolve, reject) => {
-          const done = makeDoneCb(resolve, reject, localErr);
-          if (params !== void 0) {
-            c.execute(query, params, done);
-          } else {
-            c.execute(query, done);
-          }
-        });
-      }
-      end() {
-        return new this.Promise((resolve) => {
-          this.connection.end(resolve);
-        });
-      }
-      beginTransaction() {
-        const c = this.connection;
-        const localErr = new Error();
-        return new this.Promise((resolve, reject) => {
-          const done = makeDoneCb(resolve, reject, localErr);
-          c.beginTransaction(done);
-        });
-      }
-      commit() {
-        const c = this.connection;
-        const localErr = new Error();
-        return new this.Promise((resolve, reject) => {
-          const done = makeDoneCb(resolve, reject, localErr);
-          c.commit(done);
-        });
-      }
-      rollback() {
-        const c = this.connection;
-        const localErr = new Error();
-        return new this.Promise((resolve, reject) => {
-          const done = makeDoneCb(resolve, reject, localErr);
-          c.rollback(done);
-        });
-      }
-      ping() {
-        const c = this.connection;
-        const localErr = new Error();
-        return new this.Promise((resolve, reject) => {
-          c.ping((err) => {
-            if (err) {
-              localErr.message = err.message;
-              localErr.code = err.code;
-              localErr.errno = err.errno;
-              localErr.sqlState = err.sqlState;
-              localErr.sqlMessage = err.sqlMessage;
-              reject(localErr);
-            } else {
-              resolve(true);
-            }
-          });
-        });
-      }
-      connect() {
-        const c = this.connection;
-        const localErr = new Error();
-        return new this.Promise((resolve, reject) => {
-          c.connect((err, param) => {
-            if (err) {
-              localErr.message = err.message;
-              localErr.code = err.code;
-              localErr.errno = err.errno;
-              localErr.sqlState = err.sqlState;
-              localErr.sqlMessage = err.sqlMessage;
-              reject(localErr);
-            } else {
-              resolve(param);
-            }
-          });
-        });
-      }
-      prepare(options) {
-        const c = this.connection;
-        const promiseImpl = this.Promise;
-        const localErr = new Error();
-        return new this.Promise((resolve, reject) => {
-          c.prepare(options, (err, statement) => {
-            if (err) {
-              localErr.message = err.message;
-              localErr.code = err.code;
-              localErr.errno = err.errno;
-              localErr.sqlState = err.sqlState;
-              localErr.sqlMessage = err.sqlMessage;
-              reject(localErr);
-            } else {
-              const wrappedStatement = new PromisePreparedStatementInfo(
-                statement,
-                promiseImpl
-              );
-              resolve(wrappedStatement);
-            }
-          });
-        });
-      }
-      changeUser(options) {
-        const c = this.connection;
-        const localErr = new Error();
-        return new this.Promise((resolve, reject) => {
-          c.changeUser(options, (err) => {
-            if (err) {
-              localErr.message = err.message;
-              localErr.code = err.code;
-              localErr.errno = err.errno;
-              localErr.sqlState = err.sqlState;
-              localErr.sqlMessage = err.sqlMessage;
-              reject(localErr);
-            } else {
-              resolve();
-            }
-          });
-        });
-      }
-      get config() {
-        return this.connection.config;
-      }
-      get threadId() {
-        return this.connection.threadId;
-      }
-    };
-    __name(_PromiseConnection, "PromiseConnection");
-    var PromiseConnection = _PromiseConnection;
     function createConnection(opts) {
-      const coreConnection = core.createConnection(opts);
-      const createConnectionErr = new Error();
+      return new Connection({ config: new ConnectionConfig(opts) });
+    }
+    __name(createConnection, "createConnection");
+    module2.exports = createConnection;
+  }
+});
+
+// node_modules/mysql2/lib/create_pool.js
+var require_create_pool = __commonJS({
+  "node_modules/mysql2/lib/create_pool.js"(exports2, module2) {
+    "use strict";
+    var Pool = require_pool3();
+    var PoolConfig = require_pool_config();
+    function createPool2(config) {
+      return new Pool({ config: new PoolConfig(config) });
+    }
+    __name(createPool2, "createPool");
+    module2.exports = createPool2;
+  }
+});
+
+// node_modules/mysql2/lib/create_pool_cluster.js
+var require_create_pool_cluster = __commonJS({
+  "node_modules/mysql2/lib/create_pool_cluster.js"(exports2, module2) {
+    "use strict";
+    var PoolCluster = require_pool_cluster();
+    function createPoolCluster(config) {
+      return new PoolCluster(config);
+    }
+    __name(createPoolCluster, "createPoolCluster");
+    module2.exports = createPoolCluster;
+  }
+});
+
+// node_modules/mysql2/lib/promise/pool_cluster.js
+var require_pool_cluster2 = __commonJS({
+  "node_modules/mysql2/lib/promise/pool_cluster.js"(exports2, module2) {
+    "use strict";
+    var { captureStackHolder } = require_capture_local_err();
+    var PromisePoolConnection = require_pool_connection();
+    var makeDoneCb = require_make_done_cb();
+    var PromisePoolNamespace = class _PromisePoolNamespace {
+      static {
+        __name(this, "PromisePoolNamespace");
+      }
+      constructor(poolNamespace, thePromise) {
+        this.poolNamespace = poolNamespace;
+        this.Promise = thePromise || Promise;
+      }
+      getConnection() {
+        const corePoolNamespace = this.poolNamespace;
+        return new this.Promise((resolve, reject) => {
+          corePoolNamespace.getConnection((err, coreConnection) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(new PromisePoolConnection(coreConnection, this.Promise));
+            }
+          });
+        });
+      }
+      query(sql, values) {
+        const corePoolNamespace = this.poolNamespace;
+        const stackHolder = captureStackHolder(
+          _PromisePoolNamespace.prototype.query
+        );
+        if (typeof values === "function") {
+          throw new Error(
+            "Callback function is not available with promise clients."
+          );
+        }
+        return new this.Promise((resolve, reject) => {
+          const done = makeDoneCb(resolve, reject, stackHolder);
+          corePoolNamespace.query(sql, values, done);
+        });
+      }
+      execute(sql, values) {
+        const corePoolNamespace = this.poolNamespace;
+        const stackHolder = captureStackHolder(
+          _PromisePoolNamespace.prototype.execute
+        );
+        if (typeof values === "function") {
+          throw new Error(
+            "Callback function is not available with promise clients."
+          );
+        }
+        return new this.Promise((resolve, reject) => {
+          const done = makeDoneCb(resolve, reject, stackHolder);
+          corePoolNamespace.execute(sql, values, done);
+        });
+      }
+    };
+    module2.exports = PromisePoolNamespace;
+  }
+});
+
+// node_modules/mysql2/promise.js
+var require_promise = __commonJS({
+  "node_modules/mysql2/promise.js"(exports2) {
+    "use strict";
+    var SqlString = require_lib2();
+    var EventEmitter = require("events").EventEmitter;
+    var parserCache = require_parser_cache();
+    var PoolCluster = require_pool_cluster();
+    var createConnection = require_create_connection();
+    var createPool2 = require_create_pool();
+    var createPoolCluster = require_create_pool_cluster();
+    var PromiseConnection = require_connection2();
+    var PromisePool = require_pool2();
+    var {
+      captureStackHolder,
+      applyCapturedStack
+    } = require_capture_local_err();
+    var makeDoneCb = require_make_done_cb();
+    var PromisePoolConnection = require_pool_connection();
+    var inheritEvents = require_inherit_events();
+    var PromisePoolNamespace = require_pool_cluster2();
+    function createConnectionPromise(opts) {
+      const coreConnection = createConnection(opts);
+      const stackHolder = captureStackHolder(createConnectionPromise);
       const thePromise = opts.Promise || Promise;
       if (!thePromise) {
         throw new Error(
@@ -19370,135 +19501,14 @@ var require_promise = __commonJS({
           resolve(new PromiseConnection(coreConnection, thePromise));
         });
         coreConnection.once("error", (err) => {
-          createConnectionErr.message = err.message;
-          createConnectionErr.code = err.code;
-          createConnectionErr.errno = err.errno;
-          createConnectionErr.sqlState = err.sqlState;
-          reject(createConnectionErr);
+          applyCapturedStack(err, stackHolder);
+          reject(err);
         });
       });
     }
-    __name(createConnection, "createConnection");
-    (function(functionsToWrap) {
-      for (let i2 = 0; functionsToWrap && i2 < functionsToWrap.length; i2++) {
-        const func = functionsToWrap[i2];
-        if (typeof core.Connection.prototype[func] === "function" && PromiseConnection.prototype[func] === void 0) {
-          PromiseConnection.prototype[func] = (/* @__PURE__ */ __name(function factory(funcName) {
-            return function() {
-              return core.Connection.prototype[funcName].apply(
-                this.connection,
-                arguments
-              );
-            };
-          }, "factory"))(func);
-        }
-      }
-    })([
-      // synchronous functions
-      "close",
-      "createBinlogStream",
-      "destroy",
-      "escape",
-      "escapeId",
-      "format",
-      "pause",
-      "pipe",
-      "resume",
-      "unprepare"
-    ]);
-    var _PromisePoolConnection = class _PromisePoolConnection extends PromiseConnection {
-      constructor(connection, promiseImpl) {
-        super(connection, promiseImpl);
-      }
-      destroy() {
-        return core.PoolConnection.prototype.destroy.apply(
-          this.connection,
-          arguments
-        );
-      }
-    };
-    __name(_PromisePoolConnection, "PromisePoolConnection");
-    var PromisePoolConnection = _PromisePoolConnection;
-    var _PromisePool = class _PromisePool extends EventEmitter {
-      constructor(pool2, thePromise) {
-        super();
-        this.pool = pool2;
-        this.Promise = thePromise || Promise;
-        inheritEvents(pool2, this, ["acquire", "connection", "enqueue", "release"]);
-      }
-      getConnection() {
-        const corePool = this.pool;
-        return new this.Promise((resolve, reject) => {
-          corePool.getConnection((err, coreConnection) => {
-            if (err) {
-              reject(err);
-            } else {
-              resolve(new PromisePoolConnection(coreConnection, this.Promise));
-            }
-          });
-        });
-      }
-      releaseConnection(connection) {
-        if (connection instanceof PromisePoolConnection)
-          connection.release();
-      }
-      query(sql, args) {
-        const corePool = this.pool;
-        const localErr = new Error();
-        if (typeof args === "function") {
-          throw new Error(
-            "Callback function is not available with promise clients."
-          );
-        }
-        return new this.Promise((resolve, reject) => {
-          const done = makeDoneCb(resolve, reject, localErr);
-          if (args !== void 0) {
-            corePool.query(sql, args, done);
-          } else {
-            corePool.query(sql, done);
-          }
-        });
-      }
-      execute(sql, args) {
-        const corePool = this.pool;
-        const localErr = new Error();
-        if (typeof args === "function") {
-          throw new Error(
-            "Callback function is not available with promise clients."
-          );
-        }
-        return new this.Promise((resolve, reject) => {
-          const done = makeDoneCb(resolve, reject, localErr);
-          if (args) {
-            corePool.execute(sql, args, done);
-          } else {
-            corePool.execute(sql, done);
-          }
-        });
-      }
-      end() {
-        const corePool = this.pool;
-        const localErr = new Error();
-        return new this.Promise((resolve, reject) => {
-          corePool.end((err) => {
-            if (err) {
-              localErr.message = err.message;
-              localErr.code = err.code;
-              localErr.errno = err.errno;
-              localErr.sqlState = err.sqlState;
-              localErr.sqlMessage = err.sqlMessage;
-              reject(localErr);
-            } else {
-              resolve();
-            }
-          });
-        });
-      }
-    };
-    __name(_PromisePool, "PromisePool");
-    var PromisePool = _PromisePool;
-    function createPool2(opts) {
-      const corePool = core.createPool(opts);
+    __name(createConnectionPromise, "createConnectionPromise");
+    function createPromisePool(opts) {
+      const corePool = createPool2(opts);
       const thePromise = opts.Promise || Promise;
       if (!thePromise) {
         throw new Error(
@@ -19507,112 +19517,104 @@ var require_promise = __commonJS({
       }
       return new PromisePool(corePool, thePromise);
     }
-    __name(createPool2, "createPool");
-    (function(functionsToWrap) {
-      for (let i2 = 0; functionsToWrap && i2 < functionsToWrap.length; i2++) {
-        const func = functionsToWrap[i2];
-        if (typeof core.Pool.prototype[func] === "function" && PromisePool.prototype[func] === void 0) {
-          PromisePool.prototype[func] = (/* @__PURE__ */ __name(function factory(funcName) {
-            return function() {
-              return core.Pool.prototype[funcName].apply(this.pool, arguments);
-            };
-          }, "factory"))(func);
-        }
+    __name(createPromisePool, "createPromisePool");
+    var PromisePoolCluster = class _PromisePoolCluster extends EventEmitter {
+      static {
+        __name(this, "PromisePoolCluster");
       }
-    })([
-      // synchronous functions
-      "escape",
-      "escapeId",
-      "format"
-    ]);
-    var _PromisePoolCluster = class _PromisePoolCluster extends EventEmitter {
       constructor(poolCluster, thePromise) {
         super();
         this.poolCluster = poolCluster;
         this.Promise = thePromise || Promise;
-        inheritEvents(poolCluster, this, ["acquire", "connection", "enqueue", "release"]);
+        inheritEvents(poolCluster, this, ["warn", "remove", "online", "offline"]);
       }
-      getConnection() {
+      getConnection(pattern, selector) {
         const corePoolCluster = this.poolCluster;
         return new this.Promise((resolve, reject) => {
-          corePoolCluster.getConnection((err, coreConnection) => {
-            if (err) {
-              reject(err);
-            } else {
-              resolve(new PromisePoolConnection(coreConnection, this.Promise));
+          corePoolCluster.getConnection(
+            pattern,
+            selector,
+            (err, coreConnection) => {
+              if (err) {
+                reject(err);
+              } else {
+                resolve(new PromisePoolConnection(coreConnection, this.Promise));
+              }
             }
-          });
+          );
         });
       }
       query(sql, args) {
         const corePoolCluster = this.poolCluster;
-        const localErr = new Error();
+        const stackHolder = captureStackHolder(_PromisePoolCluster.prototype.query);
         if (typeof args === "function") {
           throw new Error(
             "Callback function is not available with promise clients."
           );
         }
         return new this.Promise((resolve, reject) => {
-          const done = makeDoneCb(resolve, reject, localErr);
+          const done = makeDoneCb(resolve, reject, stackHolder);
           corePoolCluster.query(sql, args, done);
         });
       }
       execute(sql, args) {
         const corePoolCluster = this.poolCluster;
-        const localErr = new Error();
+        const stackHolder = captureStackHolder(
+          _PromisePoolCluster.prototype.execute
+        );
         if (typeof args === "function") {
           throw new Error(
             "Callback function is not available with promise clients."
           );
         }
         return new this.Promise((resolve, reject) => {
-          const done = makeDoneCb(resolve, reject, localErr);
+          const done = makeDoneCb(resolve, reject, stackHolder);
           corePoolCluster.execute(sql, args, done);
         });
       }
       of(pattern, selector) {
-        return new _PromisePoolCluster(
+        return new PromisePoolNamespace(
           this.poolCluster.of(pattern, selector),
           this.Promise
         );
       }
       end() {
         const corePoolCluster = this.poolCluster;
-        const localErr = new Error();
+        const stackHolder = captureStackHolder(_PromisePoolCluster.prototype.end);
         return new this.Promise((resolve, reject) => {
           corePoolCluster.end((err) => {
             if (err) {
-              localErr.message = err.message;
-              localErr.code = err.code;
-              localErr.errno = err.errno;
-              localErr.sqlState = err.sqlState;
-              localErr.sqlMessage = err.sqlMessage;
-              reject(localErr);
+              applyCapturedStack(err, stackHolder);
+              reject(err);
             } else {
               resolve();
             }
           });
         });
       }
+      async [Symbol.asyncDispose]() {
+        if (!this.poolCluster._closed) {
+          await this.end();
+        }
+      }
     };
-    __name(_PromisePoolCluster, "PromisePoolCluster");
-    var PromisePoolCluster = _PromisePoolCluster;
     (function(functionsToWrap) {
       for (let i2 = 0; functionsToWrap && i2 < functionsToWrap.length; i2++) {
         const func = functionsToWrap[i2];
-        if (typeof core.PoolCluster.prototype[func] === "function" && PromisePoolCluster.prototype[func] === void 0) {
+        if (typeof PoolCluster.prototype[func] === "function" && PromisePoolCluster.prototype[func] === void 0) {
           PromisePoolCluster.prototype[func] = (/* @__PURE__ */ __name(function factory(funcName) {
             return function() {
-              return core.PoolCluster.prototype[funcName].apply(this.poolCluster, arguments);
+              return PoolCluster.prototype[funcName].apply(
+                this.poolCluster,
+                arguments
+              );
             };
           }, "factory"))(func);
         }
       }
-    })([
-      "add"
-    ]);
-    function createPoolCluster(opts) {
-      const corePoolCluster = core.createPoolCluster(opts);
+    })(["add", "remove"]);
+    function createPromisePoolCluster(opts) {
+      const corePoolCluster = createPoolCluster(opts);
       const thePromise = opts && opts.Promise || Promise;
       if (!thePromise) {
         throw new Error(
@@ -19621,14 +19623,16 @@ var require_promise = __commonJS({
       }
       return new PromisePoolCluster(corePoolCluster, thePromise);
     }
-    __name(createPoolCluster, "createPoolCluster");
-    exports2.createConnection = createConnection;
-    exports2.createPool = createPool2;
-    exports2.createPoolCluster = createPoolCluster;
-    exports2.escape = core.escape;
-    exports2.escapeId = core.escapeId;
-    exports2.format = core.format;
-    exports2.raw = core.raw;
+    __name(createPromisePoolCluster, "createPromisePoolCluster");
+    exports2.createConnection = createConnectionPromise;
+    exports2.createPool = createPromisePool;
+    exports2.createPoolCluster = createPromisePoolCluster;
+    exports2.escape = SqlString.escape;
+    exports2.escapeId = SqlString.escapeId;
+    exports2.format = SqlString.format;
+    exports2.raw = SqlString.raw;
+    exports2.Connection = PromiseConnection;
+    exports2.PoolConnection = PromisePoolConnection;
     exports2.PromisePool = PromisePool;
     exports2.PromiseConnection = PromiseConnection;
     exports2.PromisePoolConnection = PromisePoolConnection;
@@ -19650,7 +19654,7 @@ var require_promise = __commonJS({
   }
 });
 
-// node_modules/.pnpm/data-uri-to-buffer@4.0.1/node_modules/data-uri-to-buffer/dist/index.js
+// node_modules/data-uri-to-buffer/dist/index.js
 function dataUriToBuffer(uri) {
   if (!/^data:/i.test(uri)) {
     throw new TypeError('`uri` does not appear to be a Data URI (must begin with "data:")');
@@ -19689,51 +19693,54 @@ function dataUriToBuffer(uri) {
 }
 var dist_default;
 var init_dist = __esm({
-  "node_modules/.pnpm/data-uri-to-buffer@4.0.1/node_modules/data-uri-to-buffer/dist/index.js"() {
+  "node_modules/data-uri-to-buffer/dist/index.js"() {
     __name(dataUriToBuffer, "dataUriToBuffer");
     dist_default = dataUriToBuffer;
   }
 });
 
-// node_modules/.pnpm/web-streams-polyfill@3.2.1/node_modules/web-streams-polyfill/dist/ponyfill.es2018.js
+// node_modules/web-streams-polyfill/dist/ponyfill.es2018.js
 var require_ponyfill_es2018 = __commonJS({
-  "node_modules/.pnpm/web-streams-polyfill@3.2.1/node_modules/web-streams-polyfill/dist/ponyfill.es2018.js"(exports2, module2) {
+  "node_modules/web-streams-polyfill/dist/ponyfill.es2018.js"(exports2, module2) {
+    /**
+     * @license
+     * web-streams-polyfill v3.3.3
+     * Copyright 2024 Mattias Buelens, Diwank Singh Tomer and other contributors.
+     * This code is released under the MIT license.
+     * SPDX-License-Identifier: MIT
+     */
     (function(global2, factory) {
       typeof exports2 === "object" && typeof module2 !== "undefined" ? factory(exports2) : typeof define === "function" && define.amd ? define(["exports"], factory) : (global2 = typeof globalThis !== "undefined" ? globalThis : global2 || self, factory(global2.WebStreamsPolyfill = {}));
     })(exports2, function(exports3) {
       "use strict";
-      const SymbolPolyfill = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? Symbol : (description) => `Symbol(${description})`;
       function noop2() {
         return void 0;
       }
       __name(noop2, "noop");
-      function getGlobals() {
-        if (typeof self !== "undefined") {
-          return self;
-        } else if (typeof window !== "undefined") {
-          return window;
-        } else if (typeof global !== "undefined") {
-          return global;
-        }
-        return void 0;
-      }
-      __name(getGlobals, "getGlobals");
-      const globals = getGlobals();
       function typeIsObject(x2) {
         return typeof x2 === "object" && x2 !== null || typeof x2 === "function";
       }
       __name(typeIsObject, "typeIsObject");
       const rethrowAssertionErrorRejection = noop2;
+      function setFunctionName(fn, name) {
+        try {
+          Object.defineProperty(fn, "name", {
+            value: name,
+            configurable: true
+          });
+        } catch (_a2) {
+        }
+      }
+      __name(setFunctionName, "setFunctionName");
       const originalPromise = Promise;
       const originalPromiseThen = Promise.prototype.then;
-      const originalPromiseResolve = Promise.resolve.bind(originalPromise);
       const originalPromiseReject = Promise.reject.bind(originalPromise);
       function newPromise(executor) {
         return new originalPromise(executor);
       }
       __name(newPromise, "newPromise");
       function promiseResolvedWith(value) {
-        return originalPromiseResolve(value);
+        return newPromise((resolve) => resolve(value));
       }
       __name(promiseResolvedWith, "promiseResolvedWith");
       function promiseRejectedWith(reason) {
@@ -19764,14 +19771,15 @@ var require_ponyfill_es2018 = __commonJS({
         PerformPromiseThen(promise, void 0, rethrowAssertionErrorRejection);
       }
       __name(setPromiseIsHandledToTrue, "setPromiseIsHandledToTrue");
-      const queueMicrotask = (() => {
-        const globalQueueMicrotask = globals && globals.queueMicrotask;
-        if (typeof globalQueueMicrotask === "function") {
-          return globalQueueMicrotask;
+      let _queueMicrotask = /* @__PURE__ */ __name((callback) => {
+        if (typeof queueMicrotask === "function") {
+          _queueMicrotask = queueMicrotask;
+        } else {
+          const resolvedPromise = promiseResolvedWith(void 0);
+          _queueMicrotask = /* @__PURE__ */ __name((cb) => PerformPromiseThen(resolvedPromise, cb), "_queueMicrotask");
         }
-        const resolvedPromise = promiseResolvedWith(void 0);
-        return (fn) => PerformPromiseThen(resolvedPromise, fn);
-      })();
+        return _queueMicrotask(callback);
+      }, "_queueMicrotask");
       function reflectCall(F2, V, args) {
         if (typeof F2 !== "function") {
           throw new TypeError("Argument is not a function");
@@ -19788,7 +19796,10 @@ var require_ponyfill_es2018 = __commonJS({
       }
       __name(promiseCall, "promiseCall");
       const QUEUE_MAX_ARRAY_SIZE = 16384;
-      const _SimpleQueue = class _SimpleQueue {
+      class SimpleQueue {
+        static {
+          __name(this, "SimpleQueue");
+        }
         constructor() {
           this._cursor = 0;
           this._size = 0;
@@ -19876,9 +19887,12 @@ var require_ponyfill_es2018 = __commonJS({
           const cursor = this._cursor;
           return front._elements[cursor];
         }
-      };
-      __name(_SimpleQueue, "SimpleQueue");
-      let SimpleQueue = _SimpleQueue;
+      }
+      const AbortSteps = Symbol("[[AbortSteps]]");
+      const ErrorSteps = Symbol("[[ErrorSteps]]");
+      const CancelSteps = Symbol("[[CancelSteps]]");
+      const PullSteps = Symbol("[[PullSteps]]");
+      const ReleaseSteps = Symbol("[[ReleaseSteps]]");
       function ReadableStreamReaderGenericInitialize(reader, stream) {
         reader._ownerReadableStream = stream;
         stream._reader = reader;
@@ -19897,12 +19911,14 @@ var require_ponyfill_es2018 = __commonJS({
       }
       __name(ReadableStreamReaderGenericCancel, "ReadableStreamReaderGenericCancel");
       function ReadableStreamReaderGenericRelease(reader) {
-        if (reader._ownerReadableStream._state === "readable") {
+        const stream = reader._ownerReadableStream;
+        if (stream._state === "readable") {
           defaultReaderClosedPromiseReject(reader, new TypeError(`Reader was released and can no longer be used to monitor the stream's closedness`));
         } else {
           defaultReaderClosedPromiseResetToRejected(reader, new TypeError(`Reader was released and can no longer be used to monitor the stream's closedness`));
         }
-        reader._ownerReadableStream._reader = void 0;
+        stream._readableStreamController[ReleaseSteps]();
+        stream._reader = void 0;
         reader._ownerReadableStream = void 0;
       }
       __name(ReadableStreamReaderGenericRelease, "ReadableStreamReaderGenericRelease");
@@ -19950,10 +19966,6 @@ var require_ponyfill_es2018 = __commonJS({
         reader._closedPromise_reject = void 0;
       }
       __name(defaultReaderClosedPromiseResolve, "defaultReaderClosedPromiseResolve");
-      const AbortSteps = SymbolPolyfill("[[AbortSteps]]");
-      const ErrorSteps = SymbolPolyfill("[[ErrorSteps]]");
-      const CancelSteps = SymbolPolyfill("[[CancelSteps]]");
-      const PullSteps = SymbolPolyfill("[[PullSteps]]");
       const NumberIsFinite = Number.isFinite || function(x2) {
         return typeof x2 === "number" && isFinite(x2);
       };
@@ -20067,7 +20079,10 @@ var require_ponyfill_es2018 = __commonJS({
         return true;
       }
       __name(ReadableStreamHasDefaultReader, "ReadableStreamHasDefaultReader");
-      const _ReadableStreamDefaultReader = class _ReadableStreamDefaultReader {
+      class ReadableStreamDefaultReader {
+        static {
+          __name(this, "ReadableStreamDefaultReader");
+        }
         constructor(stream) {
           assertRequiredArgument(stream, 1, "ReadableStreamDefaultReader");
           assertReadableStream(stream, "First parameter");
@@ -20118,9 +20133,9 @@ var require_ponyfill_es2018 = __commonJS({
             rejectPromise = reject;
           });
           const readRequest = {
-            _chunkSteps: (chunk) => resolvePromise({ value: chunk, done: false }),
-            _closeSteps: () => resolvePromise({ value: void 0, done: true }),
-            _errorSteps: (e2) => rejectPromise(e2)
+            _chunkSteps: /* @__PURE__ */ __name((chunk) => resolvePromise({ value: chunk, done: false }), "_chunkSteps"),
+            _closeSteps: /* @__PURE__ */ __name(() => resolvePromise({ value: void 0, done: true }), "_closeSteps"),
+            _errorSteps: /* @__PURE__ */ __name((e2) => rejectPromise(e2), "_errorSteps")
           };
           ReadableStreamDefaultReaderRead(this, readRequest);
           return promise;
@@ -20141,22 +20156,20 @@ var require_ponyfill_es2018 = __commonJS({
           if (this._ownerReadableStream === void 0) {
             return;
           }
-          if (this._readRequests.length > 0) {
-            throw new TypeError("Tried to release a reader lock when that reader has pending read() calls un-settled");
-          }
-          ReadableStreamReaderGenericRelease(this);
+          ReadableStreamDefaultReaderRelease(this);
         }
-      };
-      __name(_ReadableStreamDefaultReader, "ReadableStreamDefaultReader");
-      let ReadableStreamDefaultReader = _ReadableStreamDefaultReader;
+      }
       Object.defineProperties(ReadableStreamDefaultReader.prototype, {
         cancel: { enumerable: true },
         read: { enumerable: true },
         releaseLock: { enumerable: true },
         closed: { enumerable: true }
       });
-      if (typeof SymbolPolyfill.toStringTag === "symbol") {
-        Object.defineProperty(ReadableStreamDefaultReader.prototype, SymbolPolyfill.toStringTag, {
+      setFunctionName(ReadableStreamDefaultReader.prototype.cancel, "cancel");
+      setFunctionName(ReadableStreamDefaultReader.prototype.read, "read");
+      setFunctionName(ReadableStreamDefaultReader.prototype.releaseLock, "releaseLock");
+      if (typeof Symbol.toStringTag === "symbol") {
+        Object.defineProperty(ReadableStreamDefaultReader.prototype, Symbol.toStringTag, {
           value: "ReadableStreamDefaultReader",
           configurable: true
         });
@@ -20183,13 +20196,30 @@ var require_ponyfill_es2018 = __commonJS({
         }
       }
       __name(ReadableStreamDefaultReaderRead, "ReadableStreamDefaultReaderRead");
+      function ReadableStreamDefaultReaderRelease(reader) {
+        ReadableStreamReaderGenericRelease(reader);
+        const e2 = new TypeError("Reader was released");
+        ReadableStreamDefaultReaderErrorReadRequests(reader, e2);
+      }
+      __name(ReadableStreamDefaultReaderRelease, "ReadableStreamDefaultReaderRelease");
+      function ReadableStreamDefaultReaderErrorReadRequests(reader, e2) {
+        const readRequests = reader._readRequests;
+        reader._readRequests = new SimpleQueue();
+        readRequests.forEach((readRequest) => {
+          readRequest._errorSteps(e2);
+        });
+      }
+      __name(ReadableStreamDefaultReaderErrorReadRequests, "ReadableStreamDefaultReaderErrorReadRequests");
       function defaultReaderBrandCheckException(name) {
         return new TypeError(`ReadableStreamDefaultReader.prototype.${name} can only be used on a ReadableStreamDefaultReader`);
       }
       __name(defaultReaderBrandCheckException, "defaultReaderBrandCheckException");
       const AsyncIteratorPrototype = Object.getPrototypeOf(Object.getPrototypeOf(async function* () {
       }).prototype);
-      const _ReadableStreamAsyncIteratorImpl = class _ReadableStreamAsyncIteratorImpl {
+      class ReadableStreamAsyncIteratorImpl {
+        static {
+          __name(this, "ReadableStreamAsyncIteratorImpl");
+        }
         constructor(reader, preventCancel) {
           this._ongoingPromise = void 0;
           this._isFinished = false;
@@ -20210,9 +20240,6 @@ var require_ponyfill_es2018 = __commonJS({
             return Promise.resolve({ value: void 0, done: true });
           }
           const reader = this._reader;
-          if (reader._ownerReadableStream === void 0) {
-            return promiseRejectedWith(readerLockException("iterate"));
-          }
           let resolvePromise;
           let rejectPromise;
           const promise = newPromise((resolve, reject) => {
@@ -20220,22 +20247,22 @@ var require_ponyfill_es2018 = __commonJS({
             rejectPromise = reject;
           });
           const readRequest = {
-            _chunkSteps: (chunk) => {
+            _chunkSteps: /* @__PURE__ */ __name((chunk) => {
               this._ongoingPromise = void 0;
-              queueMicrotask(() => resolvePromise({ value: chunk, done: false }));
-            },
-            _closeSteps: () => {
+              _queueMicrotask(() => resolvePromise({ value: chunk, done: false }));
+            }, "_chunkSteps"),
+            _closeSteps: /* @__PURE__ */ __name(() => {
               this._ongoingPromise = void 0;
               this._isFinished = true;
               ReadableStreamReaderGenericRelease(reader);
               resolvePromise({ value: void 0, done: true });
-            },
-            _errorSteps: (reason) => {
+            }, "_closeSteps"),
+            _errorSteps: /* @__PURE__ */ __name((reason) => {
               this._ongoingPromise = void 0;
               this._isFinished = true;
               ReadableStreamReaderGenericRelease(reader);
               rejectPromise(reason);
-            }
+            }, "_errorSteps")
           };
           ReadableStreamDefaultReaderRead(reader, readRequest);
           return promise;
@@ -20246,9 +20273,6 @@ var require_ponyfill_es2018 = __commonJS({
           }
           this._isFinished = true;
           const reader = this._reader;
-          if (reader._ownerReadableStream === void 0) {
-            return promiseRejectedWith(readerLockException("finish iterating"));
-          }
           if (!this._preventCancel) {
             const result = ReadableStreamReaderGenericCancel(reader, value);
             ReadableStreamReaderGenericRelease(reader);
@@ -20257,9 +20281,7 @@ var require_ponyfill_es2018 = __commonJS({
           ReadableStreamReaderGenericRelease(reader);
           return promiseResolvedWith({ value, done: true });
         }
-      };
-      __name(_ReadableStreamAsyncIteratorImpl, "ReadableStreamAsyncIteratorImpl");
-      let ReadableStreamAsyncIteratorImpl = _ReadableStreamAsyncIteratorImpl;
+      }
       const ReadableStreamAsyncIteratorPrototype = {
         next() {
           if (!IsReadableStreamAsyncIterator(this)) {
@@ -20274,9 +20296,7 @@ var require_ponyfill_es2018 = __commonJS({
           return this._asyncIteratorImpl.return(value);
         }
       };
-      if (AsyncIteratorPrototype !== void 0) {
-        Object.setPrototypeOf(ReadableStreamAsyncIteratorPrototype, AsyncIteratorPrototype);
-      }
+      Object.setPrototypeOf(ReadableStreamAsyncIteratorPrototype, AsyncIteratorPrototype);
       function AcquireReadableStreamAsyncIterator(stream, preventCancel) {
         const reader = AcquireReadableStreamDefaultReader(stream);
         const impl = new ReadableStreamAsyncIteratorImpl(reader, preventCancel);
@@ -20294,7 +20314,7 @@ var require_ponyfill_es2018 = __commonJS({
         }
         try {
           return x2._asyncIteratorImpl instanceof ReadableStreamAsyncIteratorImpl;
-        } catch (_a4) {
+        } catch (_a2) {
           return false;
         }
       }
@@ -20306,6 +20326,7 @@ var require_ponyfill_es2018 = __commonJS({
       const NumberIsNaN = Number.isNaN || function(x2) {
         return x2 !== x2;
       };
+      var _a, _b, _c;
       function CreateArrayFromList(elements) {
         return elements.slice();
       }
@@ -20314,14 +20335,24 @@ var require_ponyfill_es2018 = __commonJS({
         new Uint8Array(dest).set(new Uint8Array(src, srcOffset, n), destOffset);
       }
       __name(CopyDataBlockBytes, "CopyDataBlockBytes");
-      function TransferArrayBuffer(O) {
-        return O;
-      }
-      __name(TransferArrayBuffer, "TransferArrayBuffer");
-      function IsDetachedBuffer(O) {
-        return false;
-      }
-      __name(IsDetachedBuffer, "IsDetachedBuffer");
+      let TransferArrayBuffer = /* @__PURE__ */ __name((O) => {
+        if (typeof O.transfer === "function") {
+          TransferArrayBuffer = /* @__PURE__ */ __name((buffer) => buffer.transfer(), "TransferArrayBuffer");
+        } else if (typeof structuredClone === "function") {
+          TransferArrayBuffer = /* @__PURE__ */ __name((buffer) => structuredClone(buffer, { transfer: [buffer] }), "TransferArrayBuffer");
+        } else {
+          TransferArrayBuffer = /* @__PURE__ */ __name((buffer) => buffer, "TransferArrayBuffer");
+        }
+        return TransferArrayBuffer(O);
+      }, "TransferArrayBuffer");
+      let IsDetachedBuffer = /* @__PURE__ */ __name((O) => {
+        if (typeof O.detached === "boolean") {
+          IsDetachedBuffer = /* @__PURE__ */ __name((buffer) => buffer.detached, "IsDetachedBuffer");
+        } else {
+          IsDetachedBuffer = /* @__PURE__ */ __name((buffer) => buffer.byteLength === 0, "IsDetachedBuffer");
+        }
+        return IsDetachedBuffer(O);
+      }, "IsDetachedBuffer");
       function ArrayBufferSlice(buffer, begin, end) {
         if (buffer.slice) {
           return buffer.slice(begin, end);
@@ -20332,6 +20363,69 @@ var require_ponyfill_es2018 = __commonJS({
         return slice;
       }
       __name(ArrayBufferSlice, "ArrayBufferSlice");
+      function GetMethod(receiver, prop) {
+        const func = receiver[prop];
+        if (func === void 0 || func === null) {
+          return void 0;
+        }
+        if (typeof func !== "function") {
+          throw new TypeError(`${String(prop)} is not a function`);
+        }
+        return func;
+      }
+      __name(GetMethod, "GetMethod");
+      function CreateAsyncFromSyncIterator(syncIteratorRecord) {
+        const syncIterable = {
+          [Symbol.iterator]: () => syncIteratorRecord.iterator
+        };
+        const asyncIterator = async function* () {
+          return yield* syncIterable;
+        }();
+        const nextMethod = asyncIterator.next;
+        return { iterator: asyncIterator, nextMethod, done: false };
+      }
+      __name(CreateAsyncFromSyncIterator, "CreateAsyncFromSyncIterator");
+      const SymbolAsyncIterator = (_c = (_a = Symbol.asyncIterator) !== null && _a !== void 0 ? _a : (_b = Symbol.for) === null || _b === void 0 ? void 0 : _b.call(Symbol, "Symbol.asyncIterator")) !== null && _c !== void 0 ? _c : "@@asyncIterator";
+      function GetIterator(obj, hint = "sync", method) {
+        if (method === void 0) {
+          if (hint === "async") {
+            method = GetMethod(obj, SymbolAsyncIterator);
+            if (method === void 0) {
+              const syncMethod = GetMethod(obj, Symbol.iterator);
+              const syncIteratorRecord = GetIterator(obj, "sync", syncMethod);
+              return CreateAsyncFromSyncIterator(syncIteratorRecord);
+            }
+          } else {
+            method = GetMethod(obj, Symbol.iterator);
+          }
+        }
+        if (method === void 0) {
+          throw new TypeError("The object is not iterable");
+        }
+        const iterator = reflectCall(method, obj, []);
+        if (!typeIsObject(iterator)) {
+          throw new TypeError("The iterator method must return an object");
+        }
+        const nextMethod = iterator.next;
+        return { iterator, nextMethod, done: false };
+      }
+      __name(GetIterator, "GetIterator");
+      function IteratorNext(iteratorRecord) {
+        const result = reflectCall(iteratorRecord.nextMethod, iteratorRecord.iterator, []);
+        if (!typeIsObject(result)) {
+          throw new TypeError("The iterator.next() method must return an object");
+        }
+        return result;
+      }
+      __name(IteratorNext, "IteratorNext");
+      function IteratorComplete(iterResult) {
+        return Boolean(iterResult.done);
+      }
+      __name(IteratorComplete, "IteratorComplete");
+      function IteratorValue(iterResult) {
+        return iterResult.value;
+      }
+      __name(IteratorValue, "IteratorValue");
       function IsNonNegativeNumber(v) {
         if (typeof v !== "number") {
           return false;
@@ -20377,7 +20471,25 @@ var require_ponyfill_es2018 = __commonJS({
         container._queueTotalSize = 0;
       }
       __name(ResetQueue, "ResetQueue");
-      const _ReadableStreamBYOBRequest = class _ReadableStreamBYOBRequest {
+      function isDataViewConstructor(ctor) {
+        return ctor === DataView;
+      }
+      __name(isDataViewConstructor, "isDataViewConstructor");
+      function isDataView(view) {
+        return isDataViewConstructor(view.constructor);
+      }
+      __name(isDataView, "isDataView");
+      function arrayBufferViewElementSize(ctor) {
+        if (isDataViewConstructor(ctor)) {
+          return 1;
+        }
+        return ctor.BYTES_PER_ELEMENT;
+      }
+      __name(arrayBufferViewElementSize, "arrayBufferViewElementSize");
+      class ReadableStreamBYOBRequest {
+        static {
+          __name(this, "ReadableStreamBYOBRequest");
+        }
         constructor() {
           throw new TypeError("Illegal constructor");
         }
@@ -20399,8 +20511,9 @@ var require_ponyfill_es2018 = __commonJS({
           if (this._associatedReadableByteStreamController === void 0) {
             throw new TypeError("This BYOB request has been invalidated");
           }
-          if (IsDetachedBuffer(this._view.buffer))
-            ;
+          if (IsDetachedBuffer(this._view.buffer)) {
+            throw new TypeError(`The BYOB request's buffer has been detached and so cannot be used as a response`);
+          }
           ReadableByteStreamControllerRespond(this._associatedReadableByteStreamController, bytesWritten);
         }
         respondWithNewView(view) {
@@ -20414,25 +20527,29 @@ var require_ponyfill_es2018 = __commonJS({
           if (this._associatedReadableByteStreamController === void 0) {
             throw new TypeError("This BYOB request has been invalidated");
           }
-          if (IsDetachedBuffer(view.buffer))
-            ;
+          if (IsDetachedBuffer(view.buffer)) {
+            throw new TypeError("The given view's buffer has been detached and so cannot be used as a response");
+          }
           ReadableByteStreamControllerRespondWithNewView(this._associatedReadableByteStreamController, view);
         }
-      };
-      __name(_ReadableStreamBYOBRequest, "ReadableStreamBYOBRequest");
-      let ReadableStreamBYOBRequest = _ReadableStreamBYOBRequest;
+      }
       Object.defineProperties(ReadableStreamBYOBRequest.prototype, {
         respond: { enumerable: true },
         respondWithNewView: { enumerable: true },
         view: { enumerable: true }
       });
-      if (typeof SymbolPolyfill.toStringTag === "symbol") {
-        Object.defineProperty(ReadableStreamBYOBRequest.prototype, SymbolPolyfill.toStringTag, {
+      setFunctionName(ReadableStreamBYOBRequest.prototype.respond, "respond");
+      setFunctionName(ReadableStreamBYOBRequest.prototype.respondWithNewView, "respondWithNewView");
+      if (typeof Symbol.toStringTag === "symbol") {
+        Object.defineProperty(ReadableStreamBYOBRequest.prototype, Symbol.toStringTag, {
           value: "ReadableStreamBYOBRequest",
           configurable: true
         });
       }
-      const _ReadableByteStreamController = class _ReadableByteStreamController {
+      class ReadableByteStreamController {
+        static {
+          __name(this, "ReadableByteStreamController");
+        }
         constructor() {
           throw new TypeError("Illegal constructor");
         }
@@ -20516,11 +20633,7 @@ var require_ponyfill_es2018 = __commonJS({
         [PullSteps](readRequest) {
           const stream = this._controlledReadableByteStream;
           if (this._queueTotalSize > 0) {
-            const entry = this._queue.shift();
-            this._queueTotalSize -= entry.byteLength;
-            ReadableByteStreamControllerHandleQueueDrain(this);
-            const view = new Uint8Array(entry.buffer, entry.byteOffset, entry.byteLength);
-            readRequest._chunkSteps(view);
+            ReadableByteStreamControllerFillReadRequestFromQueue(this, readRequest);
             return;
           }
           const autoAllocateChunkSize = this._autoAllocateChunkSize;
@@ -20538,6 +20651,7 @@ var require_ponyfill_es2018 = __commonJS({
               byteOffset: 0,
               byteLength: autoAllocateChunkSize,
               bytesFilled: 0,
+              minimumFill: 1,
               elementSize: 1,
               viewConstructor: Uint8Array,
               readerType: "default"
@@ -20547,9 +20661,16 @@ var require_ponyfill_es2018 = __commonJS({
           ReadableStreamAddReadRequest(stream, readRequest);
           ReadableByteStreamControllerCallPullIfNeeded(this);
         }
-      };
-      __name(_ReadableByteStreamController, "ReadableByteStreamController");
-      let ReadableByteStreamController = _ReadableByteStreamController;
+        /** @internal */
+        [ReleaseSteps]() {
+          if (this._pendingPullIntos.length > 0) {
+            const firstPullInto = this._pendingPullIntos.peek();
+            firstPullInto.readerType = "none";
+            this._pendingPullIntos = new SimpleQueue();
+            this._pendingPullIntos.push(firstPullInto);
+          }
+        }
+      }
       Object.defineProperties(ReadableByteStreamController.prototype, {
         close: { enumerable: true },
         enqueue: { enumerable: true },
@@ -20557,8 +20678,11 @@ var require_ponyfill_es2018 = __commonJS({
         byobRequest: { enumerable: true },
         desiredSize: { enumerable: true }
       });
-      if (typeof SymbolPolyfill.toStringTag === "symbol") {
-        Object.defineProperty(ReadableByteStreamController.prototype, SymbolPolyfill.toStringTag, {
+      setFunctionName(ReadableByteStreamController.prototype.close, "close");
+      setFunctionName(ReadableByteStreamController.prototype.enqueue, "enqueue");
+      setFunctionName(ReadableByteStreamController.prototype.error, "error");
+      if (typeof Symbol.toStringTag === "symbol") {
+        Object.defineProperty(ReadableByteStreamController.prototype, Symbol.toStringTag, {
           value: "ReadableByteStreamController",
           configurable: true
         });
@@ -20600,8 +20724,10 @@ var require_ponyfill_es2018 = __commonJS({
             controller._pullAgain = false;
             ReadableByteStreamControllerCallPullIfNeeded(controller);
           }
+          return null;
         }, (e2) => {
           ReadableByteStreamControllerError(controller, e2);
+          return null;
         });
       }
       __name(ReadableByteStreamControllerCallPullIfNeeded, "ReadableByteStreamControllerCallPullIfNeeded");
@@ -20634,15 +20760,32 @@ var require_ponyfill_es2018 = __commonJS({
         controller._queueTotalSize += byteLength;
       }
       __name(ReadableByteStreamControllerEnqueueChunkToQueue, "ReadableByteStreamControllerEnqueueChunkToQueue");
+      function ReadableByteStreamControllerEnqueueClonedChunkToQueue(controller, buffer, byteOffset, byteLength) {
+        let clonedChunk;
+        try {
+          clonedChunk = ArrayBufferSlice(buffer, byteOffset, byteOffset + byteLength);
+        } catch (cloneE) {
+          ReadableByteStreamControllerError(controller, cloneE);
+          throw cloneE;
+        }
+        ReadableByteStreamControllerEnqueueChunkToQueue(controller, clonedChunk, 0, byteLength);
+      }
+      __name(ReadableByteStreamControllerEnqueueClonedChunkToQueue, "ReadableByteStreamControllerEnqueueClonedChunkToQueue");
+      function ReadableByteStreamControllerEnqueueDetachedPullIntoToQueue(controller, firstDescriptor) {
+        if (firstDescriptor.bytesFilled > 0) {
+          ReadableByteStreamControllerEnqueueClonedChunkToQueue(controller, firstDescriptor.buffer, firstDescriptor.byteOffset, firstDescriptor.bytesFilled);
+        }
+        ReadableByteStreamControllerShiftPendingPullInto(controller);
+      }
+      __name(ReadableByteStreamControllerEnqueueDetachedPullIntoToQueue, "ReadableByteStreamControllerEnqueueDetachedPullIntoToQueue");
       function ReadableByteStreamControllerFillPullIntoDescriptorFromQueue(controller, pullIntoDescriptor) {
-        const elementSize = pullIntoDescriptor.elementSize;
-        const currentAlignedBytes = pullIntoDescriptor.bytesFilled - pullIntoDescriptor.bytesFilled % elementSize;
         const maxBytesToCopy = Math.min(controller._queueTotalSize, pullIntoDescriptor.byteLength - pullIntoDescriptor.bytesFilled);
         const maxBytesFilled = pullIntoDescriptor.bytesFilled + maxBytesToCopy;
-        const maxAlignedBytes = maxBytesFilled - maxBytesFilled % elementSize;
         let totalBytesToCopyRemaining = maxBytesToCopy;
         let ready = false;
-        if (maxAlignedBytes > currentAlignedBytes) {
+        const remainderBytes = maxBytesFilled % pullIntoDescriptor.elementSize;
+        const maxAlignedBytes = maxBytesFilled - remainderBytes;
+        if (maxAlignedBytes >= pullIntoDescriptor.minimumFill) {
           totalBytesToCopyRemaining = maxAlignedBytes - pullIntoDescriptor.bytesFilled;
           ready = true;
         }
@@ -20700,20 +20843,37 @@ var require_ponyfill_es2018 = __commonJS({
         }
       }
       __name(ReadableByteStreamControllerProcessPullIntoDescriptorsUsingQueue, "ReadableByteStreamControllerProcessPullIntoDescriptorsUsingQueue");
-      function ReadableByteStreamControllerPullInto(controller, view, readIntoRequest) {
-        const stream = controller._controlledReadableByteStream;
-        let elementSize = 1;
-        if (view.constructor !== DataView) {
-          elementSize = view.constructor.BYTES_PER_ELEMENT;
+      function ReadableByteStreamControllerProcessReadRequestsUsingQueue(controller) {
+        const reader = controller._controlledReadableByteStream._reader;
+        while (reader._readRequests.length > 0) {
+          if (controller._queueTotalSize === 0) {
+            return;
+          }
+          const readRequest = reader._readRequests.shift();
+          ReadableByteStreamControllerFillReadRequestFromQueue(controller, readRequest);
         }
+      }
+      __name(ReadableByteStreamControllerProcessReadRequestsUsingQueue, "ReadableByteStreamControllerProcessReadRequestsUsingQueue");
+      function ReadableByteStreamControllerPullInto(controller, view, min, readIntoRequest) {
+        const stream = controller._controlledReadableByteStream;
         const ctor = view.constructor;
-        const buffer = TransferArrayBuffer(view.buffer);
+        const elementSize = arrayBufferViewElementSize(ctor);
+        const { byteOffset, byteLength } = view;
+        const minimumFill = min * elementSize;
+        let buffer;
+        try {
+          buffer = TransferArrayBuffer(view.buffer);
+        } catch (e2) {
+          readIntoRequest._errorSteps(e2);
+          return;
+        }
         const pullIntoDescriptor = {
           buffer,
           bufferByteLength: buffer.byteLength,
-          byteOffset: view.byteOffset,
-          byteLength: view.byteLength,
+          byteOffset,
+          byteLength,
           bytesFilled: 0,
+          minimumFill,
           elementSize,
           viewConstructor: ctor,
           readerType: "byob"
@@ -20748,6 +20908,9 @@ var require_ponyfill_es2018 = __commonJS({
       }
       __name(ReadableByteStreamControllerPullInto, "ReadableByteStreamControllerPullInto");
       function ReadableByteStreamControllerRespondInClosedState(controller, firstDescriptor) {
+        if (firstDescriptor.readerType === "none") {
+          ReadableByteStreamControllerShiftPendingPullInto(controller);
+        }
         const stream = controller._controlledReadableByteStream;
         if (ReadableStreamHasBYOBReader(stream)) {
           while (ReadableStreamGetNumReadIntoRequests(stream) > 0) {
@@ -20759,15 +20922,19 @@ var require_ponyfill_es2018 = __commonJS({
       __name(ReadableByteStreamControllerRespondInClosedState, "ReadableByteStreamControllerRespondInClosedState");
       function ReadableByteStreamControllerRespondInReadableState(controller, bytesWritten, pullIntoDescriptor) {
         ReadableByteStreamControllerFillHeadPullIntoDescriptor(controller, bytesWritten, pullIntoDescriptor);
-        if (pullIntoDescriptor.bytesFilled < pullIntoDescriptor.elementSize) {
+        if (pullIntoDescriptor.readerType === "none") {
+          ReadableByteStreamControllerEnqueueDetachedPullIntoToQueue(controller, pullIntoDescriptor);
+          ReadableByteStreamControllerProcessPullIntoDescriptorsUsingQueue(controller);
+          return;
+        }
+        if (pullIntoDescriptor.bytesFilled < pullIntoDescriptor.minimumFill) {
           return;
         }
         ReadableByteStreamControllerShiftPendingPullInto(controller);
         const remainderSize = pullIntoDescriptor.bytesFilled % pullIntoDescriptor.elementSize;
         if (remainderSize > 0) {
           const end = pullIntoDescriptor.byteOffset + pullIntoDescriptor.bytesFilled;
-          const remainder = ArrayBufferSlice(pullIntoDescriptor.buffer, end - remainderSize, end);
-          ReadableByteStreamControllerEnqueueChunkToQueue(controller, remainder, 0, remainder.byteLength);
+          ReadableByteStreamControllerEnqueueClonedChunkToQueue(controller, pullIntoDescriptor.buffer, end - remainderSize, remainderSize);
         }
         pullIntoDescriptor.bytesFilled -= remainderSize;
         ReadableByteStreamControllerCommitPullIntoDescriptor(controller._controlledReadableByteStream, pullIntoDescriptor);
@@ -20779,7 +20946,7 @@ var require_ponyfill_es2018 = __commonJS({
         ReadableByteStreamControllerInvalidateBYOBRequest(controller);
         const state = controller._controlledReadableByteStream._state;
         if (state === "closed") {
-          ReadableByteStreamControllerRespondInClosedState(controller);
+          ReadableByteStreamControllerRespondInClosedState(controller, firstDescriptor);
         } else {
           ReadableByteStreamControllerRespondInReadableState(controller, bytesWritten, firstDescriptor);
         }
@@ -20831,7 +20998,7 @@ var require_ponyfill_es2018 = __commonJS({
         }
         if (controller._pendingPullIntos.length > 0) {
           const firstPendingPullInto = controller._pendingPullIntos.peek();
-          if (firstPendingPullInto.bytesFilled > 0) {
+          if (firstPendingPullInto.bytesFilled % firstPendingPullInto.elementSize !== 0) {
             const e2 = new TypeError("Insufficient bytes to fill elements in the given buffer");
             ReadableByteStreamControllerError(controller, e2);
             throw e2;
@@ -20846,18 +21013,24 @@ var require_ponyfill_es2018 = __commonJS({
         if (controller._closeRequested || stream._state !== "readable") {
           return;
         }
-        const buffer = chunk.buffer;
-        const byteOffset = chunk.byteOffset;
-        const byteLength = chunk.byteLength;
+        const { buffer, byteOffset, byteLength } = chunk;
+        if (IsDetachedBuffer(buffer)) {
+          throw new TypeError("chunk's buffer is detached and so cannot be enqueued");
+        }
         const transferredBuffer = TransferArrayBuffer(buffer);
         if (controller._pendingPullIntos.length > 0) {
           const firstPendingPullInto = controller._pendingPullIntos.peek();
-          if (IsDetachedBuffer(firstPendingPullInto.buffer))
-            ;
+          if (IsDetachedBuffer(firstPendingPullInto.buffer)) {
+            throw new TypeError("The BYOB request's buffer has been detached and so cannot be filled with an enqueued chunk");
+          }
+          ReadableByteStreamControllerInvalidateBYOBRequest(controller);
           firstPendingPullInto.buffer = TransferArrayBuffer(firstPendingPullInto.buffer);
+          if (firstPendingPullInto.readerType === "none") {
+            ReadableByteStreamControllerEnqueueDetachedPullIntoToQueue(controller, firstPendingPullInto);
+          }
         }
-        ReadableByteStreamControllerInvalidateBYOBRequest(controller);
         if (ReadableStreamHasDefaultReader(stream)) {
+          ReadableByteStreamControllerProcessReadRequestsUsingQueue(controller);
           if (ReadableStreamGetNumReadRequests(stream) === 0) {
             ReadableByteStreamControllerEnqueueChunkToQueue(controller, transferredBuffer, byteOffset, byteLength);
           } else {
@@ -20887,6 +21060,14 @@ var require_ponyfill_es2018 = __commonJS({
         ReadableStreamError(stream, e2);
       }
       __name(ReadableByteStreamControllerError, "ReadableByteStreamControllerError");
+      function ReadableByteStreamControllerFillReadRequestFromQueue(controller, readRequest) {
+        const entry = controller._queue.shift();
+        controller._queueTotalSize -= entry.byteLength;
+        ReadableByteStreamControllerHandleQueueDrain(controller);
+        const view = new Uint8Array(entry.buffer, entry.byteOffset, entry.byteLength);
+        readRequest._chunkSteps(view);
+      }
+      __name(ReadableByteStreamControllerFillReadRequestFromQueue, "ReadableByteStreamControllerFillReadRequestFromQueue");
       function ReadableByteStreamControllerGetBYOBRequest(controller) {
         if (controller._byobRequest === null && controller._pendingPullIntos.length > 0) {
           const firstDescriptor = controller._pendingPullIntos.peek();
@@ -20973,24 +21154,32 @@ var require_ponyfill_es2018 = __commonJS({
         uponPromise(promiseResolvedWith(startResult), () => {
           controller._started = true;
           ReadableByteStreamControllerCallPullIfNeeded(controller);
+          return null;
         }, (r2) => {
           ReadableByteStreamControllerError(controller, r2);
+          return null;
         });
       }
       __name(SetUpReadableByteStreamController, "SetUpReadableByteStreamController");
       function SetUpReadableByteStreamControllerFromUnderlyingSource(stream, underlyingByteSource, highWaterMark) {
         const controller = Object.create(ReadableByteStreamController.prototype);
-        let startAlgorithm = /* @__PURE__ */ __name(() => void 0, "startAlgorithm");
-        let pullAlgorithm = /* @__PURE__ */ __name(() => promiseResolvedWith(void 0), "pullAlgorithm");
-        let cancelAlgorithm = /* @__PURE__ */ __name(() => promiseResolvedWith(void 0), "cancelAlgorithm");
+        let startAlgorithm;
+        let pullAlgorithm;
+        let cancelAlgorithm;
         if (underlyingByteSource.start !== void 0) {
           startAlgorithm = /* @__PURE__ */ __name(() => underlyingByteSource.start(controller), "startAlgorithm");
+        } else {
+          startAlgorithm = /* @__PURE__ */ __name(() => void 0, "startAlgorithm");
         }
         if (underlyingByteSource.pull !== void 0) {
           pullAlgorithm = /* @__PURE__ */ __name(() => underlyingByteSource.pull(controller), "pullAlgorithm");
+        } else {
+          pullAlgorithm = /* @__PURE__ */ __name(() => promiseResolvedWith(void 0), "pullAlgorithm");
         }
         if (underlyingByteSource.cancel !== void 0) {
           cancelAlgorithm = /* @__PURE__ */ __name((reason) => underlyingByteSource.cancel(reason), "cancelAlgorithm");
+        } else {
+          cancelAlgorithm = /* @__PURE__ */ __name(() => promiseResolvedWith(void 0), "cancelAlgorithm");
         }
         const autoAllocateChunkSize = underlyingByteSource.autoAllocateChunkSize;
         if (autoAllocateChunkSize === 0) {
@@ -21012,6 +21201,31 @@ var require_ponyfill_es2018 = __commonJS({
         return new TypeError(`ReadableByteStreamController.prototype.${name} can only be used on a ReadableByteStreamController`);
       }
       __name(byteStreamControllerBrandCheckException, "byteStreamControllerBrandCheckException");
+      function convertReaderOptions(options, context) {
+        assertDictionary(options, context);
+        const mode = options === null || options === void 0 ? void 0 : options.mode;
+        return {
+          mode: mode === void 0 ? void 0 : convertReadableStreamReaderMode(mode, `${context} has member 'mode' that`)
+        };
+      }
+      __name(convertReaderOptions, "convertReaderOptions");
+      function convertReadableStreamReaderMode(mode, context) {
+        mode = `${mode}`;
+        if (mode !== "byob") {
+          throw new TypeError(`${context} '${mode}' is not a valid enumeration value for ReadableStreamReaderMode`);
+        }
+        return mode;
+      }
+      __name(convertReadableStreamReaderMode, "convertReadableStreamReaderMode");
+      function convertByobReadOptions(options, context) {
+        var _a2;
+        assertDictionary(options, context);
+        const min = (_a2 = options === null || options === void 0 ? void 0 : options.min) !== null && _a2 !== void 0 ? _a2 : 1;
+        return {
+          min: convertUnsignedLongLongWithEnforceRange(min, `${context} has member 'min' that`)
+        };
+      }
+      __name(convertByobReadOptions, "convertByobReadOptions");
       function AcquireReadableStreamBYOBReader(stream) {
         return new ReadableStreamBYOBReader(stream);
       }
@@ -21045,7 +21259,10 @@ var require_ponyfill_es2018 = __commonJS({
         return true;
       }
       __name(ReadableStreamHasBYOBReader, "ReadableStreamHasBYOBReader");
-      const _ReadableStreamBYOBReader = class _ReadableStreamBYOBReader {
+      class ReadableStreamBYOBReader {
+        static {
+          __name(this, "ReadableStreamBYOBReader");
+        }
         constructor(stream) {
           assertRequiredArgument(stream, 1, "ReadableStreamBYOBReader");
           assertReadableStream(stream, "First parameter");
@@ -21080,12 +21297,7 @@ var require_ponyfill_es2018 = __commonJS({
           }
           return ReadableStreamReaderGenericCancel(this, reason);
         }
-        /**
-         * Attempts to reads bytes into view, and returns a promise resolved with the result.
-         *
-         * If reading a chunk causes the queue to become empty, more data will be pulled from the underlying source.
-         */
-        read(view) {
+        read(view, rawOptions = {}) {
           if (!IsReadableStreamBYOBReader(this)) {
             return promiseRejectedWith(byobReaderBrandCheckException("read"));
           }
@@ -21098,8 +21310,26 @@ var require_ponyfill_es2018 = __commonJS({
           if (view.buffer.byteLength === 0) {
             return promiseRejectedWith(new TypeError(`view's buffer must have non-zero byteLength`));
           }
-          if (IsDetachedBuffer(view.buffer))
-            ;
+          if (IsDetachedBuffer(view.buffer)) {
+            return promiseRejectedWith(new TypeError("view's buffer has been detached"));
+          }
+          let options;
+          try {
+            options = convertByobReadOptions(rawOptions, "options");
+          } catch (e2) {
+            return promiseRejectedWith(e2);
+          }
+          const min = options.min;
+          if (min === 0) {
+            return promiseRejectedWith(new TypeError("options.min must be greater than 0"));
+          }
+          if (!isDataView(view)) {
+            if (min > view.length) {
+              return promiseRejectedWith(new RangeError("options.min must be less than or equal to view's length"));
+            }
+          } else if (min > view.byteLength) {
+            return promiseRejectedWith(new RangeError("options.min must be less than or equal to view's byteLength"));
+          }
           if (this._ownerReadableStream === void 0) {
             return promiseRejectedWith(readerLockException("read from"));
           }
@@ -21110,11 +21340,11 @@ var require_ponyfill_es2018 = __commonJS({
             rejectPromise = reject;
           });
           const readIntoRequest = {
-            _chunkSteps: (chunk) => resolvePromise({ value: chunk, done: false }),
-            _closeSteps: (chunk) => resolvePromise({ value: chunk, done: true }),
-            _errorSteps: (e2) => rejectPromise(e2)
+            _chunkSteps: /* @__PURE__ */ __name((chunk) => resolvePromise({ value: chunk, done: false }), "_chunkSteps"),
+            _closeSteps: /* @__PURE__ */ __name((chunk) => resolvePromise({ value: chunk, done: true }), "_closeSteps"),
+            _errorSteps: /* @__PURE__ */ __name((e2) => rejectPromise(e2), "_errorSteps")
           };
-          ReadableStreamBYOBReaderRead(this, view, readIntoRequest);
+          ReadableStreamBYOBReaderRead(this, view, min, readIntoRequest);
           return promise;
         }
         /**
@@ -21133,22 +21363,20 @@ var require_ponyfill_es2018 = __commonJS({
           if (this._ownerReadableStream === void 0) {
             return;
           }
-          if (this._readIntoRequests.length > 0) {
-            throw new TypeError("Tried to release a reader lock when that reader has pending read() calls un-settled");
-          }
-          ReadableStreamReaderGenericRelease(this);
+          ReadableStreamBYOBReaderRelease(this);
         }
-      };
-      __name(_ReadableStreamBYOBReader, "ReadableStreamBYOBReader");
-      let ReadableStreamBYOBReader = _ReadableStreamBYOBReader;
+      }
       Object.defineProperties(ReadableStreamBYOBReader.prototype, {
         cancel: { enumerable: true },
         read: { enumerable: true },
         releaseLock: { enumerable: true },
         closed: { enumerable: true }
       });
-      if (typeof SymbolPolyfill.toStringTag === "symbol") {
-        Object.defineProperty(ReadableStreamBYOBReader.prototype, SymbolPolyfill.toStringTag, {
+      setFunctionName(ReadableStreamBYOBReader.prototype.cancel, "cancel");
+      setFunctionName(ReadableStreamBYOBReader.prototype.read, "read");
+      setFunctionName(ReadableStreamBYOBReader.prototype.releaseLock, "releaseLock");
+      if (typeof Symbol.toStringTag === "symbol") {
+        Object.defineProperty(ReadableStreamBYOBReader.prototype, Symbol.toStringTag, {
           value: "ReadableStreamBYOBReader",
           configurable: true
         });
@@ -21163,16 +21391,30 @@ var require_ponyfill_es2018 = __commonJS({
         return x2 instanceof ReadableStreamBYOBReader;
       }
       __name(IsReadableStreamBYOBReader, "IsReadableStreamBYOBReader");
-      function ReadableStreamBYOBReaderRead(reader, view, readIntoRequest) {
+      function ReadableStreamBYOBReaderRead(reader, view, min, readIntoRequest) {
         const stream = reader._ownerReadableStream;
         stream._disturbed = true;
         if (stream._state === "errored") {
           readIntoRequest._errorSteps(stream._storedError);
         } else {
-          ReadableByteStreamControllerPullInto(stream._readableStreamController, view, readIntoRequest);
+          ReadableByteStreamControllerPullInto(stream._readableStreamController, view, min, readIntoRequest);
         }
       }
       __name(ReadableStreamBYOBReaderRead, "ReadableStreamBYOBReaderRead");
+      function ReadableStreamBYOBReaderRelease(reader) {
+        ReadableStreamReaderGenericRelease(reader);
+        const e2 = new TypeError("Reader was released");
+        ReadableStreamBYOBReaderErrorReadIntoRequests(reader, e2);
+      }
+      __name(ReadableStreamBYOBReaderRelease, "ReadableStreamBYOBReaderRelease");
+      function ReadableStreamBYOBReaderErrorReadIntoRequests(reader, e2) {
+        const readIntoRequests = reader._readIntoRequests;
+        reader._readIntoRequests = new SimpleQueue();
+        readIntoRequests.forEach((readIntoRequest) => {
+          readIntoRequest._errorSteps(e2);
+        });
+      }
+      __name(ReadableStreamBYOBReaderErrorReadIntoRequests, "ReadableStreamBYOBReaderErrorReadIntoRequests");
       function byobReaderBrandCheckException(name) {
         return new TypeError(`ReadableStreamBYOBReader.prototype.${name} can only be used on a ReadableStreamBYOBReader`);
       }
@@ -21259,7 +21501,7 @@ var require_ponyfill_es2018 = __commonJS({
         }
         try {
           return typeof value.aborted === "boolean";
-        } catch (_a4) {
+        } catch (_a2) {
           return false;
         }
       }
@@ -21272,7 +21514,10 @@ var require_ponyfill_es2018 = __commonJS({
         return void 0;
       }
       __name(createAbortController, "createAbortController");
-      const _WritableStream = class _WritableStream {
+      class WritableStream {
+        static {
+          __name(this, "WritableStream");
+        }
         constructor(rawUnderlyingSink = {}, rawStrategy = {}) {
           if (rawUnderlyingSink === void 0) {
             rawUnderlyingSink = null;
@@ -21351,17 +21596,18 @@ var require_ponyfill_es2018 = __commonJS({
           }
           return AcquireWritableStreamDefaultWriter(this);
         }
-      };
-      __name(_WritableStream, "WritableStream");
-      let WritableStream = _WritableStream;
+      }
       Object.defineProperties(WritableStream.prototype, {
         abort: { enumerable: true },
         close: { enumerable: true },
         getWriter: { enumerable: true },
         locked: { enumerable: true }
       });
-      if (typeof SymbolPolyfill.toStringTag === "symbol") {
-        Object.defineProperty(WritableStream.prototype, SymbolPolyfill.toStringTag, {
+      setFunctionName(WritableStream.prototype.abort, "abort");
+      setFunctionName(WritableStream.prototype.close, "close");
+      setFunctionName(WritableStream.prototype.getWriter, "getWriter");
+      if (typeof Symbol.toStringTag === "symbol") {
+        Object.defineProperty(WritableStream.prototype, Symbol.toStringTag, {
           value: "WritableStream",
           configurable: true
         });
@@ -21409,12 +21655,12 @@ var require_ponyfill_es2018 = __commonJS({
       }
       __name(IsWritableStreamLocked, "IsWritableStreamLocked");
       function WritableStreamAbort(stream, reason) {
-        var _a4;
+        var _a2;
         if (stream._state === "closed" || stream._state === "errored") {
           return promiseResolvedWith(void 0);
         }
         stream._writableStreamController._abortReason = reason;
-        (_a4 = stream._writableStreamController._abortController) === null || _a4 === void 0 ? void 0 : _a4.abort();
+        (_a2 = stream._writableStreamController._abortController) === null || _a2 === void 0 ? void 0 : _a2.abort(reason);
         const state = stream._state;
         if (state === "closed" || state === "errored") {
           return promiseResolvedWith(void 0);
@@ -21519,9 +21765,11 @@ var require_ponyfill_es2018 = __commonJS({
         uponPromise(promise, () => {
           abortRequest._resolve();
           WritableStreamRejectCloseAndClosedPromiseIfNeeded(stream);
+          return null;
         }, (reason) => {
           abortRequest._reject(reason);
           WritableStreamRejectCloseAndClosedPromiseIfNeeded(stream);
+          return null;
         });
       }
       __name(WritableStreamFinishErroring, "WritableStreamFinishErroring");
@@ -21610,7 +21858,10 @@ var require_ponyfill_es2018 = __commonJS({
         stream._backpressure = backpressure;
       }
       __name(WritableStreamUpdateBackpressure, "WritableStreamUpdateBackpressure");
-      const _WritableStreamDefaultWriter = class _WritableStreamDefaultWriter {
+      class WritableStreamDefaultWriter {
+        static {
+          __name(this, "WritableStreamDefaultWriter");
+        }
         constructor(stream) {
           assertRequiredArgument(stream, 1, "WritableStreamDefaultWriter");
           assertWritableStream(stream, "First parameter");
@@ -21737,9 +21988,7 @@ var require_ponyfill_es2018 = __commonJS({
           }
           return WritableStreamDefaultWriterWrite(this, chunk);
         }
-      };
-      __name(_WritableStreamDefaultWriter, "WritableStreamDefaultWriter");
-      let WritableStreamDefaultWriter = _WritableStreamDefaultWriter;
+      }
       Object.defineProperties(WritableStreamDefaultWriter.prototype, {
         abort: { enumerable: true },
         close: { enumerable: true },
@@ -21749,8 +21998,12 @@ var require_ponyfill_es2018 = __commonJS({
         desiredSize: { enumerable: true },
         ready: { enumerable: true }
       });
-      if (typeof SymbolPolyfill.toStringTag === "symbol") {
-        Object.defineProperty(WritableStreamDefaultWriter.prototype, SymbolPolyfill.toStringTag, {
+      setFunctionName(WritableStreamDefaultWriter.prototype.abort, "abort");
+      setFunctionName(WritableStreamDefaultWriter.prototype.close, "close");
+      setFunctionName(WritableStreamDefaultWriter.prototype.releaseLock, "releaseLock");
+      setFunctionName(WritableStreamDefaultWriter.prototype.write, "write");
+      if (typeof Symbol.toStringTag === "symbol") {
+        Object.defineProperty(WritableStreamDefaultWriter.prototype, Symbol.toStringTag, {
           value: "WritableStreamDefaultWriter",
           configurable: true
         });
@@ -21847,7 +22100,10 @@ var require_ponyfill_es2018 = __commonJS({
       }
       __name(WritableStreamDefaultWriterWrite, "WritableStreamDefaultWriterWrite");
       const closeSentinel = {};
-      const _WritableStreamDefaultController = class _WritableStreamDefaultController {
+      class WritableStreamDefaultController {
+        static {
+          __name(this, "WritableStreamDefaultController");
+        }
         constructor() {
           throw new TypeError("Illegal constructor");
         }
@@ -21903,16 +22159,14 @@ var require_ponyfill_es2018 = __commonJS({
         [ErrorSteps]() {
           ResetQueue(this);
         }
-      };
-      __name(_WritableStreamDefaultController, "WritableStreamDefaultController");
-      let WritableStreamDefaultController = _WritableStreamDefaultController;
+      }
       Object.defineProperties(WritableStreamDefaultController.prototype, {
         abortReason: { enumerable: true },
         signal: { enumerable: true },
         error: { enumerable: true }
       });
-      if (typeof SymbolPolyfill.toStringTag === "symbol") {
-        Object.defineProperty(WritableStreamDefaultController.prototype, SymbolPolyfill.toStringTag, {
+      if (typeof Symbol.toStringTag === "symbol") {
+        Object.defineProperty(WritableStreamDefaultController.prototype, Symbol.toStringTag, {
           value: "WritableStreamDefaultController",
           configurable: true
         });
@@ -21948,29 +22202,39 @@ var require_ponyfill_es2018 = __commonJS({
         uponPromise(startPromise, () => {
           controller._started = true;
           WritableStreamDefaultControllerAdvanceQueueIfNeeded(controller);
+          return null;
         }, (r2) => {
           controller._started = true;
           WritableStreamDealWithRejection(stream, r2);
+          return null;
         });
       }
       __name(SetUpWritableStreamDefaultController, "SetUpWritableStreamDefaultController");
       function SetUpWritableStreamDefaultControllerFromUnderlyingSink(stream, underlyingSink, highWaterMark, sizeAlgorithm) {
         const controller = Object.create(WritableStreamDefaultController.prototype);
-        let startAlgorithm = /* @__PURE__ */ __name(() => void 0, "startAlgorithm");
-        let writeAlgorithm = /* @__PURE__ */ __name(() => promiseResolvedWith(void 0), "writeAlgorithm");
-        let closeAlgorithm = /* @__PURE__ */ __name(() => promiseResolvedWith(void 0), "closeAlgorithm");
-        let abortAlgorithm = /* @__PURE__ */ __name(() => promiseResolvedWith(void 0), "abortAlgorithm");
+        let startAlgorithm;
+        let writeAlgorithm;
+        let closeAlgorithm;
+        let abortAlgorithm;
         if (underlyingSink.start !== void 0) {
           startAlgorithm = /* @__PURE__ */ __name(() => underlyingSink.start(controller), "startAlgorithm");
+        } else {
+          startAlgorithm = /* @__PURE__ */ __name(() => void 0, "startAlgorithm");
         }
         if (underlyingSink.write !== void 0) {
           writeAlgorithm = /* @__PURE__ */ __name((chunk) => underlyingSink.write(chunk, controller), "writeAlgorithm");
+        } else {
+          writeAlgorithm = /* @__PURE__ */ __name(() => promiseResolvedWith(void 0), "writeAlgorithm");
         }
         if (underlyingSink.close !== void 0) {
           closeAlgorithm = /* @__PURE__ */ __name(() => underlyingSink.close(), "closeAlgorithm");
+        } else {
+          closeAlgorithm = /* @__PURE__ */ __name(() => promiseResolvedWith(void 0), "closeAlgorithm");
         }
         if (underlyingSink.abort !== void 0) {
           abortAlgorithm = /* @__PURE__ */ __name((reason) => underlyingSink.abort(reason), "abortAlgorithm");
+        } else {
+          abortAlgorithm = /* @__PURE__ */ __name(() => promiseResolvedWith(void 0), "abortAlgorithm");
         }
         SetUpWritableStreamDefaultController(stream, controller, startAlgorithm, writeAlgorithm, closeAlgorithm, abortAlgorithm, highWaterMark, sizeAlgorithm);
       }
@@ -22053,8 +22317,10 @@ var require_ponyfill_es2018 = __commonJS({
         WritableStreamDefaultControllerClearAlgorithms(controller);
         uponPromise(sinkClosePromise, () => {
           WritableStreamFinishInFlightClose(stream);
+          return null;
         }, (reason) => {
           WritableStreamFinishInFlightCloseWithError(stream, reason);
+          return null;
         });
       }
       __name(WritableStreamDefaultControllerProcessClose, "WritableStreamDefaultControllerProcessClose");
@@ -22071,11 +22337,13 @@ var require_ponyfill_es2018 = __commonJS({
             WritableStreamUpdateBackpressure(stream, backpressure);
           }
           WritableStreamDefaultControllerAdvanceQueueIfNeeded(controller);
+          return null;
         }, (reason) => {
           if (stream._state === "writable") {
             WritableStreamDefaultControllerClearAlgorithms(controller);
           }
           WritableStreamFinishInFlightWriteWithError(stream, reason);
+          return null;
         });
       }
       __name(WritableStreamDefaultControllerProcessWrite, "WritableStreamDefaultControllerProcessWrite");
@@ -22196,20 +22464,39 @@ var require_ponyfill_es2018 = __commonJS({
         writer._readyPromiseState = "fulfilled";
       }
       __name(defaultWriterReadyPromiseResolve, "defaultWriterReadyPromiseResolve");
-      const NativeDOMException = typeof DOMException !== "undefined" ? DOMException : void 0;
+      function getGlobals() {
+        if (typeof globalThis !== "undefined") {
+          return globalThis;
+        } else if (typeof self !== "undefined") {
+          return self;
+        } else if (typeof global !== "undefined") {
+          return global;
+        }
+        return void 0;
+      }
+      __name(getGlobals, "getGlobals");
+      const globals = getGlobals();
       function isDOMExceptionConstructor(ctor) {
         if (!(typeof ctor === "function" || typeof ctor === "object")) {
+          return false;
+        }
+        if (ctor.name !== "DOMException") {
           return false;
         }
         try {
           new ctor();
           return true;
-        } catch (_a4) {
+        } catch (_a2) {
           return false;
         }
       }
       __name(isDOMExceptionConstructor, "isDOMExceptionConstructor");
-      function createDOMExceptionPolyfill() {
+      function getFromGlobal() {
+        const ctor = globals === null || globals === void 0 ? void 0 : globals.DOMException;
+        return isDOMExceptionConstructor(ctor) ? ctor : void 0;
+      }
+      __name(getFromGlobal, "getFromGlobal");
+      function createPolyfill() {
         const ctor = /* @__PURE__ */ __name(function DOMException3(message, name) {
           this.message = message || "";
           this.name = name || "Error";
@@ -22217,12 +22504,13 @@ var require_ponyfill_es2018 = __commonJS({
             Error.captureStackTrace(this, this.constructor);
           }
         }, "DOMException");
+        setFunctionName(ctor, "DOMException");
         ctor.prototype = Object.create(Error.prototype);
         Object.defineProperty(ctor.prototype, "constructor", { value: ctor, writable: true, configurable: true });
         return ctor;
       }
-      __name(createDOMExceptionPolyfill, "createDOMExceptionPolyfill");
-      const DOMException$1 = isDOMExceptionConstructor(NativeDOMException) ? NativeDOMException : createDOMExceptionPolyfill();
+      __name(createPolyfill, "createPolyfill");
+      const DOMException2 = getFromGlobal() || createPolyfill();
       function ReadableStreamPipeTo(source2, dest, preventClose, preventAbort, preventCancel, signal) {
         const reader = AcquireReadableStreamDefaultReader(source2);
         const writer = AcquireWritableStreamDefaultWriter(dest);
@@ -22233,7 +22521,7 @@ var require_ponyfill_es2018 = __commonJS({
           let abortAlgorithm;
           if (signal !== void 0) {
             abortAlgorithm = /* @__PURE__ */ __name(() => {
-              const error = new DOMException$1("Aborted", "AbortError");
+              const error = signal.reason !== void 0 ? signal.reason : new DOMException2("Aborted", "AbortError");
               const actions = [];
               if (!preventAbort) {
                 actions.push(() => {
@@ -22280,11 +22568,11 @@ var require_ponyfill_es2018 = __commonJS({
             return PerformPromiseThen(writer._readyPromise, () => {
               return newPromise((resolveRead, rejectRead) => {
                 ReadableStreamDefaultReaderRead(reader, {
-                  _chunkSteps: (chunk) => {
+                  _chunkSteps: /* @__PURE__ */ __name((chunk) => {
                     currentWrite = PerformPromiseThen(WritableStreamDefaultWriterWrite(writer, chunk), void 0, noop2);
                     resolveRead(false);
-                  },
-                  _closeSteps: () => resolveRead(true),
+                  }, "_chunkSteps"),
+                  _closeSteps: /* @__PURE__ */ __name(() => resolveRead(true), "_closeSteps"),
                   _errorSteps: rejectRead
                 });
               });
@@ -22297,6 +22585,7 @@ var require_ponyfill_es2018 = __commonJS({
             } else {
               shutdown(true, storedError);
             }
+            return null;
           });
           isOrBecomesErrored(dest, writer._closedPromise, (storedError) => {
             if (!preventCancel) {
@@ -22304,6 +22593,7 @@ var require_ponyfill_es2018 = __commonJS({
             } else {
               shutdown(true, storedError);
             }
+            return null;
           });
           isOrBecomesClosed(source2, reader._closedPromise, () => {
             if (!preventClose) {
@@ -22311,6 +22601,7 @@ var require_ponyfill_es2018 = __commonJS({
             } else {
               shutdown();
             }
+            return null;
           });
           if (WritableStreamCloseQueuedOrInFlight(dest) || dest._state === "closed") {
             const destClosed = new TypeError("the destination writable stream closed before all data could be piped to it");
@@ -22354,6 +22645,7 @@ var require_ponyfill_es2018 = __commonJS({
             }
             function doTheRest() {
               uponPromise(action(), () => finalize(originalIsError, originalError), (newError) => finalize(true, newError));
+              return null;
             }
             __name(doTheRest, "doTheRest");
           }
@@ -22381,12 +22673,16 @@ var require_ponyfill_es2018 = __commonJS({
             } else {
               resolve(void 0);
             }
+            return null;
           }
           __name(finalize, "finalize");
         });
       }
       __name(ReadableStreamPipeTo, "ReadableStreamPipeTo");
-      const _ReadableStreamDefaultController = class _ReadableStreamDefaultController {
+      class ReadableStreamDefaultController {
+        static {
+          __name(this, "ReadableStreamDefaultController");
+        }
         constructor() {
           throw new TypeError("Illegal constructor");
         }
@@ -22455,17 +22751,21 @@ var require_ponyfill_es2018 = __commonJS({
             ReadableStreamDefaultControllerCallPullIfNeeded(this);
           }
         }
-      };
-      __name(_ReadableStreamDefaultController, "ReadableStreamDefaultController");
-      let ReadableStreamDefaultController = _ReadableStreamDefaultController;
+        /** @internal */
+        [ReleaseSteps]() {
+        }
+      }
       Object.defineProperties(ReadableStreamDefaultController.prototype, {
         close: { enumerable: true },
         enqueue: { enumerable: true },
         error: { enumerable: true },
         desiredSize: { enumerable: true }
       });
-      if (typeof SymbolPolyfill.toStringTag === "symbol") {
-        Object.defineProperty(ReadableStreamDefaultController.prototype, SymbolPolyfill.toStringTag, {
+      setFunctionName(ReadableStreamDefaultController.prototype.close, "close");
+      setFunctionName(ReadableStreamDefaultController.prototype.enqueue, "enqueue");
+      setFunctionName(ReadableStreamDefaultController.prototype.error, "error");
+      if (typeof Symbol.toStringTag === "symbol") {
+        Object.defineProperty(ReadableStreamDefaultController.prototype, Symbol.toStringTag, {
           value: "ReadableStreamDefaultController",
           configurable: true
         });
@@ -22497,8 +22797,10 @@ var require_ponyfill_es2018 = __commonJS({
             controller._pullAgain = false;
             ReadableStreamDefaultControllerCallPullIfNeeded(controller);
           }
+          return null;
         }, (e2) => {
           ReadableStreamDefaultControllerError(controller, e2);
+          return null;
         });
       }
       __name(ReadableStreamDefaultControllerCallPullIfNeeded, "ReadableStreamDefaultControllerCallPullIfNeeded");
@@ -22617,24 +22919,32 @@ var require_ponyfill_es2018 = __commonJS({
         uponPromise(promiseResolvedWith(startResult), () => {
           controller._started = true;
           ReadableStreamDefaultControllerCallPullIfNeeded(controller);
+          return null;
         }, (r2) => {
           ReadableStreamDefaultControllerError(controller, r2);
+          return null;
         });
       }
       __name(SetUpReadableStreamDefaultController, "SetUpReadableStreamDefaultController");
       function SetUpReadableStreamDefaultControllerFromUnderlyingSource(stream, underlyingSource, highWaterMark, sizeAlgorithm) {
         const controller = Object.create(ReadableStreamDefaultController.prototype);
-        let startAlgorithm = /* @__PURE__ */ __name(() => void 0, "startAlgorithm");
-        let pullAlgorithm = /* @__PURE__ */ __name(() => promiseResolvedWith(void 0), "pullAlgorithm");
-        let cancelAlgorithm = /* @__PURE__ */ __name(() => promiseResolvedWith(void 0), "cancelAlgorithm");
+        let startAlgorithm;
+        let pullAlgorithm;
+        let cancelAlgorithm;
         if (underlyingSource.start !== void 0) {
           startAlgorithm = /* @__PURE__ */ __name(() => underlyingSource.start(controller), "startAlgorithm");
+        } else {
+          startAlgorithm = /* @__PURE__ */ __name(() => void 0, "startAlgorithm");
         }
         if (underlyingSource.pull !== void 0) {
           pullAlgorithm = /* @__PURE__ */ __name(() => underlyingSource.pull(controller), "pullAlgorithm");
+        } else {
+          pullAlgorithm = /* @__PURE__ */ __name(() => promiseResolvedWith(void 0), "pullAlgorithm");
         }
         if (underlyingSource.cancel !== void 0) {
           cancelAlgorithm = /* @__PURE__ */ __name((reason) => underlyingSource.cancel(reason), "cancelAlgorithm");
+        } else {
+          cancelAlgorithm = /* @__PURE__ */ __name(() => promiseResolvedWith(void 0), "cancelAlgorithm");
         }
         SetUpReadableStreamDefaultController(stream, controller, startAlgorithm, pullAlgorithm, cancelAlgorithm, highWaterMark, sizeAlgorithm);
       }
@@ -22671,8 +22981,8 @@ var require_ponyfill_es2018 = __commonJS({
           }
           reading = true;
           const readRequest = {
-            _chunkSteps: (chunk) => {
-              queueMicrotask(() => {
+            _chunkSteps: /* @__PURE__ */ __name((chunk) => {
+              _queueMicrotask(() => {
                 readAgain = false;
                 const chunk1 = chunk;
                 const chunk2 = chunk;
@@ -22687,8 +22997,8 @@ var require_ponyfill_es2018 = __commonJS({
                   pullAlgorithm();
                 }
               });
-            },
-            _closeSteps: () => {
+            }, "_chunkSteps"),
+            _closeSteps: /* @__PURE__ */ __name(() => {
               reading = false;
               if (!canceled1) {
                 ReadableStreamDefaultControllerClose(branch1._readableStreamController);
@@ -22699,10 +23009,10 @@ var require_ponyfill_es2018 = __commonJS({
               if (!canceled1 || !canceled2) {
                 resolveCancelPromise(void 0);
               }
-            },
-            _errorSteps: () => {
+            }, "_closeSteps"),
+            _errorSteps: /* @__PURE__ */ __name(() => {
               reading = false;
-            }
+            }, "_errorSteps")
           };
           ReadableStreamDefaultReaderRead(reader, readRequest);
           return promiseResolvedWith(void 0);
@@ -22741,6 +23051,7 @@ var require_ponyfill_es2018 = __commonJS({
           if (!canceled1 || !canceled2) {
             resolveCancelPromise(void 0);
           }
+          return null;
         });
         return [branch1, branch2];
       }
@@ -22763,13 +23074,14 @@ var require_ponyfill_es2018 = __commonJS({
         function forwardReaderError(thisReader) {
           uponRejection(thisReader._closedPromise, (r2) => {
             if (thisReader !== reader) {
-              return;
+              return null;
             }
             ReadableByteStreamControllerError(branch1._readableStreamController, r2);
             ReadableByteStreamControllerError(branch2._readableStreamController, r2);
             if (!canceled1 || !canceled2) {
               resolveCancelPromise(void 0);
             }
+            return null;
           });
         }
         __name(forwardReaderError, "forwardReaderError");
@@ -22780,8 +23092,8 @@ var require_ponyfill_es2018 = __commonJS({
             forwardReaderError(reader);
           }
           const readRequest = {
-            _chunkSteps: (chunk) => {
-              queueMicrotask(() => {
+            _chunkSteps: /* @__PURE__ */ __name((chunk) => {
+              _queueMicrotask(() => {
                 readAgainForBranch1 = false;
                 readAgainForBranch2 = false;
                 const chunk1 = chunk;
@@ -22809,8 +23121,8 @@ var require_ponyfill_es2018 = __commonJS({
                   pull2Algorithm();
                 }
               });
-            },
-            _closeSteps: () => {
+            }, "_chunkSteps"),
+            _closeSteps: /* @__PURE__ */ __name(() => {
               reading = false;
               if (!canceled1) {
                 ReadableByteStreamControllerClose(branch1._readableStreamController);
@@ -22827,10 +23139,10 @@ var require_ponyfill_es2018 = __commonJS({
               if (!canceled1 || !canceled2) {
                 resolveCancelPromise(void 0);
               }
-            },
-            _errorSteps: () => {
+            }, "_closeSteps"),
+            _errorSteps: /* @__PURE__ */ __name(() => {
               reading = false;
-            }
+            }, "_errorSteps")
           };
           ReadableStreamDefaultReaderRead(reader, readRequest);
         }
@@ -22844,8 +23156,8 @@ var require_ponyfill_es2018 = __commonJS({
           const byobBranch = forBranch2 ? branch2 : branch1;
           const otherBranch = forBranch2 ? branch1 : branch2;
           const readIntoRequest = {
-            _chunkSteps: (chunk) => {
-              queueMicrotask(() => {
+            _chunkSteps: /* @__PURE__ */ __name((chunk) => {
+              _queueMicrotask(() => {
                 readAgainForBranch1 = false;
                 readAgainForBranch2 = false;
                 const byobCanceled = forBranch2 ? canceled2 : canceled1;
@@ -22874,8 +23186,8 @@ var require_ponyfill_es2018 = __commonJS({
                   pull2Algorithm();
                 }
               });
-            },
-            _closeSteps: (chunk) => {
+            }, "_chunkSteps"),
+            _closeSteps: /* @__PURE__ */ __name((chunk) => {
               reading = false;
               const byobCanceled = forBranch2 ? canceled2 : canceled1;
               const otherCanceled = forBranch2 ? canceled1 : canceled2;
@@ -22896,12 +23208,12 @@ var require_ponyfill_es2018 = __commonJS({
               if (!byobCanceled || !otherCanceled) {
                 resolveCancelPromise(void 0);
               }
-            },
-            _errorSteps: () => {
+            }, "_closeSteps"),
+            _errorSteps: /* @__PURE__ */ __name(() => {
               reading = false;
-            }
+            }, "_errorSteps")
           };
-          ReadableStreamBYOBReaderRead(reader, view, readIntoRequest);
+          ReadableStreamBYOBReaderRead(reader, view, 1, readIntoRequest);
         }
         __name(pullWithBYOBReader, "pullWithBYOBReader");
         function pull1Algorithm() {
@@ -22966,6 +23278,108 @@ var require_ponyfill_es2018 = __commonJS({
         return [branch1, branch2];
       }
       __name(ReadableByteStreamTee, "ReadableByteStreamTee");
+      function isReadableStreamLike(stream) {
+        return typeIsObject(stream) && typeof stream.getReader !== "undefined";
+      }
+      __name(isReadableStreamLike, "isReadableStreamLike");
+      function ReadableStreamFrom(source2) {
+        if (isReadableStreamLike(source2)) {
+          return ReadableStreamFromDefaultReader(source2.getReader());
+        }
+        return ReadableStreamFromIterable(source2);
+      }
+      __name(ReadableStreamFrom, "ReadableStreamFrom");
+      function ReadableStreamFromIterable(asyncIterable) {
+        let stream;
+        const iteratorRecord = GetIterator(asyncIterable, "async");
+        const startAlgorithm = noop2;
+        function pullAlgorithm() {
+          let nextResult;
+          try {
+            nextResult = IteratorNext(iteratorRecord);
+          } catch (e2) {
+            return promiseRejectedWith(e2);
+          }
+          const nextPromise = promiseResolvedWith(nextResult);
+          return transformPromiseWith(nextPromise, (iterResult) => {
+            if (!typeIsObject(iterResult)) {
+              throw new TypeError("The promise returned by the iterator.next() method must fulfill with an object");
+            }
+            const done = IteratorComplete(iterResult);
+            if (done) {
+              ReadableStreamDefaultControllerClose(stream._readableStreamController);
+            } else {
+              const value = IteratorValue(iterResult);
+              ReadableStreamDefaultControllerEnqueue(stream._readableStreamController, value);
+            }
+          });
+        }
+        __name(pullAlgorithm, "pullAlgorithm");
+        function cancelAlgorithm(reason) {
+          const iterator = iteratorRecord.iterator;
+          let returnMethod;
+          try {
+            returnMethod = GetMethod(iterator, "return");
+          } catch (e2) {
+            return promiseRejectedWith(e2);
+          }
+          if (returnMethod === void 0) {
+            return promiseResolvedWith(void 0);
+          }
+          let returnResult;
+          try {
+            returnResult = reflectCall(returnMethod, iterator, [reason]);
+          } catch (e2) {
+            return promiseRejectedWith(e2);
+          }
+          const returnPromise = promiseResolvedWith(returnResult);
+          return transformPromiseWith(returnPromise, (iterResult) => {
+            if (!typeIsObject(iterResult)) {
+              throw new TypeError("The promise returned by the iterator.return() method must fulfill with an object");
+            }
+            return void 0;
+          });
+        }
+        __name(cancelAlgorithm, "cancelAlgorithm");
+        stream = CreateReadableStream(startAlgorithm, pullAlgorithm, cancelAlgorithm, 0);
+        return stream;
+      }
+      __name(ReadableStreamFromIterable, "ReadableStreamFromIterable");
+      function ReadableStreamFromDefaultReader(reader) {
+        let stream;
+        const startAlgorithm = noop2;
+        function pullAlgorithm() {
+          let readPromise;
+          try {
+            readPromise = reader.read();
+          } catch (e2) {
+            return promiseRejectedWith(e2);
+          }
+          return transformPromiseWith(readPromise, (readResult) => {
+            if (!typeIsObject(readResult)) {
+              throw new TypeError("The promise returned by the reader.read() method must fulfill with an object");
+            }
+            if (readResult.done) {
+              ReadableStreamDefaultControllerClose(stream._readableStreamController);
+            } else {
+              const value = readResult.value;
+              ReadableStreamDefaultControllerEnqueue(stream._readableStreamController, value);
+            }
+          });
+        }
+        __name(pullAlgorithm, "pullAlgorithm");
+        function cancelAlgorithm(reason) {
+          try {
+            return promiseResolvedWith(reader.cancel(reason));
+          } catch (e2) {
+            return promiseRejectedWith(e2);
+          }
+        }
+        __name(cancelAlgorithm, "cancelAlgorithm");
+        stream = CreateReadableStream(startAlgorithm, pullAlgorithm, cancelAlgorithm, 0);
+        return stream;
+      }
+      __name(ReadableStreamFromDefaultReader, "ReadableStreamFromDefaultReader");
       function convertUnderlyingDefaultOrByteSource(source2, context) {
         assertDictionary(source2, context);
         const original = source2;
@@ -23006,22 +23420,6 @@ var require_ponyfill_es2018 = __commonJS({
         return type;
       }
       __name(convertReadableStreamType, "convertReadableStreamType");
-      function convertReaderOptions(options, context) {
-        assertDictionary(options, context);
-        const mode = options === null || options === void 0 ? void 0 : options.mode;
-        return {
-          mode: mode === void 0 ? void 0 : convertReadableStreamReaderMode(mode, `${context} has member 'mode' that`)
-        };
-      }
-      __name(convertReaderOptions, "convertReaderOptions");
-      function convertReadableStreamReaderMode(mode, context) {
-        mode = `${mode}`;
-        if (mode !== "byob") {
-          throw new TypeError(`${context} '${mode}' is not a valid enumeration value for ReadableStreamReaderMode`);
-        }
-        return mode;
-      }
-      __name(convertReadableStreamReaderMode, "convertReadableStreamReaderMode");
       function convertIteratorOptions(options, context) {
         assertDictionary(options, context);
         const preventCancel = options === null || options === void 0 ? void 0 : options.preventCancel;
@@ -23062,7 +23460,10 @@ var require_ponyfill_es2018 = __commonJS({
         return { readable, writable };
       }
       __name(convertReadableWritablePair, "convertReadableWritablePair");
-      const _ReadableStream = class _ReadableStream {
+      class ReadableStream2 {
+        static {
+          __name(this, "ReadableStream");
+        }
         constructor(rawUnderlyingSource = {}, rawStrategy = {}) {
           if (rawUnderlyingSource === void 0) {
             rawUnderlyingSource = null;
@@ -23184,9 +23585,22 @@ var require_ponyfill_es2018 = __commonJS({
           const options = convertIteratorOptions(rawOptions, "First parameter");
           return AcquireReadableStreamAsyncIterator(this, options.preventCancel);
         }
-      };
-      __name(_ReadableStream, "ReadableStream");
-      let ReadableStream2 = _ReadableStream;
+        [SymbolAsyncIterator](options) {
+          return this.values(options);
+        }
+        /**
+         * Creates a new ReadableStream wrapping the provided iterable or async iterable.
+         *
+         * This can be used to adapt various kinds of objects into a readable stream,
+         * such as an array, an async generator, or a Node.js readable stream.
+         */
+        static from(asyncIterable) {
+          return ReadableStreamFrom(asyncIterable);
+        }
+      }
+      Object.defineProperties(ReadableStream2, {
+        from: { enumerable: true }
+      });
       Object.defineProperties(ReadableStream2.prototype, {
         cancel: { enumerable: true },
         getReader: { enumerable: true },
@@ -23196,19 +23610,24 @@ var require_ponyfill_es2018 = __commonJS({
         values: { enumerable: true },
         locked: { enumerable: true }
       });
-      if (typeof SymbolPolyfill.toStringTag === "symbol") {
-        Object.defineProperty(ReadableStream2.prototype, SymbolPolyfill.toStringTag, {
+      setFunctionName(ReadableStream2.from, "from");
+      setFunctionName(ReadableStream2.prototype.cancel, "cancel");
+      setFunctionName(ReadableStream2.prototype.getReader, "getReader");
+      setFunctionName(ReadableStream2.prototype.pipeThrough, "pipeThrough");
+      setFunctionName(ReadableStream2.prototype.pipeTo, "pipeTo");
+      setFunctionName(ReadableStream2.prototype.tee, "tee");
+      setFunctionName(ReadableStream2.prototype.values, "values");
+      if (typeof Symbol.toStringTag === "symbol") {
+        Object.defineProperty(ReadableStream2.prototype, Symbol.toStringTag, {
           value: "ReadableStream",
           configurable: true
         });
       }
-      if (typeof SymbolPolyfill.asyncIterator === "symbol") {
-        Object.defineProperty(ReadableStream2.prototype, SymbolPolyfill.asyncIterator, {
-          value: ReadableStream2.prototype.values,
-          writable: true,
-          configurable: true
-        });
-      }
+      Object.defineProperty(ReadableStream2.prototype, SymbolAsyncIterator, {
+        value: ReadableStream2.prototype.values,
+        writable: true,
+        configurable: true
+      });
       function CreateReadableStream(startAlgorithm, pullAlgorithm, cancelAlgorithm, highWaterMark = 1, sizeAlgorithm = () => 1) {
         const stream = Object.create(ReadableStream2.prototype);
         InitializeReadableStream(stream);
@@ -23260,10 +23679,11 @@ var require_ponyfill_es2018 = __commonJS({
         ReadableStreamClose(stream);
         const reader = stream._reader;
         if (reader !== void 0 && IsReadableStreamBYOBReader(reader)) {
-          reader._readIntoRequests.forEach((readIntoRequest) => {
+          const readIntoRequests = reader._readIntoRequests;
+          reader._readIntoRequests = new SimpleQueue();
+          readIntoRequests.forEach((readIntoRequest) => {
             readIntoRequest._closeSteps(void 0);
           });
-          reader._readIntoRequests = new SimpleQueue();
         }
         const sourceCancelPromise = stream._readableStreamController[CancelSteps](reason);
         return transformPromiseWith(sourceCancelPromise, noop2);
@@ -23277,10 +23697,11 @@ var require_ponyfill_es2018 = __commonJS({
         }
         defaultReaderClosedPromiseResolve(reader);
         if (IsReadableStreamDefaultReader(reader)) {
-          reader._readRequests.forEach((readRequest) => {
+          const readRequests = reader._readRequests;
+          reader._readRequests = new SimpleQueue();
+          readRequests.forEach((readRequest) => {
             readRequest._closeSteps();
           });
-          reader._readRequests = new SimpleQueue();
         }
       }
       __name(ReadableStreamClose, "ReadableStreamClose");
@@ -23293,15 +23714,9 @@ var require_ponyfill_es2018 = __commonJS({
         }
         defaultReaderClosedPromiseReject(reader, e2);
         if (IsReadableStreamDefaultReader(reader)) {
-          reader._readRequests.forEach((readRequest) => {
-            readRequest._errorSteps(e2);
-          });
-          reader._readRequests = new SimpleQueue();
+          ReadableStreamDefaultReaderErrorReadRequests(reader, e2);
         } else {
-          reader._readIntoRequests.forEach((readIntoRequest) => {
-            readIntoRequest._errorSteps(e2);
-          });
-          reader._readIntoRequests = new SimpleQueue();
+          ReadableStreamBYOBReaderErrorReadIntoRequests(reader, e2);
         }
       }
       __name(ReadableStreamError, "ReadableStreamError");
@@ -23321,14 +23736,11 @@ var require_ponyfill_es2018 = __commonJS({
       const byteLengthSizeFunction = /* @__PURE__ */ __name((chunk) => {
         return chunk.byteLength;
       }, "byteLengthSizeFunction");
-      try {
-        Object.defineProperty(byteLengthSizeFunction, "name", {
-          value: "size",
-          configurable: true
-        });
-      } catch (_a4) {
-      }
-      const _ByteLengthQueuingStrategy = class _ByteLengthQueuingStrategy {
+      setFunctionName(byteLengthSizeFunction, "size");
+      class ByteLengthQueuingStrategy {
+        static {
+          __name(this, "ByteLengthQueuingStrategy");
+        }
         constructor(options) {
           assertRequiredArgument(options, 1, "ByteLengthQueuingStrategy");
           options = convertQueuingStrategyInit(options, "First parameter");
@@ -23352,15 +23764,13 @@ var require_ponyfill_es2018 = __commonJS({
           }
           return byteLengthSizeFunction;
         }
-      };
-      __name(_ByteLengthQueuingStrategy, "ByteLengthQueuingStrategy");
-      let ByteLengthQueuingStrategy = _ByteLengthQueuingStrategy;
+      }
       Object.defineProperties(ByteLengthQueuingStrategy.prototype, {
         highWaterMark: { enumerable: true },
         size: { enumerable: true }
       });
-      if (typeof SymbolPolyfill.toStringTag === "symbol") {
-        Object.defineProperty(ByteLengthQueuingStrategy.prototype, SymbolPolyfill.toStringTag, {
+      if (typeof Symbol.toStringTag === "symbol") {
+        Object.defineProperty(ByteLengthQueuingStrategy.prototype, Symbol.toStringTag, {
           value: "ByteLengthQueuingStrategy",
           configurable: true
         });
@@ -23382,14 +23792,11 @@ var require_ponyfill_es2018 = __commonJS({
       const countSizeFunction = /* @__PURE__ */ __name(() => {
         return 1;
       }, "countSizeFunction");
-      try {
-        Object.defineProperty(countSizeFunction, "name", {
-          value: "size",
-          configurable: true
-        });
-      } catch (_a4) {
-      }
-      const _CountQueuingStrategy = class _CountQueuingStrategy {
+      setFunctionName(countSizeFunction, "size");
+      class CountQueuingStrategy {
+        static {
+          __name(this, "CountQueuingStrategy");
+        }
         constructor(options) {
           assertRequiredArgument(options, 1, "CountQueuingStrategy");
           options = convertQueuingStrategyInit(options, "First parameter");
@@ -23414,15 +23821,13 @@ var require_ponyfill_es2018 = __commonJS({
           }
           return countSizeFunction;
         }
-      };
-      __name(_CountQueuingStrategy, "CountQueuingStrategy");
-      let CountQueuingStrategy = _CountQueuingStrategy;
+      }
       Object.defineProperties(CountQueuingStrategy.prototype, {
         highWaterMark: { enumerable: true },
         size: { enumerable: true }
       });
-      if (typeof SymbolPolyfill.toStringTag === "symbol") {
-        Object.defineProperty(CountQueuingStrategy.prototype, SymbolPolyfill.toStringTag, {
+      if (typeof Symbol.toStringTag === "symbol") {
+        Object.defineProperty(CountQueuingStrategy.prototype, Symbol.toStringTag, {
           value: "CountQueuingStrategy",
           configurable: true
         });
@@ -23443,12 +23848,14 @@ var require_ponyfill_es2018 = __commonJS({
       __name(IsCountQueuingStrategy, "IsCountQueuingStrategy");
       function convertTransformer(original, context) {
         assertDictionary(original, context);
+        const cancel = original === null || original === void 0 ? void 0 : original.cancel;
         const flush = original === null || original === void 0 ? void 0 : original.flush;
         const readableType = original === null || original === void 0 ? void 0 : original.readableType;
         const start = original === null || original === void 0 ? void 0 : original.start;
         const transform = original === null || original === void 0 ? void 0 : original.transform;
         const writableType = original === null || original === void 0 ? void 0 : original.writableType;
         return {
+          cancel: cancel === void 0 ? void 0 : convertTransformerCancelCallback(cancel, original, `${context} has member 'cancel' that`),
           flush: flush === void 0 ? void 0 : convertTransformerFlushCallback(flush, original, `${context} has member 'flush' that`),
           readableType,
           start: start === void 0 ? void 0 : convertTransformerStartCallback(start, original, `${context} has member 'start' that`),
@@ -23472,7 +23879,15 @@ var require_ponyfill_es2018 = __commonJS({
         return (chunk, controller) => promiseCall(fn, original, [chunk, controller]);
       }
       __name(convertTransformerTransformCallback, "convertTransformerTransformCallback");
-      const _TransformStream = class _TransformStream {
+      function convertTransformerCancelCallback(fn, original, context) {
+        assertFunction(fn, context);
+        return (reason) => promiseCall(fn, original, [reason]);
+      }
+      __name(convertTransformerCancelCallback, "convertTransformerCancelCallback");
+      class TransformStream {
+        static {
+          __name(this, "TransformStream");
+        }
         constructor(rawTransformer = {}, rawWritableStrategy = {}, rawReadableStrategy = {}) {
           if (rawTransformer === void 0) {
             rawTransformer = null;
@@ -23520,15 +23935,13 @@ var require_ponyfill_es2018 = __commonJS({
           }
           return this._writable;
         }
-      };
-      __name(_TransformStream, "TransformStream");
-      let TransformStream = _TransformStream;
+      }
       Object.defineProperties(TransformStream.prototype, {
         readable: { enumerable: true },
         writable: { enumerable: true }
       });
-      if (typeof SymbolPolyfill.toStringTag === "symbol") {
-        Object.defineProperty(TransformStream.prototype, SymbolPolyfill.toStringTag, {
+      if (typeof Symbol.toStringTag === "symbol") {
+        Object.defineProperty(TransformStream.prototype, Symbol.toStringTag, {
           value: "TransformStream",
           configurable: true
         });
@@ -23556,8 +23969,7 @@ var require_ponyfill_es2018 = __commonJS({
         }
         __name(pullAlgorithm, "pullAlgorithm");
         function cancelAlgorithm(reason) {
-          TransformStreamErrorWritableAndUnblockWrite(stream, reason);
-          return promiseResolvedWith(void 0);
+          return TransformStreamDefaultSourceCancelAlgorithm(stream, reason);
         }
         __name(cancelAlgorithm, "cancelAlgorithm");
         stream._readable = CreateReadableStream(startAlgorithm, pullAlgorithm, cancelAlgorithm, readableHighWaterMark, readableSizeAlgorithm);
@@ -23586,11 +23998,15 @@ var require_ponyfill_es2018 = __commonJS({
       function TransformStreamErrorWritableAndUnblockWrite(stream, e2) {
         TransformStreamDefaultControllerClearAlgorithms(stream._transformStreamController);
         WritableStreamDefaultControllerErrorIfNeeded(stream._writable._writableStreamController, e2);
+        TransformStreamUnblockWrite(stream);
+      }
+      __name(TransformStreamErrorWritableAndUnblockWrite, "TransformStreamErrorWritableAndUnblockWrite");
+      function TransformStreamUnblockWrite(stream) {
         if (stream._backpressure) {
           TransformStreamSetBackpressure(stream, false);
         }
       }
-      __name(TransformStreamErrorWritableAndUnblockWrite, "TransformStreamErrorWritableAndUnblockWrite");
+      __name(TransformStreamUnblockWrite, "TransformStreamUnblockWrite");
       function TransformStreamSetBackpressure(stream, backpressure) {
         if (stream._backpressureChangePromise !== void 0) {
           stream._backpressureChangePromise_resolve();
@@ -23601,7 +24017,10 @@ var require_ponyfill_es2018 = __commonJS({
         stream._backpressure = backpressure;
       }
       __name(TransformStreamSetBackpressure, "TransformStreamSetBackpressure");
-      const _TransformStreamDefaultController = class _TransformStreamDefaultController {
+      class TransformStreamDefaultController {
+        static {
+          __name(this, "TransformStreamDefaultController");
+        }
         constructor() {
           throw new TypeError("Illegal constructor");
         }
@@ -23641,17 +24060,18 @@ var require_ponyfill_es2018 = __commonJS({
           }
           TransformStreamDefaultControllerTerminate(this);
         }
-      };
-      __name(_TransformStreamDefaultController, "TransformStreamDefaultController");
-      let TransformStreamDefaultController = _TransformStreamDefaultController;
+      }
       Object.defineProperties(TransformStreamDefaultController.prototype, {
         enqueue: { enumerable: true },
         error: { enumerable: true },
         terminate: { enumerable: true },
         desiredSize: { enumerable: true }
       });
-      if (typeof SymbolPolyfill.toStringTag === "symbol") {
-        Object.defineProperty(TransformStreamDefaultController.prototype, SymbolPolyfill.toStringTag, {
+      setFunctionName(TransformStreamDefaultController.prototype.enqueue, "enqueue");
+      setFunctionName(TransformStreamDefaultController.prototype.error, "error");
+      setFunctionName(TransformStreamDefaultController.prototype.terminate, "terminate");
+      if (typeof Symbol.toStringTag === "symbol") {
+        Object.defineProperty(TransformStreamDefaultController.prototype, Symbol.toStringTag, {
           value: "TransformStreamDefaultController",
           configurable: true
         });
@@ -23666,36 +24086,51 @@ var require_ponyfill_es2018 = __commonJS({
         return x2 instanceof TransformStreamDefaultController;
       }
       __name(IsTransformStreamDefaultController, "IsTransformStreamDefaultController");
-      function SetUpTransformStreamDefaultController(stream, controller, transformAlgorithm, flushAlgorithm) {
+      function SetUpTransformStreamDefaultController(stream, controller, transformAlgorithm, flushAlgorithm, cancelAlgorithm) {
         controller._controlledTransformStream = stream;
         stream._transformStreamController = controller;
         controller._transformAlgorithm = transformAlgorithm;
         controller._flushAlgorithm = flushAlgorithm;
+        controller._cancelAlgorithm = cancelAlgorithm;
+        controller._finishPromise = void 0;
+        controller._finishPromise_resolve = void 0;
+        controller._finishPromise_reject = void 0;
       }
       __name(SetUpTransformStreamDefaultController, "SetUpTransformStreamDefaultController");
       function SetUpTransformStreamDefaultControllerFromTransformer(stream, transformer) {
         const controller = Object.create(TransformStreamDefaultController.prototype);
-        let transformAlgorithm = /* @__PURE__ */ __name((chunk) => {
-          try {
-            TransformStreamDefaultControllerEnqueue(controller, chunk);
-            return promiseResolvedWith(void 0);
-          } catch (transformResultE) {
-            return promiseRejectedWith(transformResultE);
-          }
-        }, "transformAlgorithm");
-        let flushAlgorithm = /* @__PURE__ */ __name(() => promiseResolvedWith(void 0), "flushAlgorithm");
+        let transformAlgorithm;
+        let flushAlgorithm;
+        let cancelAlgorithm;
         if (transformer.transform !== void 0) {
           transformAlgorithm = /* @__PURE__ */ __name((chunk) => transformer.transform(chunk, controller), "transformAlgorithm");
+        } else {
+          transformAlgorithm = /* @__PURE__ */ __name((chunk) => {
+            try {
+              TransformStreamDefaultControllerEnqueue(controller, chunk);
+              return promiseResolvedWith(void 0);
+            } catch (transformResultE) {
+              return promiseRejectedWith(transformResultE);
+            }
+          }, "transformAlgorithm");
         }
         if (transformer.flush !== void 0) {
           flushAlgorithm = /* @__PURE__ */ __name(() => transformer.flush(controller), "flushAlgorithm");
+        } else {
+          flushAlgorithm = /* @__PURE__ */ __name(() => promiseResolvedWith(void 0), "flushAlgorithm");
         }
-        SetUpTransformStreamDefaultController(stream, controller, transformAlgorithm, flushAlgorithm);
+        if (transformer.cancel !== void 0) {
+          cancelAlgorithm = /* @__PURE__ */ __name((reason) => transformer.cancel(reason), "cancelAlgorithm");
+        } else {
+          cancelAlgorithm = /* @__PURE__ */ __name(() => promiseResolvedWith(void 0), "cancelAlgorithm");
+        }
+        SetUpTransformStreamDefaultController(stream, controller, transformAlgorithm, flushAlgorithm, cancelAlgorithm);
       }
       __name(SetUpTransformStreamDefaultControllerFromTransformer, "SetUpTransformStreamDefaultControllerFromTransformer");
       function TransformStreamDefaultControllerClearAlgorithms(controller) {
         controller._transformAlgorithm = void 0;
         controller._flushAlgorithm = void 0;
+        controller._cancelAlgorithm = void 0;
       }
       __name(TransformStreamDefaultControllerClearAlgorithms, "TransformStreamDefaultControllerClearAlgorithms");
       function TransformStreamDefaultControllerEnqueue(controller, chunk) {
@@ -23753,24 +24188,59 @@ var require_ponyfill_es2018 = __commonJS({
       }
       __name(TransformStreamDefaultSinkWriteAlgorithm, "TransformStreamDefaultSinkWriteAlgorithm");
       function TransformStreamDefaultSinkAbortAlgorithm(stream, reason) {
-        TransformStreamError(stream, reason);
-        return promiseResolvedWith(void 0);
+        const controller = stream._transformStreamController;
+        if (controller._finishPromise !== void 0) {
+          return controller._finishPromise;
+        }
+        const readable = stream._readable;
+        controller._finishPromise = newPromise((resolve, reject) => {
+          controller._finishPromise_resolve = resolve;
+          controller._finishPromise_reject = reject;
+        });
+        const cancelPromise = controller._cancelAlgorithm(reason);
+        TransformStreamDefaultControllerClearAlgorithms(controller);
+        uponPromise(cancelPromise, () => {
+          if (readable._state === "errored") {
+            defaultControllerFinishPromiseReject(controller, readable._storedError);
+          } else {
+            ReadableStreamDefaultControllerError(readable._readableStreamController, reason);
+            defaultControllerFinishPromiseResolve(controller);
+          }
+          return null;
+        }, (r2) => {
+          ReadableStreamDefaultControllerError(readable._readableStreamController, r2);
+          defaultControllerFinishPromiseReject(controller, r2);
+          return null;
+        });
+        return controller._finishPromise;
       }
       __name(TransformStreamDefaultSinkAbortAlgorithm, "TransformStreamDefaultSinkAbortAlgorithm");
       function TransformStreamDefaultSinkCloseAlgorithm(stream) {
-        const readable = stream._readable;
         const controller = stream._transformStreamController;
+        if (controller._finishPromise !== void 0) {
+          return controller._finishPromise;
+        }
+        const readable = stream._readable;
+        controller._finishPromise = newPromise((resolve, reject) => {
+          controller._finishPromise_resolve = resolve;
+          controller._finishPromise_reject = reject;
+        });
         const flushPromise = controller._flushAlgorithm();
         TransformStreamDefaultControllerClearAlgorithms(controller);
-        return transformPromiseWith(flushPromise, () => {
+        uponPromise(flushPromise, () => {
           if (readable._state === "errored") {
-            throw readable._storedError;
+            defaultControllerFinishPromiseReject(controller, readable._storedError);
+          } else {
+            ReadableStreamDefaultControllerClose(readable._readableStreamController);
+            defaultControllerFinishPromiseResolve(controller);
           }
-          ReadableStreamDefaultControllerClose(readable._readableStreamController);
+          return null;
         }, (r2) => {
-          TransformStreamError(stream, r2);
-          throw readable._storedError;
+          ReadableStreamDefaultControllerError(readable._readableStreamController, r2);
+          defaultControllerFinishPromiseReject(controller, r2);
+          return null;
         });
+        return controller._finishPromise;
       }
       __name(TransformStreamDefaultSinkCloseAlgorithm, "TransformStreamDefaultSinkCloseAlgorithm");
       function TransformStreamDefaultSourcePullAlgorithm(stream) {
@@ -23778,10 +24248,59 @@ var require_ponyfill_es2018 = __commonJS({
         return stream._backpressureChangePromise;
       }
       __name(TransformStreamDefaultSourcePullAlgorithm, "TransformStreamDefaultSourcePullAlgorithm");
+      function TransformStreamDefaultSourceCancelAlgorithm(stream, reason) {
+        const controller = stream._transformStreamController;
+        if (controller._finishPromise !== void 0) {
+          return controller._finishPromise;
+        }
+        const writable = stream._writable;
+        controller._finishPromise = newPromise((resolve, reject) => {
+          controller._finishPromise_resolve = resolve;
+          controller._finishPromise_reject = reject;
+        });
+        const cancelPromise = controller._cancelAlgorithm(reason);
+        TransformStreamDefaultControllerClearAlgorithms(controller);
+        uponPromise(cancelPromise, () => {
+          if (writable._state === "errored") {
+            defaultControllerFinishPromiseReject(controller, writable._storedError);
+          } else {
+            WritableStreamDefaultControllerErrorIfNeeded(writable._writableStreamController, reason);
+            TransformStreamUnblockWrite(stream);
+            defaultControllerFinishPromiseResolve(controller);
+          }
+          return null;
+        }, (r2) => {
+          WritableStreamDefaultControllerErrorIfNeeded(writable._writableStreamController, r2);
+          TransformStreamUnblockWrite(stream);
+          defaultControllerFinishPromiseReject(controller, r2);
+          return null;
+        });
+        return controller._finishPromise;
+      }
+      __name(TransformStreamDefaultSourceCancelAlgorithm, "TransformStreamDefaultSourceCancelAlgorithm");
       function defaultControllerBrandCheckException(name) {
         return new TypeError(`TransformStreamDefaultController.prototype.${name} can only be used on a TransformStreamDefaultController`);
       }
       __name(defaultControllerBrandCheckException, "defaultControllerBrandCheckException");
+      function defaultControllerFinishPromiseResolve(controller) {
+        if (controller._finishPromise_resolve === void 0) {
+          return;
+        }
+        controller._finishPromise_resolve();
+        controller._finishPromise_resolve = void 0;
+        controller._finishPromise_reject = void 0;
+      }
+      __name(defaultControllerFinishPromiseResolve, "defaultControllerFinishPromiseResolve");
+      function defaultControllerFinishPromiseReject(controller, reason) {
+        if (controller._finishPromise_reject === void 0) {
+          return;
+        }
+        setPromiseIsHandledToTrue(controller._finishPromise);
+        controller._finishPromise_reject(reason);
+        controller._finishPromise_resolve = void 0;
+        controller._finishPromise_reject = void 0;
+      }
+      __name(defaultControllerFinishPromiseReject, "defaultControllerFinishPromiseReject");
       function streamBrandCheckException(name) {
         return new TypeError(`TransformStream.prototype.${name} can only be used on a TransformStream`);
       }
@@ -23799,14 +24318,13 @@ var require_ponyfill_es2018 = __commonJS({
       exports3.WritableStream = WritableStream;
       exports3.WritableStreamDefaultController = WritableStreamDefaultController;
       exports3.WritableStreamDefaultWriter = WritableStreamDefaultWriter;
-      Object.defineProperty(exports3, "__esModule", { value: true });
     });
   }
 });
 
-// node_modules/.pnpm/fetch-blob@3.2.0/node_modules/fetch-blob/streams.cjs
+// node_modules/fetch-blob/streams.cjs
 var require_streams2 = __commonJS({
-  "node_modules/.pnpm/fetch-blob@3.2.0/node_modules/fetch-blob/streams.cjs"() {
+  "node_modules/fetch-blob/streams.cjs"() {
     var POOL_SIZE2 = 65536;
     if (!globalThis.ReadableStream) {
       try {
@@ -23826,9 +24344,9 @@ var require_streams2 = __commonJS({
       }
     }
     try {
-      const { Blob: Blob2 } = require("buffer");
-      if (Blob2 && !Blob2.prototype.stream) {
-        Blob2.prototype.stream = /* @__PURE__ */ __name(function name(params) {
+      const { Blob: Blob3 } = require("buffer");
+      if (Blob3 && !Blob3.prototype.stream) {
+        Blob3.prototype.stream = /* @__PURE__ */ __name(function name(params) {
           let position = 0;
           const blob = this;
           return new ReadableStream({
@@ -23850,7 +24368,7 @@ var require_streams2 = __commonJS({
   }
 });
 
-// node_modules/.pnpm/fetch-blob@3.2.0/node_modules/fetch-blob/index.js
+// node_modules/fetch-blob/index.js
 async function* toIterator(parts, clone2 = true) {
   for (const part of parts) {
     if ("stream" in part) {
@@ -23885,14 +24403,22 @@ async function* toIterator(parts, clone2 = true) {
     }
   }
 }
-var import_streams, POOL_SIZE, _parts, _type, _size, _endings, _a, _Blob, Blob, fetch_blob_default;
+var import_streams, POOL_SIZE, _Blob, Blob2, fetch_blob_default;
 var init_fetch_blob = __esm({
-  "node_modules/.pnpm/fetch-blob@3.2.0/node_modules/fetch-blob/index.js"() {
+  "node_modules/fetch-blob/index.js"() {
     import_streams = __toESM(require_streams2(), 1);
     /*! fetch-blob. MIT License. Jimmy Wärting <https://jimmy.warting.se/opensource> */
     POOL_SIZE = 65536;
     __name(toIterator, "toIterator");
-    _Blob = (_a = class {
+    _Blob = class Blob {
+      static {
+        __name(this, "Blob");
+      }
+      /** @type {Array.<(Blob|Uint8Array)>} */
+      #parts = [];
+      #type = "";
+      #size = 0;
+      #endings = "transparent";
       /**
        * The Blob() constructor returns a new Blob object. The content
        * of the blob consists of the concatenation of the values given
@@ -23902,11 +24428,6 @@ var init_fetch_blob = __esm({
        * @param {{ type?: string, endings?: string }} [options]
        */
       constructor(blobParts = [], options = {}) {
-        /** @type {Array.<(Blob|Uint8Array)>} */
-        __privateAdd(this, _parts, []);
-        __privateAdd(this, _type, "");
-        __privateAdd(this, _size, 0);
-        __privateAdd(this, _endings, "transparent");
         if (typeof blobParts !== "object" || blobParts === null) {
           throw new TypeError("Failed to construct 'Blob': The provided value cannot be converted to a sequence.");
         }
@@ -23916,8 +24437,7 @@ var init_fetch_blob = __esm({
         if (typeof options !== "object" && typeof options !== "function") {
           throw new TypeError("Failed to construct 'Blob': parameter 2 cannot convert to dictionary.");
         }
-        if (options === null)
-          options = {};
+        if (options === null) options = {};
         const encoder = new TextEncoder();
         for (const element of blobParts) {
           let part;
@@ -23925,30 +24445,30 @@ var init_fetch_blob = __esm({
             part = new Uint8Array(element.buffer.slice(element.byteOffset, element.byteOffset + element.byteLength));
           } else if (element instanceof ArrayBuffer) {
             part = new Uint8Array(element.slice(0));
-          } else if (element instanceof _a) {
+          } else if (element instanceof Blob) {
             part = element;
           } else {
             part = encoder.encode(`${element}`);
           }
-          __privateSet(this, _size, __privateGet(this, _size) + (ArrayBuffer.isView(part) ? part.byteLength : part.size));
-          __privateGet(this, _parts).push(part);
+          this.#size += ArrayBuffer.isView(part) ? part.byteLength : part.size;
+          this.#parts.push(part);
         }
-        __privateSet(this, _endings, `${options.endings === void 0 ? "transparent" : options.endings}`);
+        this.#endings = `${options.endings === void 0 ? "transparent" : options.endings}`;
         const type = options.type === void 0 ? "" : String(options.type);
-        __privateSet(this, _type, /^[\x20-\x7E]*$/.test(type) ? type : "");
+        this.#type = /^[\x20-\x7E]*$/.test(type) ? type : "";
       }
       /**
        * The Blob interface's size property returns the
        * size of the Blob in bytes.
        */
       get size() {
-        return __privateGet(this, _size);
+        return this.#size;
       }
       /**
        * The type property of a Blob object returns the MIME type of the file.
        */
       get type() {
-        return __privateGet(this, _type);
+        return this.#type;
       }
       /**
        * The text() method in the Blob interface returns a Promise
@@ -23960,7 +24480,7 @@ var init_fetch_blob = __esm({
       async text() {
         const decoder = new TextDecoder();
         let str = "";
-        for await (const part of toIterator(__privateGet(this, _parts), false)) {
+        for await (const part of toIterator(this.#parts, false)) {
           str += decoder.decode(part, { stream: true });
         }
         str += decoder.decode();
@@ -23976,14 +24496,14 @@ var init_fetch_blob = __esm({
       async arrayBuffer() {
         const data = new Uint8Array(this.size);
         let offset = 0;
-        for await (const chunk of toIterator(__privateGet(this, _parts), false)) {
+        for await (const chunk of toIterator(this.#parts, false)) {
           data.set(chunk, offset);
           offset += chunk.length;
         }
         return data.buffer;
       }
       stream() {
-        const it = toIterator(__privateGet(this, _parts), true);
+        const it = toIterator(this.#parts, true);
         return new globalThis.ReadableStream({
           // @ts-ignore
           type: "bytes",
@@ -24010,7 +24530,7 @@ var init_fetch_blob = __esm({
         let relativeStart = start < 0 ? Math.max(size + start, 0) : Math.min(start, size);
         let relativeEnd = end < 0 ? Math.max(size + end, 0) : Math.min(end, size);
         const span = Math.max(relativeEnd - relativeStart, 0);
-        const parts = __privateGet(this, _parts);
+        const parts = this.#parts;
         const blobParts = [];
         let added = 0;
         for (const part of parts) {
@@ -24035,9 +24555,9 @@ var init_fetch_blob = __esm({
             relativeStart = 0;
           }
         }
-        const blob = new _a([], { type: String(type).toLowerCase() });
-        __privateSet(blob, _size, span);
-        __privateSet(blob, _parts, blobParts);
+        const blob = new Blob([], { type: String(type).toLowerCase() });
+        blob.#size = span;
+        blob.#parts = blobParts;
         return blob;
       }
       get [Symbol.toStringTag]() {
@@ -24046,23 +24566,28 @@ var init_fetch_blob = __esm({
       static [Symbol.hasInstance](object) {
         return object && typeof object === "object" && typeof object.constructor === "function" && (typeof object.stream === "function" || typeof object.arrayBuffer === "function") && /^(Blob|File)$/.test(object[Symbol.toStringTag]);
       }
-    }, _parts = new WeakMap(), _type = new WeakMap(), _size = new WeakMap(), _endings = new WeakMap(), __name(_a, "Blob"), _a);
+    };
     Object.defineProperties(_Blob.prototype, {
       size: { enumerable: true },
       type: { enumerable: true },
       slice: { enumerable: true }
     });
-    Blob = _Blob;
-    fetch_blob_default = Blob;
+    Blob2 = _Blob;
+    fetch_blob_default = Blob2;
   }
 });
 
-// node_modules/.pnpm/fetch-blob@3.2.0/node_modules/fetch-blob/file.js
-var _lastModified, _name, _a2, _File, File, file_default;
+// node_modules/fetch-blob/file.js
+var _File, File2, file_default;
 var init_file = __esm({
-  "node_modules/.pnpm/fetch-blob@3.2.0/node_modules/fetch-blob/file.js"() {
+  "node_modules/fetch-blob/file.js"() {
     init_fetch_blob();
-    _File = (_a2 = class extends fetch_blob_default {
+    _File = class File extends fetch_blob_default {
+      static {
+        __name(this, "File");
+      }
+      #lastModified = 0;
+      #name = "";
       /**
        * @param {*[]} fileBits
        * @param {string} fileName
@@ -24074,21 +24599,18 @@ var init_file = __esm({
           throw new TypeError(`Failed to construct 'File': 2 arguments required, but only ${arguments.length} present.`);
         }
         super(fileBits, options);
-        __privateAdd(this, _lastModified, 0);
-        __privateAdd(this, _name, "");
-        if (options === null)
-          options = {};
+        if (options === null) options = {};
         const lastModified = options.lastModified === void 0 ? Date.now() : Number(options.lastModified);
         if (!Number.isNaN(lastModified)) {
-          __privateSet(this, _lastModified, lastModified);
+          this.#lastModified = lastModified;
         }
-        __privateSet(this, _name, String(fileName));
+        this.#name = String(fileName);
       }
       get name() {
-        return __privateGet(this, _name);
+        return this.#name;
       }
       get lastModified() {
-        return __privateGet(this, _lastModified);
+        return this.#lastModified;
       }
       get [Symbol.toStringTag]() {
         return "File";
@@ -24096,13 +24618,13 @@ var init_file = __esm({
       static [Symbol.hasInstance](object) {
         return !!object && object instanceof fetch_blob_default && /^(File)$/.test(object[Symbol.toStringTag]);
       }
-    }, _lastModified = new WeakMap(), _name = new WeakMap(), __name(_a2, "File"), _a2);
-    File = _File;
-    file_default = File;
+    };
+    File2 = _File;
+    file_default = File2;
   }
 });
 
-// node_modules/.pnpm/formdata-polyfill@4.0.10/node_modules/formdata-polyfill/esm.min.js
+// node_modules/formdata-polyfill/esm.min.js
 function formDataToBlob(F2, B = fetch_blob_default) {
   var b = `${r()}${r()}`.replace(/\./g, "").slice(-28).padStart(32, "-"), c = [], p = `--${b}\r
 Content-Disposition: form-data; name="`;
@@ -24116,9 +24638,9 @@ Content-Type: ${v.type || "application/octet-stream"}\r
   c.push(`--${b}--`);
   return new B(c, { type: "multipart/form-data; boundary=" + b });
 }
-var t, i, h, r, m, f, e, x, _d, _a3, FormData;
+var t, i, h, r, m, f, e, x, FormData;
 var init_esm_min = __esm({
-  "node_modules/.pnpm/formdata-polyfill@4.0.10/node_modules/formdata-polyfill/esm.min.js"() {
+  "node_modules/formdata-polyfill/esm.min.js"() {
     init_fetch_blob();
     init_file();
     /*! formdata-polyfill. MIT License. Jimmy Wärting <https://jimmy.warting.se/opensource> */
@@ -24132,11 +24654,13 @@ var init_esm_min = __esm({
         throw new TypeError(`Failed to execute '${n}' on 'FormData': ${e2} arguments required, but only ${a.length} present.`);
       }
     }, "x");
-    FormData = (_a3 = class {
+    FormData = class FormData2 {
+      static {
+        __name(this, "FormData");
+      }
+      #d = [];
       constructor(...a) {
-        __privateAdd(this, _d, []);
-        if (a.length)
-          throw new TypeError(`Failed to construct 'FormData': parameter 1 is not of type 'HTMLFormElement'.`);
+        if (a.length) throw new TypeError(`Failed to construct 'FormData': parameter 1 is not of type 'HTMLFormElement'.`);
       }
       get [t]() {
         return "FormData";
@@ -24149,69 +24673,67 @@ var init_esm_min = __esm({
       }
       append(...a) {
         x("append", arguments, 2);
-        __privateGet(this, _d).push(f(...a));
+        this.#d.push(f(...a));
       }
       delete(a) {
         x("delete", arguments, 1);
         a += "";
-        __privateSet(this, _d, __privateGet(this, _d).filter(([b]) => b !== a));
+        this.#d = this.#d.filter(([b]) => b !== a);
       }
       get(a) {
         x("get", arguments, 1);
         a += "";
-        for (var b = __privateGet(this, _d), l = b.length, c = 0; c < l; c++)
-          if (b[c][0] === a)
-            return b[c][1];
+        for (var b = this.#d, l = b.length, c = 0; c < l; c++) if (b[c][0] === a) return b[c][1];
         return null;
       }
       getAll(a, b) {
         x("getAll", arguments, 1);
         b = [];
         a += "";
-        __privateGet(this, _d).forEach((c) => c[0] === a && b.push(c[1]));
+        this.#d.forEach((c) => c[0] === a && b.push(c[1]));
         return b;
       }
       has(a) {
         x("has", arguments, 1);
         a += "";
-        return __privateGet(this, _d).some((b) => b[0] === a);
+        return this.#d.some((b) => b[0] === a);
       }
       forEach(a, b) {
         x("forEach", arguments, 1);
-        for (var [c, d] of this)
-          a.call(b, d, c, this);
+        for (var [c, d] of this) a.call(b, d, c, this);
       }
       set(...a) {
         x("set", arguments, 2);
         var b = [], c = true;
         a = f(...a);
-        __privateGet(this, _d).forEach((d) => {
+        this.#d.forEach((d) => {
           d[0] === a[0] ? c && (c = !b.push(a)) : b.push(d);
         });
         c && b.push(a);
-        __privateSet(this, _d, b);
+        this.#d = b;
       }
       *entries() {
-        yield* __privateGet(this, _d);
+        yield* this.#d;
       }
       *keys() {
-        for (var [a] of this)
-          yield a;
+        for (var [a] of this) yield a;
       }
       *values() {
-        for (var [, a] of this)
-          yield a;
+        for (var [, a] of this) yield a;
       }
-    }, _d = new WeakMap(), __name(_a3, "FormData"), _a3);
+    };
     __name(formDataToBlob, "formDataToBlob");
   }
 });
 
-// node_modules/.pnpm/node-fetch@3.3.1/node_modules/node-fetch/src/errors/base.js
-var _FetchBaseError, FetchBaseError;
+// node_modules/node-fetch/src/errors/base.js
+var FetchBaseError;
 var init_base = __esm({
-  "node_modules/.pnpm/node-fetch@3.3.1/node_modules/node-fetch/src/errors/base.js"() {
-    _FetchBaseError = class _FetchBaseError extends Error {
+  "node_modules/node-fetch/src/errors/base.js"() {
+    FetchBaseError = class extends Error {
+      static {
+        __name(this, "FetchBaseError");
+      }
       constructor(message, type) {
         super(message);
         Error.captureStackTrace(this, this.constructor);
@@ -24224,17 +24746,18 @@ var init_base = __esm({
         return this.constructor.name;
       }
     };
-    __name(_FetchBaseError, "FetchBaseError");
-    FetchBaseError = _FetchBaseError;
   }
 });
 
-// node_modules/.pnpm/node-fetch@3.3.1/node_modules/node-fetch/src/errors/fetch-error.js
-var _FetchError, FetchError;
+// node_modules/node-fetch/src/errors/fetch-error.js
+var FetchError;
 var init_fetch_error = __esm({
-  "node_modules/.pnpm/node-fetch@3.3.1/node_modules/node-fetch/src/errors/fetch-error.js"() {
+  "node_modules/node-fetch/src/errors/fetch-error.js"() {
     init_base();
-    _FetchError = class _FetchError extends FetchBaseError {
+    FetchError = class extends FetchBaseError {
+      static {
+        __name(this, "FetchError");
+      }
       /**
        * @param  {string} message -      Error message for human
        * @param  {string} [type] -        Error type for machine
@@ -24248,15 +24771,13 @@ var init_fetch_error = __esm({
         }
       }
     };
-    __name(_FetchError, "FetchError");
-    FetchError = _FetchError;
   }
 });
 
-// node_modules/.pnpm/node-fetch@3.3.1/node_modules/node-fetch/src/utils/is.js
+// node_modules/node-fetch/src/utils/is.js
 var NAME, isURLSearchParameters, isBlob, isAbortSignal, isDomainOrSubdomain, isSameProtocol;
 var init_is = __esm({
-  "node_modules/.pnpm/node-fetch@3.3.1/node_modules/node-fetch/src/utils/is.js"() {
+  "node_modules/node-fetch/src/utils/is.js"() {
     NAME = Symbol.toStringTag;
     isURLSearchParameters = /* @__PURE__ */ __name((object) => {
       return typeof object === "object" && typeof object.append === "function" && typeof object.delete === "function" && typeof object.get === "function" && typeof object.getAll === "function" && typeof object.has === "function" && typeof object.set === "function" && typeof object.sort === "function" && object[NAME] === "URLSearchParams";
@@ -24280,9 +24801,9 @@ var init_is = __esm({
   }
 });
 
-// node_modules/.pnpm/node-domexception@1.0.0/node_modules/node-domexception/index.js
+// node_modules/node-domexception/index.js
 var require_node_domexception = __commonJS({
-  "node_modules/.pnpm/node-domexception@1.0.0/node_modules/node-domexception/index.js"(exports2, module2) {
+  "node_modules/node-domexception/index.js"(exports2, module2) {
     /*! node-domexception. MIT License. Jimmy Wärting <https://jimmy.warting.se/opensource> */
     if (!globalThis.DOMException) {
       try {
@@ -24296,10 +24817,10 @@ var require_node_domexception = __commonJS({
   }
 });
 
-// node_modules/.pnpm/fetch-blob@3.2.0/node_modules/fetch-blob/from.js
+// node_modules/fetch-blob/from.js
 var import_node_fs, import_node_domexception, stat;
 var init_from = __esm({
-  "node_modules/.pnpm/fetch-blob@3.2.0/node_modules/fetch-blob/from.js"() {
+  "node_modules/fetch-blob/from.js"() {
     import_node_fs = require("node:fs");
     import_node_domexception = __toESM(require_node_domexception(), 1);
     init_file();
@@ -24308,7 +24829,7 @@ var init_from = __esm({
   }
 });
 
-// node_modules/.pnpm/node-fetch@3.3.1/node_modules/node-fetch/src/utils/multipart-parser.js
+// node_modules/node-fetch/src/utils/multipart-parser.js
 var multipart_parser_exports = {};
 __export(multipart_parser_exports, {
   toFormData: () => toFormData
@@ -24400,9 +24921,9 @@ async function toFormData(Body2, ct) {
   parser.end();
   return formData;
 }
-var s, S, f2, F, LF, CR, SPACE, HYPHEN, COLON, A, Z, lower, noop, _MultipartParser, MultipartParser;
+var s, S, f2, F, LF, CR, SPACE, HYPHEN, COLON, A, Z, lower, noop, MultipartParser;
 var init_multipart_parser = __esm({
-  "node_modules/.pnpm/node-fetch@3.3.1/node_modules/node-fetch/src/utils/multipart-parser.js"() {
+  "node_modules/node-fetch/src/utils/multipart-parser.js"() {
     init_from();
     init_esm_min();
     s = 0;
@@ -24433,7 +24954,10 @@ var init_multipart_parser = __esm({
     lower = /* @__PURE__ */ __name((c) => c | 32, "lower");
     noop = /* @__PURE__ */ __name(() => {
     }, "noop");
-    _MultipartParser = class _MultipartParser {
+    MultipartParser = class {
+      static {
+        __name(this, "MultipartParser");
+      }
       /**
        * @param {string} boundary
        */
@@ -24664,14 +25188,12 @@ var init_multipart_parser = __esm({
         }
       }
     };
-    __name(_MultipartParser, "MultipartParser");
-    MultipartParser = _MultipartParser;
     __name(_fileName, "_fileName");
     __name(toFormData, "toFormData");
   }
 });
 
-// node_modules/.pnpm/node-fetch@3.3.1/node_modules/node-fetch/src/body.js
+// node_modules/node-fetch/src/body.js
 async function consumeBody(data) {
   if (data[INTERNALS].disturbed) {
     throw new TypeError(`body used already for: ${data.url}`);
@@ -24716,9 +25238,9 @@ async function consumeBody(data) {
     throw new FetchError(`Premature close of server response while trying to fetch ${data.url}`);
   }
 }
-var import_node_stream, import_node_util, import_node_buffer, pipeline, INTERNALS, _Body, Body, clone, getNonSpecFormDataBoundary, extractContentType, getTotalBytes, writeToStream;
+var import_node_stream, import_node_util, import_node_buffer, pipeline, INTERNALS, Body, clone, getNonSpecFormDataBoundary, extractContentType, getTotalBytes, writeToStream;
 var init_body = __esm({
-  "node_modules/.pnpm/node-fetch@3.3.1/node_modules/node-fetch/src/body.js"() {
+  "node_modules/node-fetch/src/body.js"() {
     import_node_stream = __toESM(require("node:stream"), 1);
     import_node_util = require("node:util");
     import_node_buffer = require("node:buffer");
@@ -24729,7 +25251,10 @@ var init_body = __esm({
     init_is();
     pipeline = (0, import_node_util.promisify)(import_node_stream.default.pipeline);
     INTERNALS = Symbol("Body internals");
-    _Body = class _Body {
+    Body = class {
+      static {
+        __name(this, "Body");
+      }
       constructor(body, {
         size = 0
       } = {}) {
@@ -24839,8 +25364,6 @@ var init_body = __esm({
         return consumeBody(this);
       }
     };
-    __name(_Body, "Body");
-    Body = _Body;
     Body.prototype.buffer = (0, import_node_util.deprecate)(Body.prototype.buffer, "Please use 'response.arrayBuffer()' instead of 'response.buffer()'", "node-fetch#buffer");
     Object.defineProperties(Body.prototype, {
       body: { enumerable: true },
@@ -24932,7 +25455,7 @@ var init_body = __esm({
   }
 });
 
-// node_modules/.pnpm/node-fetch@3.3.1/node_modules/node-fetch/src/headers.js
+// node_modules/node-fetch/src/headers.js
 function fromRawHeaders(headers = []) {
   return new Headers(
     headers.reduce((result, value, index, array) => {
@@ -24951,9 +25474,9 @@ function fromRawHeaders(headers = []) {
     })
   );
 }
-var import_node_util2, import_node_http, validateHeaderName, validateHeaderValue, _Headers, Headers;
+var import_node_util2, import_node_http, validateHeaderName, validateHeaderValue, Headers;
 var init_headers = __esm({
-  "node_modules/.pnpm/node-fetch@3.3.1/node_modules/node-fetch/src/headers.js"() {
+  "node_modules/node-fetch/src/headers.js"() {
     import_node_util2 = require("node:util");
     import_node_http = __toESM(require("node:http"), 1);
     validateHeaderName = typeof import_node_http.default.validateHeaderName === "function" ? import_node_http.default.validateHeaderName : (name) => {
@@ -24970,7 +25493,10 @@ var init_headers = __esm({
         throw error;
       }
     };
-    _Headers = class _Headers extends URLSearchParams {
+    Headers = class _Headers extends URLSearchParams {
+      static {
+        __name(this, "Headers");
+      }
       /**
        * Headers class
        *
@@ -25113,8 +25639,6 @@ var init_headers = __esm({
         }, {});
       }
     };
-    __name(_Headers, "Headers");
-    Headers = _Headers;
     Object.defineProperties(
       Headers.prototype,
       ["get", "entries", "forEach", "values"].reduce((result, property) => {
@@ -25126,10 +25650,10 @@ var init_headers = __esm({
   }
 });
 
-// node_modules/.pnpm/node-fetch@3.3.1/node_modules/node-fetch/src/utils/is-redirect.js
+// node_modules/node-fetch/src/utils/is-redirect.js
 var redirectStatus, isRedirect;
 var init_is_redirect = __esm({
-  "node_modules/.pnpm/node-fetch@3.3.1/node_modules/node-fetch/src/utils/is-redirect.js"() {
+  "node_modules/node-fetch/src/utils/is-redirect.js"() {
     redirectStatus = /* @__PURE__ */ new Set([301, 302, 303, 307, 308]);
     isRedirect = /* @__PURE__ */ __name((code) => {
       return redirectStatus.has(code);
@@ -25137,15 +25661,18 @@ var init_is_redirect = __esm({
   }
 });
 
-// node_modules/.pnpm/node-fetch@3.3.1/node_modules/node-fetch/src/response.js
-var INTERNALS2, _Response, Response;
+// node_modules/node-fetch/src/response.js
+var INTERNALS2, Response;
 var init_response = __esm({
-  "node_modules/.pnpm/node-fetch@3.3.1/node_modules/node-fetch/src/response.js"() {
+  "node_modules/node-fetch/src/response.js"() {
     init_headers();
     init_body();
     init_is_redirect();
     INTERNALS2 = Symbol("Response internals");
-    _Response = class _Response extends Body {
+    Response = class _Response extends Body {
+      static {
+        __name(this, "Response");
+      }
       constructor(body = null, options = {}) {
         super(body, options);
         const status = options.status != null ? options.status : 200;
@@ -25250,8 +25777,6 @@ var init_response = __esm({
         return "Response";
       }
     };
-    __name(_Response, "Response");
-    Response = _Response;
     Object.defineProperties(Response.prototype, {
       type: { enumerable: true },
       url: { enumerable: true },
@@ -25265,10 +25790,10 @@ var init_response = __esm({
   }
 });
 
-// node_modules/.pnpm/node-fetch@3.3.1/node_modules/node-fetch/src/utils/get-search.js
+// node_modules/node-fetch/src/utils/get-search.js
 var getSearch;
 var init_get_search = __esm({
-  "node_modules/.pnpm/node-fetch@3.3.1/node_modules/node-fetch/src/utils/get-search.js"() {
+  "node_modules/node-fetch/src/utils/get-search.js"() {
     getSearch = /* @__PURE__ */ __name((parsedURL) => {
       if (parsedURL.search) {
         return parsedURL.search;
@@ -25280,7 +25805,7 @@ var init_get_search = __esm({
   }
 });
 
-// node_modules/.pnpm/node-fetch@3.3.1/node_modules/node-fetch/src/utils/referrer.js
+// node_modules/node-fetch/src/utils/referrer.js
 function stripURLForUseAsAReferrer(url, originOnly = false) {
   if (url == null) {
     return "no-referrer";
@@ -25408,7 +25933,7 @@ function parseReferrerPolicyFromHeader(headers) {
 }
 var import_node_net, ReferrerPolicy, DEFAULT_REFERRER_POLICY;
 var init_referrer = __esm({
-  "node_modules/.pnpm/node-fetch@3.3.1/node_modules/node-fetch/src/utils/referrer.js"() {
+  "node_modules/node-fetch/src/utils/referrer.js"() {
     import_node_net = require("node:net");
     __name(stripURLForUseAsAReferrer, "stripURLForUseAsAReferrer");
     ReferrerPolicy = /* @__PURE__ */ new Set([
@@ -25431,10 +25956,10 @@ var init_referrer = __esm({
   }
 });
 
-// node_modules/.pnpm/node-fetch@3.3.1/node_modules/node-fetch/src/request.js
-var import_node_url, import_node_util3, INTERNALS3, isRequest, doBadDataWarn, _Request, Request, getNodeRequestOptions;
+// node_modules/node-fetch/src/request.js
+var import_node_url, import_node_util3, INTERNALS3, isRequest, doBadDataWarn, Request, getNodeRequestOptions;
 var init_request = __esm({
-  "node_modules/.pnpm/node-fetch@3.3.1/node_modules/node-fetch/src/request.js"() {
+  "node_modules/node-fetch/src/request.js"() {
     import_node_url = require("node:url");
     import_node_util3 = require("node:util");
     init_headers();
@@ -25452,7 +25977,10 @@ var init_request = __esm({
       ".data is not a valid RequestInit property, use .body instead",
       "https://github.com/node-fetch/node-fetch/issues/1000 (request)"
     );
-    _Request = class _Request extends Body {
+    Request = class _Request extends Body {
+      static {
+        __name(this, "Request");
+      }
       constructor(input, init = {}) {
         let parsedURL;
         if (isRequest(input)) {
@@ -25567,8 +26095,6 @@ var init_request = __esm({
         return "Request";
       }
     };
-    __name(_Request, "Request");
-    Request = _Request;
     Object.defineProperties(Request.prototype, {
       method: { enumerable: true },
       url: { enumerable: true },
@@ -25619,9 +26145,6 @@ var init_request = __esm({
       if (typeof agent === "function") {
         agent = agent(parsedURL);
       }
-      if (!headers.has("Connection") && !agent) {
-        headers.set("Connection", "close");
-      }
       const search = getSearch(parsedURL);
       const options = {
         // Overwrite search to retain trailing ? (issue #776)
@@ -25641,22 +26164,23 @@ var init_request = __esm({
   }
 });
 
-// node_modules/.pnpm/node-fetch@3.3.1/node_modules/node-fetch/src/errors/abort-error.js
-var _AbortError, AbortError;
+// node_modules/node-fetch/src/errors/abort-error.js
+var AbortError;
 var init_abort_error = __esm({
-  "node_modules/.pnpm/node-fetch@3.3.1/node_modules/node-fetch/src/errors/abort-error.js"() {
+  "node_modules/node-fetch/src/errors/abort-error.js"() {
     init_base();
-    _AbortError = class _AbortError extends FetchBaseError {
+    AbortError = class extends FetchBaseError {
+      static {
+        __name(this, "AbortError");
+      }
       constructor(message, type = "aborted") {
         super(message, type);
       }
     };
-    __name(_AbortError, "AbortError");
-    AbortError = _AbortError;
   }
 });
 
-// node_modules/.pnpm/node-fetch@3.3.1/node_modules/node-fetch/src/index.js
+// node_modules/node-fetch/src/index.js
 async function fetch(url, options_) {
   return new Promise((resolve, reject) => {
     const request = new Request(url, options_);
@@ -25920,7 +26444,7 @@ function fixResponseChunkedTransferBadEnding(request, errorCallback) {
 }
 var import_node_http2, import_node_https, import_node_zlib, import_node_stream2, import_node_buffer2, supportedSchemas;
 var init_src = __esm({
-  "node_modules/.pnpm/node-fetch@3.3.1/node_modules/node-fetch/src/index.js"() {
+  "node_modules/node-fetch/src/index.js"() {
     import_node_http2 = __toESM(require("node:http"), 1);
     import_node_https = __toESM(require("node:https"), 1);
     import_node_zlib = __toESM(require("node:zlib"), 1);
@@ -25951,23 +26475,19 @@ var init_update = __esm({
     "use strict";
     init_src();
     (() => {
-      var _a4;
-      if (GetConvarInt("mysql_versioncheck", 1) === 0)
-        return;
+      if (GetConvarInt("mysql_versioncheck", 1) === 0) return;
       const resourceName2 = GetCurrentResourceName();
-      const currentVersion = (_a4 = GetResourceMetadata(resourceName2, "version", 0)) == null ? void 0 : _a4.match(/(\d+)\.(\d+)\.(\d+)/);
-      if (!currentVersion)
-        return;
+      const currentVersion = GetResourceMetadata(resourceName2, "version", 0)?.match(/(\d+)\.(\d+)\.(\d+)/);
+      if (!currentVersion) return;
       setTimeout(async () => {
-        const response = await fetch(`https://api.github.com/repos/overextended/oxmysql/releases/latest`);
-        if (response.status !== 200)
-          return;
+        const response = await fetch(`https://api.github.com/repos/overextended/oxmysql/releases/latest`).catch((err) => {
+          console.warn(`Failed to retrieve latest version of oxmysql (${err.code}).`);
+        });
+        if (response?.status !== 200) return;
         const release = await response.json();
-        if (release.prerelease)
-          return;
+        if (release.prerelease) return;
         const latestVersion = release.tag_name.match(/(\d+)\.(\d+)\.(\d+)/);
-        if (!latestVersion || latestVersion[0] === currentVersion[0])
-          return;
+        if (!latestVersion || latestVersion[0] === currentVersion[0]) return;
         for (let i2 = 1; i2 < currentVersion.length; i2++) {
           const current = parseInt(currentVersion[i2]);
           const latest = parseInt(latestVersion[i2]);
@@ -25977,8 +26497,7 @@ var init_update = __esm({
                 `^3An update is available for ${resourceName2} (current version: ${currentVersion[0]})\r
 ${release.html_url}^0`
               );
-            else
-              break;
+            else break;
           }
         }
       }, 1e3);
@@ -25988,35 +26507,58 @@ ${release.html_url}^0`
 
 // src/utils/typeCast.ts
 var BINARY_CHARSET = 63;
-var typeCast = /* @__PURE__ */ __name((field, next) => {
+function typeCastExecute(field, next) {
   switch (field.type) {
     case "DATETIME":
     case "DATETIME2":
     case "TIMESTAMP":
     case "TIMESTAMP2":
-    case "NEWDATE":
-      return new Date(field.string()).getTime();
-    case "DATE":
-      return (/* @__PURE__ */ new Date(field.string() + " 00:00:00")).getTime();
+    case "NEWDATE": {
+      const value = field.string();
+      return value ? new Date(value).getTime() : null;
+    }
+    case "DATE": {
+      const value = field.string();
+      return value ? (/* @__PURE__ */ new Date(value + " 00:00:00")).getTime() : null;
+    }
+    default:
+      return next();
+  }
+}
+__name(typeCastExecute, "typeCastExecute");
+function typeCast(field, next) {
+  switch (field.type) {
+    case "DATETIME":
+    case "DATETIME2":
+    case "TIMESTAMP":
+    case "TIMESTAMP2":
+    case "NEWDATE": {
+      const value = field.string();
+      return value ? new Date(value).getTime() : null;
+    }
+    case "DATE": {
+      const value = field.string();
+      return value ? (/* @__PURE__ */ new Date(value + " 00:00:00")).getTime() : null;
+    }
     case "TINY":
       return field.length === 1 ? field.string() === "1" : next();
     case "BIT":
-      return field.length === 1 ? field.buffer()[0] === 1 : field.buffer()[0];
+      return field.length === 1 ? field.buffer()?.[0] === 1 : field.buffer()?.[0];
     case "TINY_BLOB":
     case "MEDIUM_BLOB":
     case "LONG_BLOB":
     case "BLOB":
       if (field.charset === BINARY_CHARSET) {
         const value = field.buffer();
-        if (value === null)
-          return [value];
+        if (value === null) return [value];
         return [...value];
       }
       return field.string();
     default:
       return next();
   }
-}, "typeCast");
+}
+__name(typeCast, "typeCast");
 
 // src/config.ts
 var mysql_connection_string = GetConvar("mysql_connection_string", "");
@@ -26051,21 +26593,20 @@ var mysql_transaction_isolation_level = (() => {
       return `${query} READ COMMITTED`;
   }
 })();
-var parseUri = /* @__PURE__ */ __name((connectionString) => {
+function parseUri(connectionString) {
   const splitMatchGroups = connectionString.match(
     new RegExp(
       "^(?:([^:/?#.]+):)?(?://(?:([^/?#]*)@)?([\\w\\d\\-\\u0100-\\uffff.%]*)(?::([0-9]+))?)?([^?#]+)?(?:\\?([^#]*))?$"
     )
   );
-  if (!splitMatchGroups)
-    throw new Error(`mysql_connection_string structure was invalid (${connectionString})`);
+  if (!splitMatchGroups) throw new Error(`mysql_connection_string structure was invalid (${connectionString})`);
   const authTarget = splitMatchGroups[2] ? splitMatchGroups[2].split(":") : [];
   const options = {
     user: authTarget[0] || void 0,
     password: authTarget[1] || void 0,
     host: splitMatchGroups[3],
     port: parseInt(splitMatchGroups[4]),
-    database: splitMatchGroups[5].replace(/^\/+/, ""),
+    database: splitMatchGroups[5]?.replace(/^\/+/, ""),
     ...splitMatchGroups[6] && splitMatchGroups[6].split("&").reduce((connectionInfo, parameter) => {
       const [key, value] = parameter.split("=");
       connectionInfo[key] = value;
@@ -26073,13 +26614,13 @@ var parseUri = /* @__PURE__ */ __name((connectionString) => {
     }, {})
   };
   return options;
-}, "parseUri");
+}
+__name(parseUri, "parseUri");
 var convertNamedPlaceholders;
-var connectionOptions = (() => {
+function getConnectionOptions() {
   const options = mysql_connection_string.includes("mysql://") ? parseUri(mysql_connection_string) : mysql_connection_string.replace(/(?:host(?:name)|ip|server|data\s?source|addr(?:ess)?)=/gi, "host=").replace(/(?:user\s?(?:id|name)?|uid)=/gi, "user=").replace(/(?:pwd|pass)=/gi, "password=").replace(/(?:db)=/gi, "database=").split(";").reduce((connectionInfo, parameter) => {
     const [key, value] = parameter.split("=");
-    if (key)
-      connectionInfo[key] = value;
+    if (key) connectionInfo[key] = value;
     return connectionInfo;
   }, {});
   convertNamedPlaceholders = options.namedPlaceholders === "false" ? null : require_named_placeholders()();
@@ -26099,33 +26640,31 @@ var connectionOptions = (() => {
     connectTimeout: 6e4,
     trace: false,
     supportBigNumbers: true,
+    jsonStrings: true,
     ...options,
     typeCast,
     namedPlaceholders: false,
     // we use our own named-placeholders patch, disable mysql2s
     flags
   };
-})();
+}
+__name(getConnectionOptions, "getConnectionOptions");
 RegisterCommand(
   "oxmysql_debug",
   (source2, args) => {
-    if (source2 !== 0)
-      return console.log("^3This command can only be run server side^0");
+    if (source2 !== 0) return console.log("^3This command can only be run server side^0");
     switch (args[0]) {
       case "add":
-        if (!Array.isArray(mysql_debug))
-          mysql_debug = [];
+        if (!Array.isArray(mysql_debug)) mysql_debug = [];
         mysql_debug.push(args[1]);
         SetConvar("mysql_debug", JSON.stringify(mysql_debug));
         return console.log(`^3Added ${args[1]} to mysql_debug^0`);
       case "remove":
         if (Array.isArray(mysql_debug)) {
           const index = mysql_debug.indexOf(args[1]);
-          if (index === -1)
-            return;
+          if (index === -1) return;
           mysql_debug.splice(index, 1);
-          if (mysql_debug.length === 0)
-            mysql_debug = false;
+          if (mysql_debug.length === 0) mysql_debug = false;
           SetConvar("mysql_debug", JSON.stringify(mysql_debug) || "false");
           return console.log(`^3Removed ${args[1]} from mysql_debug^0`);
         }
@@ -26142,8 +26681,36 @@ function sleep(ms) {
 }
 __name(sleep, "sleep");
 
-// src/database/connection.ts
+// src/database/pool.ts
 var import_promise = __toESM(require_promise(), 1);
+var pool;
+var dbVersion = "";
+async function createConnectionPool() {
+  const config = getConnectionOptions();
+  try {
+    const dbPool = (0, import_promise.createPool)(config);
+    dbPool.on("connection", (connection) => {
+      connection.query(mysql_transaction_isolation_level);
+    });
+    const [result] = await dbPool.query("SELECT VERSION() as version");
+    dbVersion = `^5[${result[0].version}]`;
+    console.log(`${dbVersion} ^2Database server connection established!^0`);
+    if (config.multipleStatements) {
+      console.warn(`multipleStatements is enabled. Used incorrectly, this option may cause SQL injection.`);
+    }
+    pool = dbPool;
+  } catch (err) {
+    const message = err.message.includes("auth_gssapi_client") ? `Requested authentication using unknown plugin auth_gssapi_client.` : err.message;
+    console.log(
+      `^3Unable to establish a connection to the database (${err.code})!
+^1Error${err.errno ? ` ${err.errno}` : ""}: ${message}^0`
+    );
+    console.log(`See https://github.com/overextended/oxmysql/issues/154 for more information.`);
+    if (config.password) config.password = "******";
+    console.log(config);
+  }
+}
+__name(createConnectionPool, "createConnectionPool");
 
 // src/utils/scheduleTick.ts
 var resourceName = GetCurrentResourceName();
@@ -26153,86 +26720,82 @@ async function scheduleTick() {
 __name(scheduleTick, "scheduleTick");
 
 // src/database/connection.ts
-var pool;
-var isServerConnected = false;
-var dbVersion = "";
-async function waitForConnection() {
-  while (!isServerConnected) {
-    await sleep(0);
-  }
-}
-__name(waitForConnection, "waitForConnection");
+Symbol.dispose ??= Symbol("Symbol.dispose");
 var activeConnections = {};
-async function createConnectionPool() {
-  try {
-    pool = (0, import_promise.createPool)(connectionOptions);
-    pool.on("connection", (connection2) => {
-      connection2.query(mysql_transaction_isolation_level);
-    });
-    pool.on("acquire", (conn) => {
-      const connectionId = conn.connectionId;
-      activeConnections[connectionId] = conn;
-    });
-    pool.on("release", (conn) => {
-      const connectionId = conn.connectionId;
-      delete activeConnections[connectionId];
-    });
-    const connection = await pool.getConnection();
-    const [result] = await connection.query("SELECT VERSION() as version");
-    dbVersion = `^5[${result[0].version}]`;
-    connection.release();
-    console.log(`${dbVersion} ^2Database server connection established!^0`);
-    isServerConnected = true;
-  } catch (err) {
-    isServerConnected = false;
-    const message = err.message.includes("auth_gssapi_client") ? `Server requests authentication using unknown plugin auth_gssapi_client.
-See https://github.com/overextended/oxmysql/issues/213.` : err.message;
-    console.log(
-      `^3Unable to establish a connection to the database (${err.code})!
-^1Error${err.errno ? ` ${err.errno}` : ""}: ${message}^0`
-    );
+var MySql = class {
+  static {
+    __name(this, "MySql");
   }
+  constructor(connection) {
+    this.id = connection.connection.threadId;
+    this.connection = connection;
+    activeConnections[this.id] = this;
+  }
+  async query(query, values = []) {
+    scheduleTick();
+    const [result] = await this.connection.query(query, values);
+    return result;
+  }
+  async execute(query, values = []) {
+    scheduleTick();
+    const [result] = await this.connection.execute({
+      sql: query,
+      values,
+      typeCast: typeCastExecute
+    });
+    return result;
+  }
+  beginTransaction() {
+    this.transaction = true;
+    return this.connection.beginTransaction();
+  }
+  rollback() {
+    delete this.transaction;
+    return this.connection.rollback();
+  }
+  commit() {
+    delete this.transaction;
+    return this.connection.commit();
+  }
+  [Symbol.dispose]() {
+    if (this.transaction) this.commit();
+    delete activeConnections[this.id];
+    this.connection.release();
+  }
+};
+async function getConnection(connectionId) {
+  while (!pool) await sleep(0);
+  return connectionId ? activeConnections[connectionId] : new MySql(await pool.getConnection());
 }
-__name(createConnectionPool, "createConnectionPool");
-async function getPoolConnection(id) {
-  if (!isServerConnected)
-    await waitForConnection();
-  scheduleTick();
-  return id ? activeConnections[id] : pool.getConnection();
-}
-__name(getPoolConnection, "getPoolConnection");
+__name(getConnection, "getConnection");
 
 // src/utils/parseArguments.ts
 var parseArguments = /* @__PURE__ */ __name((query, parameters) => {
-  if (typeof query !== "string")
-    throw new Error(`Expected query to be a string but received ${typeof query} instead.`);
+  if (typeof query !== "string") throw new Error(`Expected query to be a string but received ${typeof query} instead.`);
   if (convertNamedPlaceholders && parameters && typeof parameters === "object" && !Array.isArray(parameters)) {
     if (query.includes(":") || query.includes("@")) {
-      const placeholders = convertNamedPlaceholders(query, parameters);
-      query = placeholders[0];
-      parameters = placeholders[1];
+      [query, parameters] = convertNamedPlaceholders(query, parameters);
     }
   }
-  if (!parameters || typeof parameters === "function")
-    parameters = [];
+  if (!parameters || typeof parameters === "function") parameters = [];
+  const placeholders = query.match(/\?(?!\?)/g)?.length ?? 0;
   if (parameters && !Array.isArray(parameters)) {
     let arr = [];
-    Object.entries(parameters).forEach((entry) => arr[parseInt(entry[0]) - 1] = entry[1]);
+    for (let i2 = 0; i2 < placeholders; i2++) {
+      arr[i2] = parameters[i2 + 1] ?? null;
+    }
     parameters = arr;
   } else {
-    const queryParams = query.match(/\?(?!\?)/g);
-    if (queryParams !== null) {
+    if (placeholders) {
       if (parameters.length === 0) {
-        for (let i2 = 0; i2 < queryParams.length; i2++)
-          parameters[i2] = null;
+        for (let i2 = 0; i2 < placeholders; i2++) parameters[i2] = null;
         return [query, parameters];
       }
-      const diff = queryParams.length - parameters.length;
+      const diff = placeholders - parameters.length;
       if (diff > 0) {
-        for (let i2 = 0; i2 < diff; i2++)
-          parameters[queryParams.length + i2] = null;
+        for (let i2 = 0; i2 < diff; i2++) parameters[placeholders + i2] = null;
       } else if (diff < 0) {
-        throw new Error(`Expected ${queryParams.length} parameters, but received ${parameters.length}.`);
+        throw new Error(`Expected ${placeholders} parameters, but received ${parameters.length}.`);
       }
     }
   }
@@ -26241,32 +26804,41 @@ var parseArguments = /* @__PURE__ */ __name((query, parameters) => {
 
 // src/utils/setCallback.ts
 var setCallback = /* @__PURE__ */ __name((parameters, cb) => {
-  if (cb && typeof cb === "function")
-    return cb;
-  if (parameters && typeof parameters === "function")
-    return parameters;
+  if (cb && typeof cb === "function") return cb;
+  if (parameters && typeof parameters === "function") return parameters;
 }, "setCallback");
 
 // src/utils/parseResponse.ts
-var isOkPacket = /* @__PURE__ */ __name((result, insertId) => insertId ? result.insertId !== void 0 : result.affectedRows !== void 0, "isOkPacket");
-var isRowDataPacket = /* @__PURE__ */ __name((result) => result.length !== void 0, "isRowDataPacket");
-var isRowDataPacketArray = /* @__PURE__ */ __name((result) => result.length !== void 0 && result[0] !== void 0 && Object.values(result[0])[0] !== void 0, "isRowDataPacketArray");
 var parseResponse = /* @__PURE__ */ __name((type, result) => {
   switch (type) {
     case "insert":
-      return isOkPacket(result) ? result.insertId : null;
+      return result?.insertId ?? null;
     case "update":
-      return isOkPacket(result) ? result.affectedRows : null;
+      return result?.affectedRows ?? null;
     case "single":
-      return isRowDataPacket(result) ? result[0] : null;
+      return result?.[0] ?? null;
     case "scalar":
-      return isRowDataPacketArray(result) ? Object.values(result[0])[0] : null;
+      const row = result?.[0];
+      return (row && Object.values(row)[0]) ?? null;
     default:
-      return result || null;
+      return result ?? null;
   }
 }, "parseResponse");
 
 // src/logger/index.ts
+var loggerResource = "";
+var loggerService = GetConvar("mysql_logger_service", "");
+if (loggerService) {
+  if (loggerService.startsWith("@")) {
+    const [resource, ...path] = loggerService.slice(1).split("/");
+    if (resource && path) {
+      loggerResource = resource;
+      loggerService = path.join("/");
+    }
+  } else loggerService = `logger/${loggerService}`;
+}
+var logger = loggerService && new Function(LoadResourceFile(loggerResource || GetCurrentResourceName(), `${loggerService}.js`))() || (() => {
+});
 function logError(invokingResource, cb, isPromise, err = "", query, parameters, includeParameters) {
   const message = typeof err === "object" ? err.message : err.replace(/SCRIPT ERROR: citizen:[\w\/\.]+:\d+[:\s]+/, "");
   const output = `${invokingResource} was unable to execute a query!${query ? `
@@ -26280,49 +26852,23 @@ ${message}`;
     err,
     resource: invokingResource
   });
-  if (cb && isPromise)
-    return cb(null, output);
+  if (typeof err === "object" && err.message) delete err.sqlMessage;
+  logger({
+    level: "error",
+    resource: invokingResource,
+    message,
+    metadata: err
+  });
+  if (cb && isPromise) {
+    try {
+      return cb(null, output);
+    } catch (e2) {
+    }
+    return;
+  }
   console.error(output);
 }
 __name(logError, "logError");
-var profilerStatements = [
-  "SET profiling_history_size = 0",
-  "SET profiling = 0",
-  "SET profiling_history_size = 100",
-  "SET profiling = 1"
-];
-async function runProfiler(connection, invokingResource) {
-  if (!mysql_debug)
-    return;
-  if (Array.isArray(mysql_debug) && !mysql_debug.includes(invokingResource))
-    return;
-  for (const statement of profilerStatements)
-    await connection.query(statement);
-  return true;
-}
-__name(runProfiler, "runProfiler");
-async function profileBatchStatements(connection, invokingResource, query, parameters, offset) {
-  const [profiler] = await connection.query(
-    "SELECT FORMAT(SUM(DURATION) * 1000, 4) AS `duration` FROM INFORMATION_SCHEMA.PROFILING GROUP BY QUERY_ID"
-  );
-  for (const statement of profilerStatements)
-    await connection.query(statement);
-  if (profiler.length === 0)
-    return;
-  if (typeof query === "string" && parameters)
-    for (let i2 = 0; i2 < profiler.length; i2++) {
-      logQuery(invokingResource, query, parseFloat(profiler[i2].duration), parameters[offset + i2]);
-    }
-  else if (typeof query === "object")
-    for (let i2 = 0; i2 < profiler.length; i2++) {
-      const transaction = query[offset + i2];
-      if (transaction)
-        logQuery(invokingResource, transaction.query, parseFloat(profiler[i2].duration), transaction.params);
-      else
-        break;
-    }
-}
-__name(profileBatchStatements, "profileBatchStatements");
 var logStorage = {};
 var logQuery = /* @__PURE__ */ __name((invokingResource, query, executionTime, parameters) => {
   if (executionTime >= mysql_slow_query_warning || mysql_debug && (!Array.isArray(mysql_debug) || mysql_debug.includes(invokingResource))) {
@@ -26331,12 +26877,9 @@ var logQuery = /* @__PURE__ */ __name((invokingResource, query, executionTime, p
 ${query}${parameters ? ` ${JSON.stringify(parameters)}` : ""}^0`
     );
   }
-  if (!mysql_ui)
-    return;
-  if (!logStorage[invokingResource])
-    logStorage[invokingResource] = [];
-  else if (logStorage[invokingResource].length > mysql_log_size)
-    logStorage[invokingResource].splice(0, 1);
+  if (!mysql_ui) return;
+  if (!logStorage[invokingResource]) logStorage[invokingResource] = [];
+  else if (logStorage[invokingResource].length > mysql_log_size) logStorage[invokingResource].splice(0, 1);
   logStorage[invokingResource].push({
     query,
     executionTime,
@@ -26347,8 +26890,7 @@ ${query}${parameters ? ` ${JSON.stringify(parameters)}` : ""}^0`
 RegisterCommand(
   "mysql",
   (source2) => {
-    if (!mysql_ui)
-      return;
+    if (!mysql_ui) return;
     if (source2 < 1) {
       console.log("^3This command cannot run server side^0");
       return;
@@ -26393,26 +26935,22 @@ var sortQueries = /* @__PURE__ */ __name((queries, sort) => {
 onNet(
   `oxmysql:fetchResource`,
   (data) => {
-    if (typeof data.resource !== "string" || !IsPlayerAceAllowed(source, "command.mysql"))
-      return;
-    if (data.search)
-      data.search = data.search.toLowerCase();
+    if (typeof data.resource !== "string" || !IsPlayerAceAllowed(source, "command.mysql")) return;
+    if (data.search) data.search = data.search.toLowerCase();
     const resourceLog = data.search ? logStorage[data.resource].filter((q) => q.query.toLowerCase().includes(data.search)) : logStorage[data.resource];
     const sort = data.sortBy && data.sortBy.length > 0 ? data.sortBy[0] : false;
     const startRow = data.pageIndex * 10;
     const endRow = startRow + 10;
     const queries = sort ? sortQueries(resourceLog, sort).slice(startRow, endRow) : resourceLog.slice(startRow, endRow);
     const pageCount = Math.ceil(resourceLog.length / 10);
-    if (!queries)
-      return;
+    if (!queries) return;
     let resourceTime = 0;
     let resourceSlowQueries = 0;
     const resourceQueriesCount = resourceLog.length;
     for (let i2 = 0; i2 < resourceQueriesCount; i2++) {
       const query = resourceLog[i2];
       resourceTime += query.executionTime;
-      if (query.slow)
-        resourceSlowQueries += 1;
+      if (query.slow) resourceSlowQueries += 1;
     }
     emitNet(`oxmysql:loadResource`, source, {
       queries,
@@ -26431,58 +26969,93 @@ var import_perf_hooks = require("perf_hooks");
 var oversizedResultSet = GetConvarInt("mysql_resultset_warning", 1e3);
 function validateResultSet_default(invokingResource, query, rows) {
   const length = Array.isArray(rows) ? rows.length : 0;
-  if (length < oversizedResultSet)
-    return;
+  if (length < oversizedResultSet) return;
   console.warn(`${invokingResource} executed a query with an oversized result set (${length} results)!
 ${query}`);
 }
 __name(validateResultSet_default, "default");
 
+// src/profiler/index.ts
+var profilerStatements = [
+  "SET profiling_history_size = 0",
+  "SET profiling = 0",
+  "SET profiling_history_size = 100",
+  "SET profiling = 1"
+];
+async function runProfiler(connection, invokingResource) {
+  if (!mysql_debug) return;
+  if (Array.isArray(mysql_debug) && !mysql_debug.includes(invokingResource)) return;
+  for (const statement of profilerStatements) await connection.query(statement);
+  return true;
+}
+__name(runProfiler, "runProfiler");
+async function profileBatchStatements(connection, invokingResource, query, parameters, offset) {
+  const profiler = await connection.query(
+    "SELECT FORMAT(SUM(DURATION) * 1000, 4) AS `duration` FROM INFORMATION_SCHEMA.PROFILING GROUP BY QUERY_ID"
+  );
+  for (const statement of profilerStatements) await connection.query(statement);
+  if (profiler.length === 0) return;
+  if (typeof query === "string" && parameters) {
+    for (let i2 = 0; i2 < profiler.length; i2++) {
+      logQuery(invokingResource, query, parseFloat(profiler[i2].duration), parameters[offset + i2]);
+    }
+    return;
+  }
+  if (typeof query === "object") {
+    for (let i2 = 0; i2 < profiler.length; i2++) {
+      const transaction = query[offset + i2];
+      if (!transaction) break;
+      logQuery(invokingResource, transaction.query, parseFloat(profiler[i2].duration), transaction.params);
+    }
+  }
+}
+__name(profileBatchStatements, "profileBatchStatements");
+
 // src/database/rawQuery.ts
 var rawQuery = /* @__PURE__ */ __name(async (type, invokingResource, query, parameters, cb, isPromise, connectionId) => {
-  cb = setCallback(parameters, cb);
+  var _stack = [];
   try {
-    [query, parameters] = parseArguments(query, parameters);
-  } catch (err) {
-    return logError(invokingResource, cb, isPromise, err, query, parameters);
-  }
-  const connection = await getPoolConnection(connectionId);
-  if (!connection)
-    return;
-  try {
-    const hasProfiler = await runProfiler(connection, invokingResource);
-    const startTime = !hasProfiler && import_perf_hooks.performance.now();
-    const [result] = await connection.query(query, parameters);
-    if (hasProfiler) {
-      const [profiler] = await connection.query("SELECT FORMAT(SUM(DURATION) * 1000, 4) AS `duration` FROM INFORMATION_SCHEMA.PROFILING");
-      if (profiler[0])
-        logQuery(invokingResource, query, parseFloat(profiler[0].duration), parameters);
-    } else if (startTime) {
-      logQuery(invokingResource, query, import_perf_hooks.performance.now() - startTime, parameters);
-    }
-    validateResultSet_default(invokingResource, query, result);
-    if (!cb)
-      return parseResponse(type, result);
+    cb = setCallback(parameters, cb);
     try {
-      cb(parseResponse(type, result));
+      [query, parameters] = parseArguments(query, parameters);
     } catch (err) {
-      if (typeof err === "string") {
-        if (err.includes("SCRIPT ERROR:"))
-          return console.log(err);
-        console.log(`^1SCRIPT ERROR in invoking resource ${invokingResource}: ${err}^0`);
-      }
+      return logError(invokingResource, cb, isPromise, err, query, parameters);
     }
-  } catch (err) {
-    logError(invokingResource, cb, isPromise, err, query, parameters, true);
+    const connection = __using(_stack, await getConnection(connectionId));
+    if (!connection) return;
+    try {
+      const hasProfiler = await runProfiler(connection, invokingResource);
+      const startTime = !hasProfiler && import_perf_hooks.performance.now();
+      const result = await connection.query(query, parameters);
+      if (hasProfiler) {
+        const profiler = await connection.query("SELECT FORMAT(SUM(DURATION) * 1000, 4) AS `duration` FROM INFORMATION_SCHEMA.PROFILING");
+        if (profiler[0]) logQuery(invokingResource, query, parseFloat(profiler[0].duration), parameters);
+      } else if (startTime) {
+        logQuery(invokingResource, query, import_perf_hooks.performance.now() - startTime, parameters);
+      }
+      validateResultSet_default(invokingResource, query, result);
+      if (!cb) return parseResponse(type, result);
+      try {
+        cb(parseResponse(type, result));
+      } catch (err) {
+        if (typeof err === "string") {
+          if (err.includes("SCRIPT ERROR:")) return console.log(err);
+          console.log(`^1SCRIPT ERROR in invoking resource ${invokingResource}: ${err}^0`);
+        }
+      }
+    } catch (err) {
+      logError(invokingResource, cb, isPromise, err, query, parameters, true);
+    }
+  } catch (_) {
+    var _error = _, _hasError = true;
   } finally {
-    connection.release();
+    __callDispose(_stack, _error, _hasError);
   }
 }, "rawQuery");
 
 // src/utils/parseExecute.ts
 var executeType = /* @__PURE__ */ __name((query) => {
-  if (typeof query !== "string")
-    throw new Error(`Expected query to be a string but received ${typeof query} instead.`);
+  if (typeof query !== "string") throw new Error(`Expected query to be a string but received ${typeof query} instead.`);
   switch (query.substring(0, query.indexOf(" "))) {
     case "INSERT":
       return "insert";
@@ -26496,15 +27069,13 @@ var executeType = /* @__PURE__ */ __name((query) => {
 }, "executeType");
 var parseExecute = /* @__PURE__ */ __name((placeholders, parameters) => {
   const parametersType = typeof parameters;
-  if (!parameters || parametersType !== "object")
-    return [];
+  if (!parameters || parametersType !== "object") return [];
   if (!Array.isArray(parameters)) {
     if (typeof parameters === "object") {
       const arr = [];
       Object.entries(parameters).forEach((entry) => arr[parseInt(entry[0]) - 1] = entry[1]);
       parameters = arr;
-    } else
-      throw new Error(`Parameters expected an array but received ${typeof parameters} instead`);
+    } else throw new Error(`Parameters expected an array but received ${typeof parameters} instead`);
   }
   if (!parameters.every(Array.isArray)) {
     if (parameters.every((item) => typeof item === "object")) {
@@ -26515,16 +27086,13 @@ var parseExecute = /* @__PURE__ */ __name((placeholders, parameters) => {
           Object.entries(value).forEach((entry) => {
             arr[index][parseInt(entry[0]) - 1] = entry[1];
           });
-        } else
-          arr[index] = parameters[index];
+        } else arr[index] = parameters[index];
         for (let i2 = 0; i2 < placeholders; i2++) {
-          if (arr[index][i2] === void 0)
-            arr[index][i2] = null;
+          if (arr[index][i2] === void 0) arr[index][i2] = null;
         }
       });
       parameters = arr;
-    } else
-      parameters = [[...parameters]];
+    } else parameters = [[...parameters]];
   }
   return parameters;
 }, "parseExecute");
@@ -26532,81 +27100,79 @@ var parseExecute = /* @__PURE__ */ __name((placeholders, parameters) => {
 // src/database/rawExecute.ts
 var import_perf_hooks2 = require("perf_hooks");
 var rawExecute = /* @__PURE__ */ __name(async (invokingResource, query, parameters, cb, isPromise, unpack, connectionId) => {
-  cb = setCallback(parameters, cb);
-  let type;
-  let placeholders;
+  var _stack = [];
   try {
-    type = executeType(query);
-    placeholders = query.split("?").length - 1;
-    parameters = parseExecute(placeholders, parameters);
-  } catch (err) {
-    return logError(invokingResource, cb, isPromise, err, query, parameters);
-  }
-  const connection = await getPoolConnection(connectionId);
-  if (!connection)
-    return;
-  try {
-    const hasProfiler = await runProfiler(connection, invokingResource);
-    const parametersLength = parameters.length == 0 ? 1 : parameters.length;
-    const response = [];
-    for (let index = 0; index < parametersLength; index++) {
-      const values = parameters[index];
-      if (values && placeholders > values.length) {
-        for (let i2 = values.length; i2 < placeholders; i2++) {
-          values[i2] = null;
-        }
-      }
-      const startTime = !hasProfiler && import_perf_hooks2.performance.now();
-      const [result] = await connection.execute(query, values);
-      if (Array.isArray(result) && result.length > 1) {
-        for (const value of result) {
-          response.push(unpack ? parseResponse(type, value) : value);
-        }
-      } else
-        response.push(unpack ? parseResponse(type, result) : result);
-      if (hasProfiler && (index > 0 && index % 100 === 0 || index === parametersLength - 1)) {
-        await profileBatchStatements(connection, invokingResource, query, parameters, index < 100 ? 0 : index);
-      } else if (startTime) {
-        logQuery(invokingResource, query, import_perf_hooks2.performance.now() - startTime, values);
-      }
-      validateResultSet_default(invokingResource, query, result);
-    }
-    if (!cb)
-      return response.length === 1 ? response[0] : response;
+    cb = setCallback(parameters, cb);
+    let type;
+    let placeholders;
     try {
-      if (response.length === 1) {
-        if (unpack && type === null) {
-          if (response[0][0] && Object.keys(response[0][0]).length === 1) {
-            cb(Object.values(response[0][0])[0]);
-          } else
-            cb(response[0][0]);
-        } else {
-          cb(response[0]);
+      type = executeType(query);
+      placeholders = query.split("?").length - 1;
+      parameters = parseExecute(placeholders, parameters);
+    } catch (err) {
+      return logError(invokingResource, cb, isPromise, err, query, parameters);
+    }
+    const connection = __using(_stack, await getConnection(connectionId));
+    if (!connection) return;
+    try {
+      const hasProfiler = await runProfiler(connection, invokingResource);
+      const parametersLength = parameters.length == 0 ? 1 : parameters.length;
+      const response = [];
+      for (let index = 0; index < parametersLength; index++) {
+        const values = parameters[index];
+        if (values && placeholders > values.length) {
+          for (let i2 = values.length; i2 < placeholders; i2++) {
+            values[i2] = null;
+          }
         }
-      } else {
-        cb(response);
+        const startTime = !hasProfiler && import_perf_hooks2.performance.now();
+        const result = await connection.execute(query, values);
+        if (Array.isArray(result) && result.length > 1) {
+          for (const value of result) {
+            response.push(unpack ? parseResponse(type, value) : value);
+          }
+        } else response.push(unpack ? parseResponse(type, result) : result);
+        if (hasProfiler && (index > 0 && index % 100 === 0 || index === parametersLength - 1)) {
+          await profileBatchStatements(connection, invokingResource, query, parameters, index < 100 ? 0 : index);
+        } else if (startTime) {
+          logQuery(invokingResource, query, import_perf_hooks2.performance.now() - startTime, values);
+        }
+        validateResultSet_default(invokingResource, query, result);
+      }
+      if (!cb) return response.length === 1 ? response[0] : response;
+      try {
+        if (response.length === 1) {
+          if (unpack && type === null) {
+            if (response[0][0] && Object.keys(response[0][0]).length === 1) {
+              cb(Object.values(response[0][0])[0]);
+            } else cb(response[0][0]);
+          } else {
+            cb(response[0]);
+          }
+        } else {
+          cb(response);
+        }
+      } catch (err) {
+        if (typeof err === "string") {
+          if (err.includes("SCRIPT ERROR:")) return console.log(err);
+          console.log(`^1SCRIPT ERROR in invoking resource ${invokingResource}: ${err}^0`);
+        }
       }
     } catch (err) {
-      if (typeof err === "string") {
-        if (err.includes("SCRIPT ERROR:"))
-          return console.log(err);
-        console.log(`^1SCRIPT ERROR in invoking resource ${invokingResource}: ${err}^0`);
-      }
+      logError(invokingResource, cb, isPromise, err, query, parameters);
     }
-  } catch (err) {
-    logError(invokingResource, cb, isPromise, err, query, parameters);
+  } catch (_) {
+    var _error = _, _hasError = true;
   } finally {
-    connection.release();
+    __callDispose(_stack, _error, _hasError);
   }
 }, "rawExecute");
 
 // src/utils/parseTransaction.ts
 var isTransactionQuery = /* @__PURE__ */ __name((query) => query.query !== void 0, "isTransactionQuery");
 var parseTransaction = /* @__PURE__ */ __name((queries, parameters) => {
-  if (!Array.isArray(queries))
-    throw new Error(`Transaction queries must be array, received '${typeof queries}'.`);
-  if (!parameters || typeof parameters === "function")
-    parameters = [];
+  if (!Array.isArray(queries)) throw new Error(`Transaction queries must be array, received '${typeof queries}'.`);
+  if (!parameters || typeof parameters === "function") parameters = [];
   if (Array.isArray(queries[0])) {
     const transactions2 = queries.map((query) => {
       if (typeof query[1] !== "object")
@@ -26635,75 +27201,127 @@ ${JSON.stringify(
   )}`;
 }, "transactionError");
 var rawTransaction = /* @__PURE__ */ __name(async (invokingResource, queries, parameters, cb, isPromise) => {
-  let transactions;
-  cb = setCallback(parameters, cb);
+  var _stack = [];
   try {
-    transactions = parseTransaction(queries, parameters);
-  } catch (err) {
-    return logError(invokingResource, cb, isPromise, err);
-  }
-  const connection = await getPoolConnection();
-  if (!connection)
-    return;
-  let response = false;
-  try {
-    const hasProfiler = await runProfiler(connection, invokingResource);
-    await connection.beginTransaction();
-    const transactionsLength = transactions.length;
-    for (let i2 = 0; i2 < transactionsLength; i2++) {
-      const transaction = transactions[i2];
-      const startTime = !hasProfiler && import_perf_hooks3.performance.now();
-      await connection.query(transaction.query, transaction.params);
-      if (hasProfiler && (i2 > 0 && i2 % 100 === 0 || i2 === transactionsLength - 1)) {
-        await profileBatchStatements(connection, invokingResource, transactions, null, i2 < 100 ? 0 : i2);
-      } else if (startTime) {
-        logQuery(invokingResource, transaction.query, import_perf_hooks3.performance.now() - startTime, transaction.params);
-      }
+    let transactions;
+    cb = setCallback(parameters, cb);
+    try {
+      transactions = parseTransaction(queries, parameters);
+    } catch (err) {
+      return logError(invokingResource, cb, isPromise, err);
     }
-    await connection.commit();
-    response = true;
-  } catch (err) {
-    await connection.rollback().catch(() => {
-    });
-    const transactionErrorMessage = err.sql || transactionError(transactions, parameters);
-    const msg = `${invokingResource} was unable to complete a transaction!
+    const connection = __using(_stack, await getConnection());
+    if (!connection) return;
+    let response = false;
+    try {
+      const hasProfiler = await runProfiler(connection, invokingResource);
+      await connection.beginTransaction();
+      const transactionsLength = transactions.length;
+      for (let i2 = 0; i2 < transactionsLength; i2++) {
+        const transaction = transactions[i2];
+        const startTime = !hasProfiler && import_perf_hooks3.performance.now();
+        await connection.query(transaction.query, transaction.params);
+        if (hasProfiler && (i2 > 0 && i2 % 100 === 0 || i2 === transactionsLength - 1)) {
+          await profileBatchStatements(connection, invokingResource, transactions, null, i2 < 100 ? 0 : i2);
+        } else if (startTime) {
+          logQuery(invokingResource, transaction.query, import_perf_hooks3.performance.now() - startTime, transaction.params);
+        }
+      }
+      await connection.commit();
+      response = true;
+    } catch (err) {
+      await connection.rollback().catch(() => {
+      });
+      const transactionErrorMessage = err.sql || transactionError(transactions, parameters);
+      const msg = `${invokingResource} was unable to complete a transaction!
 ${transactionErrorMessage}
 ${err.message}`;
-    console.error(msg);
-    TriggerEvent("oxmysql:transaction-error", {
-      query: transactionErrorMessage,
-      parameters,
-      message: err.message,
-      err,
-      resource: invokingResource
-    });
-  } finally {
-    connection.release();
-  }
-  if (cb)
-    try {
-      cb(response);
-    } catch (err) {
-      if (typeof err === "string") {
-        if (err.includes("SCRIPT ERROR:"))
-          return console.log(err);
-        console.log(`^1SCRIPT ERROR in invoking resource ${invokingResource}: ${err}^0`);
-      }
+      console.error(msg);
+      TriggerEvent("oxmysql:transaction-error", {
+        query: transactionErrorMessage,
+        parameters,
+        message: err.message,
+        err,
+        resource: invokingResource
+      });
+      if (typeof err === "object" && err.message) delete err.sqlMessage;
+      logger({
+        level: "error",
+        resource: invokingResource,
+        message: msg,
+        metadata: err
+      });
     }
+    if (cb)
+      try {
+        cb(response);
+      } catch (err) {
+        if (typeof err === "string") {
+          if (err.includes("SCRIPT ERROR:")) return console.log(err);
+          console.log(`^1SCRIPT ERROR in invoking resource ${invokingResource}: ${err}^0`);
+        }
+      }
+  } catch (_) {
+    var _error = _, _hasError = true;
+  } finally {
+    __callDispose(_stack, _error, _hasError);
+  }
 }, "rawTransaction");
 
 // src/database/index.ts
 setTimeout(async () => {
   setDebug();
-  while (!isServerConnected) {
+  while (!pool) {
     await createConnectionPool();
-    if (!isServerConnected)
-      await sleep(3e4);
+    if (!pool) await sleep(3e4);
   }
 });
 setInterval(() => {
   setDebug();
 }, 1e3);
+
+// src/database/startTransaction.ts
+async function runQuery(conn, sql, values) {
+  [sql, values] = parseArguments(sql, values);
+  try {
+    if (!conn) throw new Error(`Connection used by transaction timed out after 30 seconds.`);
+    return await conn.query(sql, values);
+  } catch (err) {
+    throw new Error(`Query: ${sql}
+${JSON.stringify(values)}
+${err.message}`);
+  }
+}
+__name(runQuery, "runQuery");
+var startTransaction = /* @__PURE__ */ __name(async (invokingResource, queries, cb, isPromise) => {
+  var _stack = [];
+  try {
+    const conn = __using(_stack, await getConnection());
+    let response = false;
+    let closed = false;
+    if (!conn) return;
+    setTimeout(() => closed = true, 3e4);
+    try {
+      await conn.beginTransaction();
+      const commit = await queries(
+        (sql, values) => runQuery(closed ? null : conn, sql, values)
+      );
+      if (closed) throw new Error(`Transaction has timed out after 30 seconds.`);
+      response = commit === false ? false : true;
+      if (!response) conn.rollback();
+    } catch (err) {
+      conn.rollback();
+      logError(invokingResource, cb, isPromise, err);
+    } finally {
+      closed = true;
+    }
+    return cb ? cb(response) : response;
+  } catch (_) {
+    var _error = _, _hasError = true;
+  } finally {
+    __callDispose(_stack, _error, _hasError);
+  }
+}, "startTransaction");
 
 // src/compatibility/ghmattimysql.ts
 var ghmattimysql_default = {
@@ -26723,54 +27341,14 @@ var mysql_async_default = {
   store: "mysql_store"
 };
 
-// src/database/startTransaction.ts
-async function runQuery(conn, sql, values) {
-  [sql, values] = parseArguments(sql, values);
-  try {
-    if (!conn)
-      throw new Error(`Connection used by transaction timed out after 30 seconds.`);
-    const [rows] = await conn.query(sql, values);
-    return rows;
-  } catch (err) {
-    throw new Error(`Query: ${sql}
-${JSON.stringify(values)}
-${err.message}`);
-  }
-}
-__name(runQuery, "runQuery");
-var startTransaction = /* @__PURE__ */ __name(async (invokingResource, queries, cb, isPromise) => {
-  let conn = await getPoolConnection();
-  let response = false;
-  if (!conn)
-    return;
-  setTimeout(() => response = null, 3e4);
-  try {
-    await conn.beginTransaction();
-    const commit = await queries(
-      (sql, values) => runQuery(response === null ? null : conn, sql, values)
-    );
-    if (response === null)
-      throw new Error(`Transaction has timed out after 30 seconds.`);
-    response = commit === false ? false : true;
-    response ? conn.commit() : conn.rollback();
-  } catch (err) {
-    conn.rollback();
-    logError(invokingResource, cb, isPromise, err);
-  } finally {
-    conn.release();
-    conn = null;
-  }
-  return cb ? cb(response) : response;
-}, "startTransaction");
-
 // src/index.ts
 Promise.resolve().then(() => init_update());
 var MySQL = {};
 MySQL.isReady = () => {
-  return isServerConnected;
+  return pool ? true : false;
 };
 MySQL.awaitConnection = async () => {
-  await waitForConnection();
+  while (!pool) await sleep(0);
   return true;
 };
 MySQL.query = (query, parameters, cb, invokingResource = GetInvokingResource(), isPromise) => {
@@ -26791,12 +27369,10 @@ MySQL.insert = (query, parameters, cb, invokingResource = GetInvokingResource(),
 MySQL.transaction = (queries, parameters, cb, invokingResource = GetInvokingResource(), isPromise) => {
   rawTransaction(invokingResource, queries, parameters, cb, isPromise);
 };
-global.exports(
-  "experimentalTransaction",
-  async (transactions, cb, invokingResource = GetInvokingResource(), isPromise) => {
-    return await startTransaction(invokingResource, transactions, cb, isPromise);
-  }
-);
+MySQL.startTransaction = (transactions, invokingResource = GetInvokingResource()) => {
+  console.warn(`MySQL.startTransaction is "experimental" and may receive breaking changes.`);
+  return startTransaction(invokingResource, transactions, void 0, true);
+};
 MySQL.prepare = (query, parameters, cb, invokingResource = GetInvokingResource(), isPromise) => {
   rawExecute(invokingResource, query, parameters, cb, isPromise, true);
 };
@@ -26820,8 +27396,7 @@ for (const key in MySQL) {
         query,
         parameters,
         (result, err) => {
-          if (err)
-            return reject(new Error(err));
+          if (err) return reject(new Error(err));
           resolve(result);
         },
         invokingResource,
