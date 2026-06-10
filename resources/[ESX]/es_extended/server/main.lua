@@ -2,8 +2,8 @@ SetMapName("San Andreas")
 SetGameType("ESX Legacy")
 
 local oneSyncState = GetConvar("onesync", "off")
-local newPlayer = "INSERT INTO `users` SET `accounts` = ?, `identifier` = ?, `group` = ?"
-local loadPlayer = "SELECT `accounts`, `job`, `job_grade`, `job2`, `job2_grade`, `group`, `position`, `inventory`, `skin`, `loadout`, `metadata`"
+local newPlayer = "INSERT INTO `users` SET `accounts` = ?, `identifier` = ?, `ssn` = ?, `group` = ?"
+local loadPlayer = "SELECT `accounts`, `ssn`, `job`, `job_grade`, `group`, `position`, `inventory`, `skin`, `loadout`, `metadata`"
 
 if Config.Multichar then
     newPlayer = newPlayer .. ", `firstname` = ?, `lastname` = ?, `dateofbirth` = ?, `sex` = ?, `height` = ?"
@@ -31,8 +31,9 @@ local function createESXPlayer(identifier, playerId, data)
         print(("[^2INFO^0] Player ^5%s^0 Has been granted admin permissions via ^5Ace Perms^7."):format(playerId))
         defaultGroup = "admin"
     end
-
-    local parameters = Config.Multichar and { json.encode(accounts), identifier, defaultGroup, data.firstname, data.lastname, data.dateofbirth, data.sex, data.height } or { json.encode(accounts), identifier, defaultGroup }
+    local parameters = Config.Multichar and
+        { json.encode(accounts), identifier, Core.generateSSN(), defaultGroup, data.firstname, data.lastname, data.dateofbirth, data.sex, data.height }
+        or { json.encode(accounts), identifier, Core.generateSSN(), defaultGroup }
 
     if Config.StartingInventoryItems then
         table.insert(parameters, json.encode(Config.StartingInventoryItems))
@@ -67,6 +68,46 @@ local function onPlayerJoined(playerId)
     end
 end
 
+---@param playerId number
+---@param reason string
+---@param cb function?
+local function onPlayerDropped(playerId, reason, cb)
+    local p = not cb and promise:new()
+    local function resolve()
+        if cb then
+            return cb()
+        elseif(p) then
+            return p:resolve()
+        end
+    end
+
+    local xPlayer = ESX.GetPlayerFromId(playerId)
+    if not xPlayer then
+        return resolve()
+    end
+
+    TriggerEvent("esx:playerDropped", playerId, reason)
+    local job = xPlayer.getJob().name
+    local currentJob = Core.JobsPlayerCount[job]
+    Core.JobsPlayerCount[job] = ((currentJob and currentJob > 0) and currentJob or 1) - 1
+
+    GlobalState[("%s:count"):format(job)] = Core.JobsPlayerCount[job]
+
+    Core.SavePlayer(xPlayer, function()
+        GlobalState["playerCount"] = GlobalState["playerCount"] - 1
+        ESX.Players[playerId] = nil
+        Core.playersByIdentifier[xPlayer.identifier] = nil
+
+        resolve()
+    end)
+
+    if p then
+        return Citizen.Await(p)
+    end
+end
+AddEventHandler("esx:onPlayerDropped", onPlayerDropped)
+
+
 if Config.Multichar then
     AddEventHandler("esx:onPlayerJoined", function(src, char, data)
         while not next(ESX.Jobs) do
@@ -100,7 +141,10 @@ if not Config.Multichar then
         local playerId = source
         deferrals.defer()
         Wait(0) -- Required
-        local identifier = ESX.GetIdentifier(playerId)
+        local identifier
+        local correctLicense, _ = pcall(function ()
+            identifier = ESX.GetIdentifier(playerId)
+        end)
 
         -- luacheck: ignore
         if not SetEntityOrphanMode then
@@ -115,17 +159,27 @@ if not Config.Multichar then
             return deferrals.done("[ESX] OxMySQL Was Unable To Connect to your database. Please make sure it is turned on and correctly configured in your server.cfg")
         end
 
-        if identifier then
-            if ESX.GetPlayerFromIdentifier(identifier) then
-                return deferrals.done(
-                    ("[ESX] There was an error loading your character!\nError code: identifier-active\n\nThis error is caused by a player on this server who has the same identifier as you have. Make sure you are not playing on the same account.\n\nYour identifier: %s"):format(identifier)
-                )
-            else
-                return deferrals.done()
+        if not identifier or not correctLicense then
+            if GetResourceState("esx_identity") ~= "started" then
+                return deferrals.done("[ESX] There was an error loading your character!\nError code: identifier-missing\n\nThe cause of this error is not known, your identifier could not be found. Please come back later or report this problem to the server administration team.")
             end
-        else
-            return deferrals.done("[ESX] There was an error loading your character!\nError code: identifier-missing\n\nThe cause of this error is not known, your identifier could not be found. Please come back later or report this problem to the server administration team.")
         end
+
+        local xPlayer = ESX.GetPlayerFromIdentifier(identifier)
+
+        if not xPlayer then
+            return deferrals.done()
+        end
+
+        if GetPlayerPing(xPlayer.source --[[@as string]]) > 0 then
+            return deferrals.done(
+                ("[ESX] There was an error loading your character!\nError code: identifier-active\n\nThis error is caused by a player on this server who has the same identifier as you have. Make sure you are not playing on the same account.\n\nYour identifier: %s"):format(identifier)
+            )
+        end
+
+        deferrals.update(("[ESX] Cleaning stale player entry..."):format(identifier))
+        onPlayerDropped(xPlayer.source, "esx_stale_player_obj")
+        deferrals.done()
     end)
 end
 
@@ -163,6 +217,9 @@ function loadESXPlayer(identifier, playerId, isNew)
         }
     end
 
+    -- SSN
+    userData.ssn = result.ssn
+
     -- Job
     local job, grade = result.job, tostring(result.job_grade)
 
@@ -177,35 +234,12 @@ function loadESXPlayer(identifier, playerId, isNew)
         id = jobObject.id,
         name = jobObject.name,
         label = jobObject.label,
+        type = jobObject.type,
 
         grade = tonumber(grade),
         grade_name = gradeObject.name,
         grade_label = gradeObject.label,
         grade_salary = gradeObject.salary,
-
-        skin_male = gradeObject.skin_male and json.decode(gradeObject.skin_male) or {},
-        skin_female = gradeObject.skin_female and json.decode(gradeObject.skin_female) or {},
-    }
-
-    -- Job 2
-    local job2, grade2 = result.job2, tostring(result.job2_grade)
-
-    if not ESX.DoesJobExist(job2, grade2) then
-        print(("[^3WARNING^7] Ignoring invalid job for ^5%s^7 [job: ^5%s^7, grade: ^5%s^7]"):format(identifier, job2, grade2))
-        job2, grade2 = "unemployed", "0"
-    end
-
-    local job2Object, grade2Object = ESX.Jobs[job2], ESX.Jobs[job2].grades[grade2]
-
-    userData.job2 = {
-        id = job2Object.id,
-        name = job2Object.name,
-        label = job2Object.label,
-
-        grade = tonumber(grade2),
-        grade_name = grade2Object.name,
-        grade_label = grade2Object.label,
-        grade_salary = grade2Object.salary,
 
         skin_male = gradeObject.skin_male and json.decode(gradeObject.skin_male) or {},
         skin_female = gradeObject.skin_female and json.decode(gradeObject.skin_female) or {},
@@ -279,7 +313,7 @@ function loadESXPlayer(identifier, playerId, isNew)
     userData.metadata = (result.metadata and result.metadata ~= "") and json.decode(result.metadata) or {}
 
     -- xPlayer Creation
-    local xPlayer = CreateExtendedPlayer(playerId, identifier, userData.group, userData.accounts, userData.inventory, userData.weight, userData.job, userData.job2, userData.loadout, GetPlayerName(playerId), userData.coords, userData.metadata)
+    local xPlayer = CreateExtendedPlayer(playerId, identifier, userData.ssn, userData.group, userData.accounts, userData.inventory, userData.weight, userData.job, userData.loadout, GetPlayerName(playerId), userData.coords, userData.metadata)
 
     GlobalState["playerCount"] = GlobalState["playerCount"] + 1
     ESX.Players[playerId] = xPlayer
@@ -314,6 +348,7 @@ function loadESXPlayer(identifier, playerId, isNew)
     TriggerEvent("esx:playerLoaded", playerId, xPlayer, isNew)
     userData.money = xPlayer.getMoney()
     userData.maxWeight = xPlayer.getMaxWeight()
+    userData.variables = xPlayer.variables or {}
     xPlayer.triggerEvent("esx:playerLoaded", userData, isNew, userData.skin)
 
     if not Config.CustomInventory then
@@ -335,42 +370,20 @@ AddEventHandler("chatMessage", function(playerId, _, message)
     end
 end)
 
+---@param reason string
 AddEventHandler("playerDropped", function(reason)
-    local playerId = source
-    local xPlayer = ESX.GetPlayerFromId(playerId)
-
-    if xPlayer then
-        TriggerEvent("esx:playerDropped", playerId, reason)
-        local job = xPlayer.getJob().name
-        local job2 = xPlayer.getJob2().name
-        local currentJob = Core.JobsPlayerCount[job]
-        local currentJob2 = Core.JobsPlayerCount[job2]
-        Core.JobsPlayerCount[job] = ((currentJob and currentJob > 0) and currentJob or 1) - 1
-        Core.JobsPlayerCount[job2] = ((currentJob2 and currentJob2 > 0) and currentJob2 or 1) - 1
-
-        GlobalState[("%s:count"):format(job)] = Core.JobsPlayerCount[job]
-        GlobalState[("%s:count"):format(job2)] = Core.JobsPlayerCount[job2]
-        Core.playersByIdentifier[xPlayer.identifier] = nil
-
-        Core.SavePlayer(xPlayer, function()
-            GlobalState["playerCount"] = GlobalState["playerCount"] - 1
-            ESX.Players[playerId] = nil
-        end)
-    end
+    onPlayerDropped(source --[[@as number]], reason)
 end)
 
-AddEventHandler("esx:playerLoaded", function(_, xPlayer)
+AddEventHandler("esx:playerLoaded", function(_, xPlayer, isNew)
     local job = xPlayer.getJob().name
     local jobKey = ("%s:count"):format(job)
 
     Core.JobsPlayerCount[job] = (Core.JobsPlayerCount[job] or 0) + 1
     GlobalState[jobKey] = Core.JobsPlayerCount[job]
-
-    local job2 = xPlayer.getJob2().name
-    local job2Key = ("%s:count"):format(job2)
-
-    Core.JobsPlayerCount[job2] = (Core.JobsPlayerCount[job2] or 0) + 1
-    GlobalState[job2Key] = Core.JobsPlayerCount[job2]
+    if isNew then
+        Player(xPlayer.source).state:set('isNew', true, false)
+    end
 end)
 
 AddEventHandler("esx:setJob", function(_, job, lastJob)
@@ -385,32 +398,8 @@ AddEventHandler("esx:setJob", function(_, job, lastJob)
     GlobalState[jobKey] = Core.JobsPlayerCount[job.name]
 end)
 
-AddEventHandler("esx:setJob2", function(_, job, lastJob)
-    local lastJobKey = ("%s:count"):format(lastJob.name)
-    local jobKey = ("%s:count"):format(job.name)
-    local currentLastJob = Core.JobsPlayerCount[lastJob.name]
-
-    Core.JobsPlayerCount[lastJob.name] = ((currentLastJob and currentLastJob > 0) and currentLastJob or 1) - 1
-    Core.JobsPlayerCount[job.name] = (Core.JobsPlayerCount[job.name] or 0) + 1
-
-    GlobalState[lastJobKey] = Core.JobsPlayerCount[lastJob.name]
-    GlobalState[jobKey] = Core.JobsPlayerCount[job.name]
-end)
-
 AddEventHandler("esx:playerLogout", function(playerId, cb)
-    local xPlayer = ESX.GetPlayerFromId(playerId)
-    if xPlayer then
-        TriggerEvent("esx:playerDropped", playerId)
-
-        Core.playersByIdentifier[xPlayer.identifier] = nil
-        Core.SavePlayer(xPlayer, function()
-            GlobalState["playerCount"] = GlobalState["playerCount"] - 1
-            ESX.Players[playerId] = nil
-            if cb then
-                cb()
-            end
-        end)
-    end
+    onPlayerDropped(playerId, "esx_player_logout", cb)
     TriggerClientEvent("esx:onPlayerLogout", playerId)
 end)
 
@@ -435,6 +424,10 @@ if not Config.CustomInventory then
 
         if itemType == "item_standard" then
             local sourceItem = sourceXPlayer.getInventoryItem(itemName)
+
+            if not sourceItem then
+                return
+            end
 
             if itemCount < 1 or sourceItem.count < itemCount then
                 return sourceXPlayer.showNotification(TranslateCap("imp_invalid_quantity"))
@@ -472,6 +465,10 @@ if not Config.CustomInventory then
             end
 
             local _, weapon = sourceXPlayer.getWeapon(itemName)
+            if not weapon then
+                return
+            end
+
             local _, weaponObject = ESX.GetWeapon(itemName)
             itemCount = weapon.ammo
             local weaponComponents = ESX.Table.Clone(weapon.components)
@@ -504,6 +501,9 @@ if not Config.CustomInventory then
             end
 
             local _, weapon = sourceXPlayer.getWeapon(itemName)
+            if not weapon then
+                return
+            end
 
             if not targetXPlayer.hasWeapon(itemName) then
                 sourceXPlayer.showNotification(TranslateCap("gave_weapon_noweapon", targetXPlayer.name))
@@ -530,12 +530,19 @@ if not Config.CustomInventory then
         local playerId = source
         local xPlayer = ESX.GetPlayerFromId(playerId)
 
+        if not xPlayer then
+            return
+        end
+
         if itemType == "item_standard" then
             if not itemCount or itemCount < 1 then
                 return xPlayer.showNotification(TranslateCap("imp_invalid_quantity"))
             end
 
             local xItem = xPlayer.getInventoryItem(itemName)
+            if not xItem then
+                return
+            end
 
             if itemCount > xItem.count or xItem.count < 1 then
                 return xPlayer.showNotification(TranslateCap("imp_invalid_quantity"))
@@ -551,6 +558,9 @@ if not Config.CustomInventory then
             end
 
             local account = xPlayer.getAccount(itemName)
+            if not account then
+                return
+            end
 
             if itemCount > account.money or account.money < 1 then
                 return xPlayer.showNotification(TranslateCap("imp_invalid_amount"))
@@ -566,6 +576,10 @@ if not Config.CustomInventory then
             if not xPlayer.hasWeapon(itemName) then return end
 
             local _, weapon = xPlayer.getWeapon(itemName)
+            if not weapon then
+                return
+            end
+
             local _, weaponObject = ESX.GetWeapon(itemName)
             -- luacheck: ignore weaponPickupLabel
             local weaponPickupLabel = ""
@@ -588,6 +602,11 @@ if not Config.CustomInventory then
     RegisterNetEvent("esx:useItem", function(itemName)
         local source = source
         local xPlayer = ESX.GetPlayerFromId(source)
+
+        if not xPlayer then
+            return
+        end
+
         local count = xPlayer.getInventoryItem(itemName).count
 
         if count < 1 then
@@ -599,6 +618,10 @@ if not Config.CustomInventory then
 
     RegisterNetEvent("esx:onPickup", function(pickupId)
         local pickup, xPlayer, success = Core.Pickups[pickupId], ESX.GetPlayerFromId(source)
+
+        if not xPlayer then
+            return
+        end
 
         if not pickup then return end
 
@@ -642,12 +665,15 @@ end
 ESX.RegisterServerCallback("esx:getPlayerData", function(source, cb)
     local xPlayer = ESX.GetPlayerFromId(source)
 
+    if not xPlayer then
+        return
+    end
+
     cb({
         identifier = xPlayer.identifier,
         accounts = xPlayer.getAccounts(),
         inventory = xPlayer.getInventory(),
         job = xPlayer.getJob(),
-        job2 = xPlayer.getJob2(),
         loadout = xPlayer.getLoadout(),
         money = xPlayer.getMoney(),
         position = xPlayer.getCoords(true),
@@ -666,12 +692,15 @@ end)
 ESX.RegisterServerCallback("esx:getOtherPlayerData", function(_, cb, target)
     local xPlayer = ESX.GetPlayerFromId(target)
 
+    if not xPlayer then
+        return
+    end
+
     cb({
         identifier = xPlayer.identifier,
         accounts = xPlayer.getAccounts(),
         inventory = xPlayer.getInventory(),
         job = xPlayer.getJob(),
-        job2 = xPlayer.getJob2(),
         loadout = xPlayer.getLoadout(),
         money = xPlayer.getMoney(),
         position = xPlayer.getCoords(true),

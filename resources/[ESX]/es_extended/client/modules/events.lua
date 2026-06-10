@@ -1,6 +1,6 @@
 local pickups = {}
 
-ESX.SecureNetEvent("esx:requestModel", function(model)
+RegisterNetEvent("esx:requestModel", function(model)
     ESX.Streaming.RequestModel(model)
 end)
 
@@ -55,6 +55,10 @@ end)
 
 ESX.SecureNetEvent("esx:setMaxWeight", function(newMaxWeight)
     ESX.SetPlayerData("maxWeight", newMaxWeight)
+end)
+
+ESX.SecureNetEvent("esx:setInventory", function(newInventory)
+    ESX.SetPlayerData("inventory", newInventory)
 end)
 
 local function onPlayerSpawn()
@@ -133,9 +137,8 @@ AddStateBagChangeHandler("VehicleProperties", nil, function(bagName, _, value)
         return
     end
 
-    local vehicle = NetToVeh(netId)
-
     local tries = 0
+    
     while not NetworkDoesEntityExistWithNetworkId(netId) do
         Wait(200)
         tries = tries + 1
@@ -143,6 +146,8 @@ AddStateBagChangeHandler("VehicleProperties", nil, function(bagName, _, value)
             return error(("Invalid entity - ^5%s^7!"):format(netId))
         end
     end
+
+    local vehicle = NetToVeh(netId)
 
     if NetworkGetEntityOwner(vehicle) ~= ESX.playerId then
         return
@@ -191,6 +196,25 @@ if not Config.CustomInventory then
         end
     end)
 
+    ESX.SecureNetEvent("esx:addLoadoutItem", function(weaponName, weaponLabel, ammo)
+        table.insert(ESX.PlayerData.loadout, {
+            name = weaponName,
+            ammo = ammo,
+            label = weaponLabel,
+            components = {},
+            tintIndex = 0,
+        })
+    end)
+
+    ESX.SecureNetEvent("esx:removeLoadoutItem", function(weaponName, weaponLabel)
+        for i = 1, #ESX.PlayerData.loadout do
+            if ESX.PlayerData.loadout[i].name == weaponName then
+                table.remove(ESX.PlayerData.loadout, i)
+                break
+            end
+        end
+    end)
+
     RegisterNetEvent("esx:addWeapon", function()
         error("event ^5'esx:addWeapon'^1 Has Been Removed. Please use ^5xPlayer.addWeapon^1 Instead!")
     end)
@@ -220,10 +244,6 @@ end
 
 ESX.SecureNetEvent("esx:setJob", function(Job)
     ESX.SetPlayerData("job", Job)
-end)
-
-ESX.SecureNetEvent("esx:setJob2", function(Job2)
-    ESX.SetPlayerData("job2", Job2)
 end)
 
 ESX.SecureNetEvent("esx:setGroup", function(group)
@@ -347,14 +367,6 @@ function StartServerSyncLoops()
     end)
 end
 
-if not Config.CustomInventory and Config.EnableDefaultInventory then
-    ESX.RegisterInput("showinv", TranslateCap("keymap_showinventory"), "keyboard", "F2", function()
-        if not ESX.PlayerData.dead then
-            ESX.ShowInventory()
-        end
-    end)
-end
-
 if not Config.CustomInventory then
     CreateThread(function()
         while true do
@@ -400,7 +412,7 @@ if not Config.CustomInventory then
 end
 
 ----- Admin commands from esx_adminplus
-ESX.SecureNetEvent("esx:tpm", function()
+RegisterNetEvent("esx:tpm", function()
     local GetEntityCoords = GetEntityCoords
     local GetGroundZFor_3dCoord = GetGroundZFor_3dCoord
     local GetFirstBlipInfoId = GetFirstBlipInfoId
@@ -532,7 +544,7 @@ local function noclipThread()
     end
 end
 
-ESX.SecureNetEvent("esx:noclip", function()
+RegisterNetEvent("esx:noclip", function()
     ESX.TriggerServerCallback("esx:isUserAdmin", function(admin)
         if not admin then
             return
@@ -556,11 +568,11 @@ ESX.SecureNetEvent("esx:noclip", function()
     end)
 end)
 
-ESX.SecureNetEvent("esx:killPlayer", function()
+RegisterNetEvent("esx:killPlayer", function()
     SetEntityHealth(ESX.PlayerData.ped, 0)
 end)
 
-ESX.SecureNetEvent("esx:repairPedVehicle", function()
+RegisterNetEvent("esx:repairPedVehicle", function()
     local ped = ESX.PlayerData.ped
     local vehicle = GetVehiclePedIsIn(ped, false)
     SetVehicleEngineHealth(vehicle, 1000)
@@ -569,7 +581,7 @@ ESX.SecureNetEvent("esx:repairPedVehicle", function()
     SetVehicleDirtLevel(vehicle, 0)
 end)
 
-ESX.SecureNetEvent("esx:freezePlayer", function(input)
+RegisterNetEvent("esx:freezePlayer", function(input)
     if input == "freeze" then
         SetEntityCollision(ESX.PlayerData.ped, false, false)
         FreezeEntityPosition(ESX.PlayerData.ped, true)
@@ -587,6 +599,11 @@ end)
 
 ESX.SecureNetEvent('esx:updatePlayerData', function(key, val)
 	ESX.SetPlayerData(key, val)
+end)
+
+---@param command string
+ESX.SecureNetEvent("esx:executeCommand", function(command)
+    ExecuteCommand(command)
 end)
 
 AddEventHandler("onResourceStop", function(resource)

@@ -1,4 +1,4 @@
-Locales["cs"] = {
+return {
     -- Inventory
     ["inventory"] = "Inventář ( Váha %s / %s )",
     ["use"] = "Použít",
@@ -103,6 +103,7 @@ Locales["cs"] = {
     ["command_setgroup_group"] = "Název skupiny",
     ["commanderror_argumentmismatch"] = "Chybný počet hodnot (správně %s, potřebných %s)",
     ["commanderror_argumentmismatch_number"] = "Chybně zadaná hodnot #%s  (správně, špatně)",
+    ["commanderror_argumentmismatch_positive_number"] = "Chybně zadaná hodnota #%s (zadáno záporné/nula, požadováno kladné číslo)",
     ["commanderror_argumentmismatch_string"] = "Invalid Argument #%s data type (passed number, wanted string)",
     ["commanderror_invaliditem"] = "Špatný předmět",
     ["commanderror_invalidweapon"] = "Špatná zbraň",
@@ -223,10 +224,10 @@ Locales["cs"] = {
     ["weapon_tactilerifle"] = "Service Carbine",
 
     -- Drug Wars DLC
-    ["weapon_candycane"] = "Candy Cane", -- not translated
+    ["weapon_candycane"] = "Candy Cane",     -- not translated
     ["weapon_acidpackage"] = "Acid Package", -- not translated
-    ["weapon_pistolxm3"] = "WM 29 Pistol", -- not translated
-    ["weapon_railgunxm3"] = "Railgun", -- not translated
+    ["weapon_pistolxm3"] = "WM 29 Pistol",   -- not translated
+    ["weapon_railgunxm3"] = "Railgun",       -- not translated
 
     -- Thrown
     ["weapon_ball"] = "Míček",

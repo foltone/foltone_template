@@ -1,4 +1,4 @@
-Locales["he"] = {
+return {
     -- Inventory
     ["inventory"] = "מלאי ( משקל %s / %s )",
     ["use"] = "השתמש",
@@ -107,6 +107,7 @@ Locales["he"] = {
     ["commanderror_argumentmismatch"] = "כמות וסוגי הארגומנטים אינם תואמים (נשלח %s, נדרש %s)",
     ["commanderror_argumentmismatch_number"] = "טיפוס ארגומנט #%s לא תקין (נשלח מחרוזת, נדרש מספר)",
     ["commanderror_argumentmismatch_string"] = "טיפוס ארגומנט #%s לא תקין (נשלח מספר, נדרש מחרוזת)",
+    ["commanderror_argumentmismatch_positive_number"] = "טיפוס ארגומנט #%s לא תקין (נשלח שלילי/אפס, נדרש מספר חיובי)",
     ["commanderror_invaliditem"] = "שם פריט לא חוקי",
     ["commanderror_invalidweapon"] = "נשק לא חוקי",
     ["commanderror_console"] = "לא ניתן להפעיל פקודה מהקונסול",

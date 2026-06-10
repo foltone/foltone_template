@@ -10,18 +10,18 @@ USE `es_extended`;
 
 CREATE TABLE `users` (
 	`identifier` VARCHAR(60) NOT NULL,
+	`ssn` VARCHAR(11) NOT NULL,
 	`accounts` LONGTEXT NULL DEFAULT NULL,
 	`group` VARCHAR(50) NULL DEFAULT 'user',
 	`inventory` LONGTEXT NULL DEFAULT NULL,
 	`job` VARCHAR(20) NULL DEFAULT 'unemployed',
 	`job_grade` INT NULL DEFAULT 0,
-	`job2` VARCHAR(20) NULL DEFAULT 'unemployed',
-	`job2_grade` INT NULL DEFAULT 0,
 	`loadout` LONGTEXT NULL DEFAULT NULL,
 	`metadata` LONGTEXT NULL DEFAULT NULL,
 	`position` longtext NULL DEFAULT NULL,
 
-	PRIMARY KEY (`identifier`)
+	PRIMARY KEY (`identifier`),
+	UNIQUE KEY `unique_ssn` (`ssn`)
 ) ENGINE=InnoDB;
 
 CREATE TABLE `items` (

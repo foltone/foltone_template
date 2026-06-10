@@ -1,4 +1,4 @@
-Locales["el"] = {
+return {
     -- Inventory
     ["inventory"] = "Αποθήκη ( Βάρος %s / %s )",
     ["use"] = "Χρήση",
@@ -108,6 +108,7 @@ Locales["el"] = {
     ["commanderror_argumentmismatch"] = "Μη έγκυρος αριθμός ορισμάτων (δόθηκαν %s, αναμενόμενα %s)",
     ["commanderror_argumentmismatch_number"] = "Μη έγκυρος τύπος δεδομένων για το όρισμα #%s (δόθηκε συμβολοσειρά, αναμενόμενος αριθμός)",
     ["commanderror_argumentmismatch_string"] = "Μη έγκυρος τύπος δεδομένων για το όρισμα #%s (δόθηκε αριθμός, αναμενόμενη συμβολοσειρά)",
+    ["commanderror_argumentmismatch_positive_number"] = "Μη έγκυρος τύπος δεδομένων για το όρισμα #%s (δόθηκε αρνητικός/μηδέν, αναμενόμενος θετικός αριθμός)",
     ["commanderror_invaliditem"] = "Μη έγκυρο αντικείμενο",
     ["commanderror_invalidweapon"] = "Μη έγκυρο όπλο",
     ["commanderror_console"] = "Η εντολή δεν μπορεί να εκτελεστεί από την κονσόλα",
