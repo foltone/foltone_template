@@ -165,8 +165,20 @@ function SkinChanger:SetHeadOverlayColour()
     end
 end
 
+-- Applique un composant en bornant drawable/texture à ce que le modèle courant supporte,
+-- afin d'éviter les erreurs "palette ID 2 on a null drawable" / "Invalid variation".
+function SkinChanger:ApplyComponent(ped, componentId, drawable, texture, palette)
+    if type(drawable) ~= "number" or drawable < 0 or drawable >= GetNumberOfPedDrawableVariations(ped, componentId) then
+        drawable = 0
+    end
+    if type(texture) ~= "number" or texture < 0 or texture >= GetNumberOfPedTextureVariations(ped, componentId, drawable) then
+        texture = 0
+    end
+    SetPedComponentVariation(ped, componentId, drawable, texture, palette)
+end
+
 function SkinChanger:SetHair()
-    SetPedComponentVariation(self.playerPed, 2, self.character["hair_1"], self.character["hair_2"], 2) -- Hair
+    self:ApplyComponent(self.playerPed, 2, self.character["hair_1"], self.character["hair_2"], 2) -- Hair
     SetPedHairColor(self.playerPed, self.character["hair_color_1"], self.character["hair_color_2"]) -- Hair Color
 end
 
@@ -174,7 +186,7 @@ function SkinChanger:SetComponents()
     local components = {{"tshirt_1", "tshirt_2", 8}, {"torso_1", "torso_2", 11}, {"decals_1", "decals_2", 10}, {"arms", "arms_2", 3}, {"pants_1", "pants_2", 4}, {"shoes_1", "shoes_2", 6}, {"mask_1", "mask_2", 1}, {"bproof_1", "bproof_2", 9}, {"chain_1", "chain_2", 7}, {"bags_1", "bags_2", 5}}
     for i = 1, #components, 1 do
         local component = components[i]
-        SetPedComponentVariation(self.playerPed, component[3], self.character[component[1]], self.character[component[2]], 2)
+        self:ApplyComponent(self.playerPed, component[3], self.character[component[1]], self.character[component[2]], 2)
     end
 end
 
